@@ -1,0 +1,32 @@
+# dependencies
+node_modules
+
+# output
+dist
+*.tgz
+
+# code coverage
+coverage
+*.lcov
+
+# logs
+logs
+*.log
+
+# dotenv
+.env
+.env.local
+
+# caches
+.cache
+*.tsbuildinfo
+
+# OS / IDE
+.DS_Store
+.idea
+
+# SQLite (codeindex)
+*.db
+*.db-shm
+*.db-wal
+.codeindex/

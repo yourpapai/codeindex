@@ -1,0 +1,40 @@
+import { describe, expect, test } from 'bun:test'
+import { mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+
+import { loadConfigForPath, resolveRepoRoot } from '../src/cli.js'
+
+const tempDirs: string[] = []
+
+const makeTempDir = (): string => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'codeindex-cli-'))
+  tempDirs.push(dir)
+  return dir
+}
+
+describe('cli config resolution', () => {
+  test('resolveRepoRoot defaults to process.cwd()', () => {
+    expect(resolveRepoRoot()).toBe(process.cwd())
+  })
+
+  test('resolveRepoRoot uses explicit targetPath when provided', () => {
+    const tempDir = makeTempDir()
+    expect(resolveRepoRoot(tempDir)).toBe(tempDir)
+  })
+
+  test('loadConfigForPath with explicit path loads from that directory', async () => {
+    const repoRoot = makeTempDir()
+    writeFileSync(path.join(repoRoot, '.codeindex.json'), JSON.stringify({ roots: ['src'] }))
+
+    const config = await loadConfigForPath(repoRoot)
+    expect(config.repoRoot).toBe(repoRoot)
+    expect(config.configPath).toBe(path.join(repoRoot, '.codeindex.json'))
+    expect(config.roots).toEqual([path.join(repoRoot, 'src')])
+  })
+
+  test('loadConfigForPath defaults to repo root config', async () => {
+    const config = await loadConfigForPath()
+    expect(config.configPath).toBe(path.resolve(resolveRepoRoot(), '.codeindex.json'))
+  })
+})
