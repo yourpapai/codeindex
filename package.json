@@ -5,12 +5,14 @@
   "scripts": {
     "test": "bun test tests",
     "typecheck": "tsgo --project tsconfig.json --noEmit",
-    "lint": "oxlint --config .oxlintrc.json src tests",
-    "format": "oxfmt --write src tests --ignore-path=.oxfmtignore",
-    "format:check": "oxfmt --check src tests --ignore-path=.oxfmtignore",
+    "lint": "oxlint --config .oxlintrc.json src tests bench",
+    "format": "oxfmt --write src tests bench --ignore-path=.oxfmtignore",
+    "format:check": "oxfmt --check src tests bench --ignore-path=.oxfmtignore",
     "check": "bun run --parallel lint typecheck format:check test",
     "start": "bun run src/cli.ts",
-    "mcp": "bun run src/cli.ts mcp"
+    "mcp": "bun run src/cli.ts mcp",
+    "bench": "bun run bench/run.ts",
+    "bench:check": "bun run bench/run.ts --baseline bench/baseline.json"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
