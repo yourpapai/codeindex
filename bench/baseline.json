@@ -1,0 +1,6 @@
+{
+  "k": 10,
+  "meanPrecisionAtK": 0.11428571428571428,
+  "meanRecallAtK": 1,
+  "mrr": 0.9047619047619048
+}
