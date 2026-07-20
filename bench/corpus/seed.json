@@ -1,0 +1,47 @@
+{
+  "name": "codeindex-self",
+  "queries": [
+    {
+      "id": "find-searchSymbols",
+      "kind": "find-symbol",
+      "query": "searchSymbols",
+      "relevant": ["src/search/index#searchSymbols"]
+    },
+    {
+      "id": "find-openDatabase",
+      "kind": "find-symbol",
+      "query": "openDatabase",
+      "relevant": ["src/storage/db#openDatabase"]
+    },
+    {
+      "id": "find-indexCodebase",
+      "kind": "find-symbol",
+      "query": "indexCodebase",
+      "relevant": ["src/indexer/index-codebase#indexCodebase"]
+    },
+    {
+      "id": "nl-rerank",
+      "kind": "nl-intent",
+      "query": "rerank search results",
+      "relevant": ["src/search/rank#rerankSearchResults"]
+    },
+    {
+      "id": "nl-load-config",
+      "kind": "nl-intent",
+      "query": "load codeindex config",
+      "relevant": ["src/config#loadCodeindexConfig"]
+    },
+    {
+      "id": "who-uses-openDatabase",
+      "kind": "who-uses",
+      "target": "src/storage/db#openDatabase",
+      "relevant": ["src/cli#withDatabase", "src/indexer/index-codebase#indexCodebase"]
+    },
+    {
+      "id": "who-uses-ensureSchema",
+      "kind": "who-uses",
+      "target": "src/storage/schema#ensureSchema",
+      "relevant": ["src/indexer/index-codebase#indexCodebase"]
+    }
+  ]
+}
