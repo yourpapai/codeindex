@@ -12,7 +12,9 @@
     "start": "bun run src/cli.ts",
     "mcp": "bun run src/cli.ts mcp",
     "bench": "bun run bench/run.ts",
-    "bench:check": "bun run bench/run.ts --baseline bench/baseline.json"
+    "bench:check": "bun run bench/run.ts --baseline bench/baseline.json",
+    "bench:papai": "bun run bench/run.ts --repo ../papai --corpus bench/corpus/papai.json",
+    "bench:papai:check": "bun run bench/run.ts --repo ../papai --corpus bench/corpus/papai.json --baseline bench/baseline.papai.json"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

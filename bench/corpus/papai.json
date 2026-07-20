@@ -1,0 +1,91 @@
+{
+  "name": "papai",
+  "queries": [
+    {
+      "id": "find-setupBot",
+      "kind": "find-symbol",
+      "query": "setupBot",
+      "relevant": ["src/bot#setupBot"]
+    },
+    {
+      "id": "find-startScheduler",
+      "kind": "find-symbol",
+      "query": "startScheduler",
+      "relevant": ["src/scheduler#startScheduler"]
+    },
+    {
+      "id": "find-saveMemo",
+      "kind": "find-symbol",
+      "query": "saveMemo",
+      "relevant": ["src/memos#saveMemo"]
+    },
+    {
+      "id": "find-isAuthorizedGroup",
+      "kind": "find-symbol",
+      "query": "isAuthorizedGroup",
+      "relevant": ["src/authorized-groups#isAuthorizedGroup"]
+    },
+    {
+      "id": "find-buildTelegramPromptHandle",
+      "kind": "find-symbol",
+      "query": "buildTelegramPromptHandle",
+      "relevant": ["src/chat/telegram/prompt-handle-builder#buildTelegramPromptHandle"]
+    },
+    {
+      "id": "nl-create-kaneo-task",
+      "kind": "nl-intent",
+      "query": "create a kaneo task",
+      "relevant": ["src/tools/create-task#makeCreateTaskTool"]
+    },
+    {
+      "id": "nl-schedule-recurring-task",
+      "kind": "nl-intent",
+      "query": "schedule a recurring task",
+      "relevant": ["src/tools/create-recurring-task#makeCreateRecurringTaskTool"]
+    },
+    {
+      "id": "nl-search-memories",
+      "kind": "nl-intent",
+      "query": "search memories by keyword",
+      "relevant": ["src/memos#keywordSearchMemos"]
+    },
+    {
+      "id": "nl-describe-recurrence",
+      "kind": "nl-intent",
+      "query": "describe recurrence schedule in plain english",
+      "relevant": ["src/recurrence#describeCompiledRecurrence"]
+    },
+    {
+      "id": "who-uses-isAuthorizedGroup",
+      "kind": "who-uses",
+      "target": "src/authorized-groups#isAuthorizedGroup",
+      "relevant": [
+        "src/group-settings/access#isAuthorizedGroupContext",
+        "src/auth#checkAuthorizationExtended",
+        "src/debug/notify-route#handleNotifyRoute"
+      ]
+    },
+    {
+      "id": "who-uses-saveMemo",
+      "kind": "who-uses",
+      "target": "src/memos#saveMemo",
+      "relevant": ["src/tools/save-memo#makeSaveMemoTool"]
+    },
+    {
+      "id": "who-uses-describeCompiledRecurrence",
+      "kind": "who-uses",
+      "target": "src/recurrence#describeCompiledRecurrence",
+      "relevant": [
+        "src/tools/list-recurring-tasks#describeSchedule",
+        "src/tools/resume-recurring-task#describeSchedule",
+        "src/tools/create-recurring-task#buildRecurringTaskResult"
+      ]
+    },
+    {
+      "id": "who-uses-buildTelegramPromptHandle",
+      "kind": "who-uses",
+      "target": "src/chat/telegram/prompt-handle-builder#buildTelegramPromptHandle",
+      "relevant": ["src/chat/telegram/reply-fn-builder#buildTelegramReplyFn"]
+    }
+  ]
+}
