@@ -17,7 +17,8 @@
     "bench:papai:check": "bun run bench/run.ts --repo ../papai --corpus bench/corpus/papai.json --baseline bench/baseline.papai.json",
     "bench:index": "bun run bench/index-bench-run.ts",
     "bench:index:check": "bun run bench/index-bench-run.ts --baseline bench/index-baseline.json",
-    "bench:index:papai": "bun run bench/index-bench-run.ts --repo ../papai"
+    "bench:index:papai": "bun run bench/index-bench-run.ts --repo ../papai",
+    "bench:fuzz": "bun run bench/edit-fuzz-run.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
