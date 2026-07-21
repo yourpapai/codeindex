@@ -215,9 +215,9 @@ const persistResolvedReferences = (
 export const indexCodebase = async (input: Readonly<IndexCodebaseInput>): Promise<IndexSummary> => {
   const startedAt = Date.now()
   const db = openDatabase(input.config.dbPath)
-  ensureSchema(db)
 
   try {
+    ensureSchema(db)
     const parserLoader = await createParserLoader()
     const tsconfigAliases = loadTsconfigPathAliases(input.config.tsconfigPaths)
     const { filesToProcess, filesPruned } = await resolveFilesToProcess(db, input.config, input.mode)
