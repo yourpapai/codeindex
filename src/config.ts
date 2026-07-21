@@ -11,6 +11,8 @@ const CodeindexConfigSchema = z.object({
     .default(['node_modules', 'dist', '.git', 'coverage', '**/*.test.*', '**/*.spec.*']),
   languages: z.array(z.enum(['ts', 'tsx', 'js', 'jsx'])).default(['ts', 'tsx', 'js', 'jsx']),
   dbPath: z.string().min(1).default('.codeindex/index.db'),
+  queriesPath: z.string().min(1).default('.codeindex/queries.db'),
+  logQueries: z.boolean().default(true),
   indexLocals: z.boolean().default(true),
   indexVariables: z.boolean().default(true),
   includeDocComments: z.boolean().default(true),
@@ -23,6 +25,7 @@ export type CodeindexConfig = Readonly<
     repoRoot: string
     configPath: string
     dbPath: string
+    queriesPath: string
     roots: readonly string[]
     tsconfigPaths: readonly string[]
   }
@@ -57,14 +60,17 @@ export const loadCodeindexConfig = async (input: Readonly<LoadCodeindexConfigInp
   const fileContents = await readFile(configPath, 'utf8')
   const parsed = CodeindexConfigSchema.parse(JSON.parse(fileContents) as unknown)
   const resolvedDbPath = path.resolve(repoRoot, parsed.dbPath)
+  const resolvedQueriesPath = path.resolve(repoRoot, parsed.queriesPath)
 
   await mkdir(path.dirname(resolvedDbPath), { recursive: true })
+  await mkdir(path.dirname(resolvedQueriesPath), { recursive: true })
 
   return {
     ...parsed,
     configPath,
     repoRoot,
     dbPath: resolvedDbPath,
+    queriesPath: resolvedQueriesPath,
     roots: parsed.roots.map((entry) => path.resolve(repoRoot, entry)),
     tsconfigPaths: parsed.tsconfigPaths.map((entry) => path.resolve(repoRoot, entry)),
   }
