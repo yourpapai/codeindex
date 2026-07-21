@@ -79,8 +79,8 @@ const registerIndexTool = (server: McpServer, deps: Readonly<CodeindexToolDeps>)
       inputSchema: CodeIndexInputSchema,
       outputSchema: CodeIndexOutputSchema,
     },
-    async ({ path, mode }: CodeIndexInput) => {
-      const summary = await deps.codeIndex({ path, mode })
+    async ({ mode }: CodeIndexInput) => {
+      const summary = await deps.codeIndex({ mode })
       return buildStructuredToolResult(CodeIndexOutputSchema, summary)
     },
   )

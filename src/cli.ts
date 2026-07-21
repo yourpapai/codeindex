@@ -62,7 +62,7 @@ const runStatsCommand = (config: CodeindexConfig): void => {
   )
 }
 
-const buildMcpDeps = (config: CodeindexConfig): Parameters<typeof createCodeindexServer>[0] => ({
+export const buildMcpDeps = (config: CodeindexConfig): Parameters<typeof createCodeindexServer>[0] => ({
   codeSearch: (input: Parameters<typeof searchSymbols>[1]): Promise<ReturnType<typeof searchSymbols>> =>
     Promise.resolve(withDatabase(config, (db) => searchSymbols(db, input))),
   codeSymbol: (query: string, limit: number): Promise<ReturnType<typeof findSymbolCandidates>> =>
@@ -71,16 +71,8 @@ const buildMcpDeps = (config: CodeindexConfig): Parameters<typeof createCodeinde
     input: Parameters<typeof findIncomingReferences>[1],
   ): Promise<ReturnType<typeof findIncomingReferences>> =>
     Promise.resolve(withDatabase(config, (db) => findIncomingReferences(db, input))),
-  codeIndex: async ({
-    path: targetPath,
-    mode,
-  }: {
-    path: string
-    mode: 'full' | 'incremental'
-  }): Promise<Awaited<ReturnType<typeof indexCodebase>>> => {
-    const targetConfig = await loadConfigForPath(targetPath)
-    return indexCodebase({ config: targetConfig, mode })
-  },
+  codeIndex: ({ mode }: { mode: 'full' | 'incremental' }): Promise<Awaited<ReturnType<typeof indexCodebase>>> =>
+    indexCodebase({ config, mode }),
 })
 
 const runMcpCommand = async (config: CodeindexConfig): Promise<void> => {
@@ -121,7 +113,9 @@ const main = async (): Promise<void> => {
   }
 }
 
-void main().catch((error: unknown) => {
-  console.error(error instanceof Error ? error.message : String(error))
-  process.exit(1)
-})
+if (import.meta.main) {
+  void main().catch((error: unknown) => {
+    console.error(error instanceof Error ? error.message : String(error))
+    process.exit(1)
+  })
+}

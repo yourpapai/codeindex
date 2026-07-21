@@ -21,7 +21,7 @@ export interface CodeindexToolDeps {
     qualifiedName?: string
     limit: number
   }) => Promise<readonly ImpactResult[]>
-  readonly codeIndex: (input: { path: string; mode: 'full' | 'incremental' }) => Promise<IndexSummary>
+  readonly codeIndex: (input: { mode: 'full' | 'incremental' }) => Promise<IndexSummary>
 }
 
 export const CodeSearchInputSchema = z.object({
@@ -51,7 +51,6 @@ export const CodeImpactInputSchema = z
 export type CodeImpactInput = z.infer<typeof CodeImpactInputSchema>
 
 export const CodeIndexInputSchema = z.object({
-  path: z.string().min(1),
   mode: z.enum(['full', 'incremental']).default('incremental'),
 })
 export type CodeIndexInput = z.infer<typeof CodeIndexInputSchema>
