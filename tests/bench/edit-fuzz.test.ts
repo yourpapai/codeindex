@@ -1,10 +1,9 @@
 import { afterAll, describe, expect, test } from 'bun:test'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import type { RepoFile, RepoModel } from '../../bench/edit-fuzz-types.js'
-import { readReferenceState, runEditFuzz } from '../../bench/edit-fuzz.js'
+import { runEditFuzz } from '../../bench/edit-fuzz.js'
 import { generateChainRepo } from '../../bench/fuzz-repo.js'
 import { loadCodeindexConfig } from '../../src/config.js'
 import { indexCodebase } from '../../src/indexer/index-codebase.js'
@@ -17,19 +16,6 @@ const makeDir = (): string => {
   tempDirs.push(dir)
   return dir
 }
-
-// Extracted so a control-flow guard never appears directly inside a `test(...)` body
-// (the lint config forbids conditionals in tests).
-const requireLastFile = (model: RepoModel): RepoFile => {
-  const last = model.files[model.files.length - 1]
-  if (last === undefined) {
-    throw new Error('expected chain repo to have at least one file')
-  }
-  return last
-}
-
-const countResolved = (state: ReadonlyMap<string, boolean>): number =>
-  Array.from(state.values()).filter((resolved) => resolved).length
 
 afterAll(() => {
   for (const dir of tempDirs.splice(0)) {
@@ -52,34 +38,37 @@ describe('runEditFuzz', () => {
     expect(report.danglingTargets).toBe(0)
   })
 
-  // 1-hop re-resolution invariant. We use the WEAKER form ("at least one cross-file
-  // reference remains resolved after an incremental edit") rather than pinning a single
-  // exact reference key: the chain generator's line numbers/qualified names are an
-  // implementation detail of `generateChainRepo`/the parser, and pinning one specific key
-  // makes the test fragile to unrelated formatting changes. The weaker assertion still
-  // guards against the regression this invariant exists to catch: a single leaf edit
-  // incrementally reindexed must not orphan every cross-file reference in the repo.
-  test('INVARIANT: editing a leaf module leaves at least one cross-file reference resolved after incremental reindex', async () => {
+  // 1-hop re-resolution invariant. `generateChainRepo` builds mod{i} -> imports sym{i-1}
+  // from mod{i-1}, so mod0 is depended on by mod1 (its direct, 1-hop dependent). We edit
+  // mod0's content (non-breaking: sym0 keeps its name) and, after an incremental reindex,
+  // assert that mod1's cross-file reference to sym0 is still resolved. This genuinely
+  // exercises 1-hop re-resolution: mod1 is reprocessed as a dependent of the changed file,
+  // and its edge to sym0 must be re-linked to the (re-created) sym0 symbol.
+  test('INVARIANT: editing a module leaves its direct dependent reference resolved after incremental reindex', async () => {
     const dir = makeDir()
-    const model = generateChainRepo(dir, 4)
+    generateChainRepo(dir, 3)
     const config = await loadCodeindexConfig({ configPath: path.join(dir, '.codeindex.json'), repoRoot: dir })
     await indexCodebase({ config, mode: 'full' })
 
-    // Edit only the leaf module (the last file in the chain, mod3 for a 4-file chain):
-    // it has no dependents, so this is the smallest possible incremental change.
-    const leaf = requireLastFile(model)
-    const leafPath = path.join(dir, 'src', `${leaf.name}.ts`)
-    writeFileSync(
-      leafPath,
-      `import { sym${model.files.length - 2} } from './mod${model.files.length - 2}.js'\nexport const ${leaf.symbol} = (): number => sym${model.files.length - 2}() + 100\n`,
-    )
+    // Append a non-breaking addition to mod0 (the module mod1 directly depends on).
+    // sym0 keeps its name, so mod1's import of sym0 continues to be valid.
+    const mod0Path = path.join(dir, 'src', 'mod0.ts')
+    const original = readFileSync(mod0Path, 'utf8')
+    writeFileSync(mod0Path, `${original}\nexport const extra0 = (): number => 0\n`)
 
     await indexCodebase({ config, mode: 'incremental' })
 
     const db = openDatabase(config.dbPath)
-    const state = readReferenceState(db)
-    db.close()
-
-    expect(countResolved(state)).toBeGreaterThanOrEqual(1)
+    try {
+      const row = db
+        .query<{ n: number }, []>(
+          "SELECT COUNT(*) AS n FROM symbol_references WHERE target_name = 'sym0' AND target_symbol_id IS NOT NULL",
+        )
+        .get()
+      expect(row).not.toBeNull()
+      expect(row!.n).toBeGreaterThanOrEqual(1)
+    } finally {
+      db.close()
+    }
   })
 })
