@@ -9,6 +9,8 @@ import { withQueryLogging } from './mcp/query-logging.js'
 import { createCodeindexServer } from './mcp/server.js'
 import { findIncomingReferences, findSymbolCandidates, searchSymbols } from './search/index.js'
 import { openDatabase } from './storage/db.js'
+import { openQueryLog, readQueryLogStats } from './storage/query-log.js'
+import type { QueryLogStats } from './storage/query-log.js'
 
 export const resolveRepoRoot = (targetPath?: string): string => {
   if (targetPath !== undefined) return path.resolve(targetPath)
@@ -63,6 +65,17 @@ const runStatsCommand = (config: CodeindexConfig): void => {
   )
 }
 
+export const runLogStatsCommand = (config: CodeindexConfig): QueryLogStats => {
+  const db = openQueryLog(config.queriesPath)
+  try {
+    const stats = readQueryLogStats(db)
+    logJson(stats)
+    return stats
+  } finally {
+    db.close()
+  }
+}
+
 export const buildMcpDeps = (config: CodeindexConfig): Parameters<typeof createCodeindexServer>[0] => ({
   codeSearch: (input: Parameters<typeof searchSymbols>[1]): Promise<ReturnType<typeof searchSymbols>> =>
     Promise.resolve(withDatabase(config, (db) => searchSymbols(db, input))),
@@ -105,6 +118,9 @@ const main = async (): Promise<void> => {
       return
     case 'stats':
       runStatsCommand(config)
+      return
+    case 'log-stats':
+      runLogStatsCommand(config)
       return
     case 'mcp':
       await runMcpCommand(config)
