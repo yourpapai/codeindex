@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { mkdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 
@@ -26,6 +27,20 @@ export type CodeindexConfig = Readonly<
     tsconfigPaths: readonly string[]
   }
 >
+
+export const computeConfigIdentity = (config: CodeindexConfig): string => {
+  const identity = {
+    roots: config.roots.map((entry) => path.relative(config.repoRoot, entry)),
+    exclude: config.exclude,
+    languages: config.languages,
+    indexLocals: config.indexLocals,
+    indexVariables: config.indexVariables,
+    includeDocComments: config.includeDocComments,
+    maxStoredBodyLines: config.maxStoredBodyLines,
+    tsconfigPaths: config.tsconfigPaths.map((entry) => path.relative(config.repoRoot, entry)),
+  }
+  return createHash('sha256').update(JSON.stringify(identity)).digest('hex')
+}
 
 export interface LoadCodeindexConfigInput {
   configPath: string
