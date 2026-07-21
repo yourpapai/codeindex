@@ -40,9 +40,12 @@ export interface IndexSummary {
   readonly elapsedMs: number
 }
 
+export type IndexPhase = 'init' | 'discover' | 'parse' | 'persist' | 'resolve' | 'provenance'
+
 export interface IndexCodebaseInput {
   readonly config: CodeindexConfig
   readonly mode: 'full' | 'incremental'
+  readonly onPhase?: (phase: IndexPhase, ms: number) => void
 }
 
 interface ParsedFileWorkItem {
@@ -212,30 +215,72 @@ const persistResolvedReferences = (
   return { referencesIndexed, referencesUnresolved }
 }
 
+const emitPhase = (
+  onPhase: ((phase: IndexPhase, ms: number) => void) | undefined,
+  phase: IndexPhase,
+  since: number,
+): void => {
+  if (onPhase !== undefined) {
+    onPhase(phase, Date.now() - since)
+  }
+}
+
+interface IndexPhasesResult {
+  readonly filesIndexed: number
+  readonly filesFailed: number
+  readonly filesPruned: number
+  readonly symbolsIndexed: number
+  readonly referencesIndexed: number
+  readonly referencesUnresolved: number
+}
+
+const runIndexPhases = async (db: Database, input: Readonly<IndexCodebaseInput>): Promise<IndexPhasesResult> => {
+  ensureSchema(db)
+  let mark = Date.now()
+  const parserLoader = await createParserLoader()
+  const tsconfigAliases = loadTsconfigPathAliases(input.config.tsconfigPaths)
+  emitPhase(input.onPhase, 'init', mark)
+
+  mark = Date.now()
+  const { filesToProcess, filesPruned } = await resolveFilesToProcess(db, input.config, input.mode)
+  emitPhase(input.onPhase, 'discover', mark)
+
+  mark = Date.now()
+  const processedFiles = await Promise.all(
+    filesToProcess.map((file) => parseFile(input.config, file, parserLoader, tsconfigAliases)),
+  )
+  emitPhase(input.onPhase, 'parse', mark)
+
+  mark = Date.now()
+  const { filesIndexed, filesFailed, symbolsIndexed, parsedFiles } = applyProcessedFiles(db, processedFiles)
+  emitPhase(input.onPhase, 'persist', mark)
+
+  mark = Date.now()
+  const { referencesIndexed, referencesUnresolved } = persistResolvedReferences(db, parsedFiles)
+  emitPhase(input.onPhase, 'resolve', mark)
+
+  mark = Date.now()
+  stampIndexProvenance(db, input.config)
+  emitPhase(input.onPhase, 'provenance', mark)
+
+  return {
+    filesIndexed,
+    filesFailed,
+    filesPruned,
+    symbolsIndexed,
+    referencesIndexed,
+    referencesUnresolved,
+  }
+}
+
 export const indexCodebase = async (input: Readonly<IndexCodebaseInput>): Promise<IndexSummary> => {
   const startedAt = Date.now()
   const db = openDatabase(input.config.dbPath)
 
   try {
-    ensureSchema(db)
-    const parserLoader = await createParserLoader()
-    const tsconfigAliases = loadTsconfigPathAliases(input.config.tsconfigPaths)
-    const { filesToProcess, filesPruned } = await resolveFilesToProcess(db, input.config, input.mode)
-    const processedFiles = await Promise.all(
-      filesToProcess.map((file) => parseFile(input.config, file, parserLoader, tsconfigAliases)),
-    )
-
-    const { filesIndexed, filesFailed, symbolsIndexed, parsedFiles } = applyProcessedFiles(db, processedFiles)
-    const { referencesIndexed, referencesUnresolved } = persistResolvedReferences(db, parsedFiles)
-    stampIndexProvenance(db, input.config)
-
+    const result = await runIndexPhases(db, input)
     return {
-      filesIndexed,
-      filesFailed,
-      filesPruned,
-      symbolsIndexed,
-      referencesIndexed,
-      referencesUnresolved,
+      ...result,
       elapsedMs: Date.now() - startedAt,
     }
   } finally {
