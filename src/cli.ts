@@ -5,6 +5,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 
 import { loadCodeindexConfig, type CodeindexConfig } from './config.js'
 import { indexCodebase } from './indexer/index-codebase.js'
+import { withQueryLogging } from './mcp/query-logging.js'
 import { createCodeindexServer } from './mcp/server.js'
 import { findIncomingReferences, findSymbolCandidates, searchSymbols } from './search/index.js'
 import { openDatabase } from './storage/db.js'
@@ -76,7 +77,7 @@ export const buildMcpDeps = (config: CodeindexConfig): Parameters<typeof createC
 })
 
 const runMcpCommand = async (config: CodeindexConfig): Promise<void> => {
-  const server = createCodeindexServer(buildMcpDeps(config))
+  const server = createCodeindexServer(withQueryLogging(buildMcpDeps(config), config))
   const transport = new StdioServerTransport()
   await server.connect(transport)
   console.error('codeindex MCP server listening on stdio')
