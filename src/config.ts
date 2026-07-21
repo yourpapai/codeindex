@@ -28,9 +28,12 @@ export type CodeindexConfig = Readonly<
   }
 >
 
+export const relativizeRoots = (config: CodeindexConfig): readonly string[] =>
+  config.roots.map((entry) => path.relative(config.repoRoot, entry))
+
 export const computeConfigIdentity = (config: CodeindexConfig): string => {
   const identity = {
-    roots: config.roots.map((entry) => path.relative(config.repoRoot, entry)),
+    roots: relativizeRoots(config),
     exclude: config.exclude,
     languages: config.languages,
     indexLocals: config.indexLocals,

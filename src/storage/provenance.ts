@@ -2,6 +2,9 @@ import type { Database } from 'bun:sqlite'
 
 import { parseStringArray } from './queries.js'
 
+// Note: `configHash` is computed over more fields (e.g. tsconfigPaths, exclude, indexLocals/indexVariables/
+// includeDocComments/maxStoredBodyLines) than are persisted here — the stored fields below are a subset
+// kept for display/drift-detection purposes, so don't expect them to reconstruct the hash 1:1.
 export interface IndexProvenance {
   readonly gitCommit: string | null
   readonly gitBranch: string | null

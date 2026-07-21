@@ -1,7 +1,6 @@
 import type { Database } from 'bun:sqlite'
-import path from 'node:path'
 
-import { computeConfigIdentity, type CodeindexConfig } from '../config.js'
+import { computeConfigIdentity, relativizeRoots, type CodeindexConfig } from '../config.js'
 import { writeIndexProvenance } from '../storage/provenance.js'
 import { readGitInfo } from './git-info.js'
 
@@ -11,7 +10,7 @@ export const stampIndexProvenance = (db: Database, config: CodeindexConfig): voi
     gitCommit: gitInfo.commit,
     gitBranch: gitInfo.branch,
     configHash: computeConfigIdentity(config),
-    roots: config.roots.map((root) => path.relative(config.repoRoot, root)),
+    roots: relativizeRoots(config),
     languages: config.languages,
     indexedAt: new Date().toISOString(),
   })

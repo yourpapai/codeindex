@@ -16,7 +16,10 @@ const runGit = (args: readonly string[], repoRoot: string): string | null => {
   }
 }
 
-export const readGitInfo = (repoRoot: string): GitInfo => ({
-  commit: runGit(['rev-parse', 'HEAD'], repoRoot),
-  branch: runGit(['rev-parse', '--abbrev-ref', 'HEAD'], repoRoot),
-})
+export const readGitInfo = (repoRoot: string): GitInfo => {
+  const branch = runGit(['rev-parse', '--abbrev-ref', 'HEAD'], repoRoot)
+  return {
+    commit: runGit(['rev-parse', 'HEAD'], repoRoot),
+    branch: branch === 'HEAD' ? null : branch,
+  }
+}
