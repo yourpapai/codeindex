@@ -13,6 +13,7 @@ const baseEntry = (overrides: Partial<QueryLogEntry>): QueryLogEntry => ({
   hit: true,
   latencyMs: 3,
   topQualifiedNames: ['src/search/index#searchSymbols'],
+  error: null,
   ...overrides,
 })
 

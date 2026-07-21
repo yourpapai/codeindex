@@ -11,6 +11,7 @@ export interface QueryLogEntry {
   readonly hit: boolean
   readonly latencyMs: number
   readonly topQualifiedNames: readonly string[]
+  readonly error: string | null
 }
 
 export interface TopQuery {
@@ -37,7 +38,8 @@ const CREATE_QUERY_LOG = `CREATE TABLE IF NOT EXISTS query_log (
   result_count INTEGER NOT NULL,
   hit INTEGER NOT NULL,
   latency_ms INTEGER NOT NULL,
-  top_qualified_names TEXT NOT NULL
+  top_qualified_names TEXT NOT NULL,
+  error TEXT
 )`
 
 export const ensureQueryLogSchema = (db: Database): void => {
@@ -52,8 +54,8 @@ export const openQueryLog = (queriesPath: string): Database => {
 
 export const insertQueryLogEntry = (db: Database, entry: QueryLogEntry): void => {
   db.query(
-    `INSERT INTO query_log (timestamp, tool, query_text, filters_json, result_count, hit, latency_ms, top_qualified_names)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO query_log (timestamp, tool, query_text, filters_json, result_count, hit, latency_ms, top_qualified_names, error)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     entry.timestamp,
     entry.tool,
@@ -63,6 +65,7 @@ export const insertQueryLogEntry = (db: Database, entry: QueryLogEntry): void =>
     entry.hit ? 1 : 0,
     entry.latencyMs,
     JSON.stringify(entry.topQualifiedNames),
+    entry.error,
   )
 }
 

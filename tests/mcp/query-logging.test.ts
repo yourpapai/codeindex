@@ -113,6 +113,26 @@ describe('withQueryLogging', () => {
     const results = await wrapped.codeSearch({ query: 'x', limit: 10 })
     expect(results.length).toBe(1)
   })
+
+  test('logs an error row and rethrows when the wrapped tool rejects', async () => {
+    const config = configWith(true)
+    const failingDeps: CodeindexToolDeps = {
+      ...stubDeps(),
+      codeSearch: (): ReturnType<CodeindexToolDeps['codeSearch']> => Promise.reject(new Error('boom')),
+    }
+    const wrapped = withQueryLogging(failingDeps, config)
+    await expect(wrapped.codeSearch({ query: 'x', limit: 10 })).rejects.toThrow('boom')
+    const db = new Database(config.queriesPath)
+    try {
+      const stats = readQueryLogStats(db)
+      expect(stats.total).toBe(1)
+      const row = db.query<{ error: string | null }, []>('SELECT error FROM query_log').get()
+      expect(row).not.toBeNull()
+      expect(row!.error).toBe('boom')
+    } finally {
+      db.close()
+    }
+  })
 })
 
 describe('withQueryLogging through the protocol', () => {

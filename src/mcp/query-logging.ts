@@ -10,6 +10,7 @@ interface RecordInput {
   readonly resultCount: number
   readonly latencyMs: number
   readonly topQualifiedNames: readonly string[]
+  readonly error: string | null
 }
 
 const record = (queriesPath: string, input: RecordInput): void => {
@@ -22,6 +23,7 @@ const record = (queriesPath: string, input: RecordInput): void => {
     hit: input.resultCount > 0,
     latencyMs: input.latencyMs,
     topQualifiedNames: input.topQualifiedNames,
+    error: input.error,
   }
   try {
     const db = openQueryLog(queriesPath)
@@ -38,64 +40,98 @@ const record = (queriesPath: string, input: RecordInput): void => {
 const topNames = (rows: readonly { readonly qualifiedName: string }[], count: number): readonly string[] =>
   rows.slice(0, count).map((row) => row.qualifiedName)
 
+interface RecordBase {
+  readonly tool: string
+  readonly queryText: string | null
+  readonly filtersJson: string | null
+}
+
+interface ResultFields {
+  readonly resultCount: number
+  readonly topQualifiedNames: readonly string[]
+}
+
+const errorMessage = (err: unknown): string => (err instanceof Error ? err.message : String(err))
+
+const runLogged = async <T>(
+  queriesPath: string,
+  base: Readonly<RecordBase>,
+  attempt: () => Promise<T>,
+  toResultFields: (result: T) => ResultFields,
+): Promise<T> => {
+  const started = Date.now()
+  try {
+    const result = await attempt()
+    record(queriesPath, { ...base, ...toResultFields(result), latencyMs: Date.now() - started, error: null })
+    return result
+  } catch (err) {
+    record(queriesPath, {
+      ...base,
+      resultCount: 0,
+      topQualifiedNames: [],
+      latencyMs: Date.now() - started,
+      error: errorMessage(err),
+    })
+    throw err
+  }
+}
+
 const wrapCodeSearch = (deps: Readonly<CodeindexToolDeps>, queriesPath: string): CodeindexToolDeps['codeSearch'] => {
-  return async (
+  return (
     input: Parameters<CodeindexToolDeps['codeSearch']>[0],
   ): Promise<Awaited<ReturnType<CodeindexToolDeps['codeSearch']>>> => {
-    const started = Date.now()
-    const results = await deps.codeSearch(input)
-    record(queriesPath, {
-      tool: 'code_search',
-      queryText: input.query,
-      filtersJson: JSON.stringify({
-        kinds: input.kinds,
-        scopeTiers: input.scopeTiers,
-        pathPrefix: input.pathPrefix,
-        limit: input.limit,
-      }),
-      resultCount: results.length,
-      latencyMs: Date.now() - started,
-      topQualifiedNames: topNames(results, 3),
-    })
-    return results
+    return runLogged(
+      queriesPath,
+      {
+        tool: 'code_search',
+        queryText: input.query,
+        filtersJson: JSON.stringify({
+          kinds: input.kinds,
+          scopeTiers: input.scopeTiers,
+          pathPrefix: input.pathPrefix,
+          limit: input.limit,
+        }),
+      },
+      () => deps.codeSearch(input),
+      (results) => ({ resultCount: results.length, topQualifiedNames: topNames(results, 3) }),
+    )
   }
 }
 
 const wrapCodeSymbol = (deps: Readonly<CodeindexToolDeps>, queriesPath: string): CodeindexToolDeps['codeSymbol'] => {
-  return async (
+  return (
     query: Parameters<CodeindexToolDeps['codeSymbol']>[0],
     limit: Parameters<CodeindexToolDeps['codeSymbol']>[1],
   ): Promise<Awaited<ReturnType<CodeindexToolDeps['codeSymbol']>>> => {
-    const started = Date.now()
-    const results = await deps.codeSymbol(query, limit)
-    record(queriesPath, {
-      tool: 'code_symbol',
-      queryText: query,
-      filtersJson: JSON.stringify({ limit }),
-      resultCount: results.length,
-      latencyMs: Date.now() - started,
-      topQualifiedNames: topNames(results, 3),
-    })
-    return results
+    return runLogged(
+      queriesPath,
+      { tool: 'code_symbol', queryText: query, filtersJson: JSON.stringify({ limit }) },
+      () => deps.codeSymbol(query, limit),
+      (results) => ({ resultCount: results.length, topQualifiedNames: topNames(results, 3) }),
+    )
   }
 }
 
 const wrapCodeImpact = (deps: Readonly<CodeindexToolDeps>, queriesPath: string): CodeindexToolDeps['codeImpact'] => {
-  return async (
+  return (
     input: Parameters<CodeindexToolDeps['codeImpact']>[0],
   ): Promise<Awaited<ReturnType<CodeindexToolDeps['codeImpact']>>> => {
-    const started = Date.now()
-    const results = await deps.codeImpact(input)
-    const sourceNames = results.map((row) => row.sourceQualifiedName).filter((name): name is string => name !== null)
-    record(queriesPath, {
-      tool: 'code_impact',
-      queryText: input.qualifiedName ?? input.symbolKey ?? null,
-      filtersJson: JSON.stringify({ limit: input.limit }),
-      resultCount: results.length,
-      latencyMs: Date.now() - started,
-      topQualifiedNames: sourceNames.slice(0, 3),
-    })
-    return results
+    return runLogged(
+      queriesPath,
+      {
+        tool: 'code_impact',
+        queryText: input.qualifiedName ?? input.symbolKey ?? null,
+        filtersJson: JSON.stringify({ limit: input.limit }),
+      },
+      () => deps.codeImpact(input),
+      (results) => ({
+        resultCount: results.length,
+        topQualifiedNames: results
+          .map((row) => row.sourceQualifiedName)
+          .filter((name): name is string => name !== null)
+          .slice(0, 3),
+      }),
+    )
   }
 }
 

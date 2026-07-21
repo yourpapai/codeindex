@@ -63,7 +63,9 @@ export const loadCodeindexConfig = async (input: Readonly<LoadCodeindexConfigInp
   const resolvedQueriesPath = path.resolve(repoRoot, parsed.queriesPath)
 
   await mkdir(path.dirname(resolvedDbPath), { recursive: true })
-  await mkdir(path.dirname(resolvedQueriesPath), { recursive: true })
+  if (parsed.logQueries) {
+    await mkdir(path.dirname(resolvedQueriesPath), { recursive: true })
+  }
 
   return {
     ...parsed,

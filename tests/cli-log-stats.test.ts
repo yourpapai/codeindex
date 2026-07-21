@@ -38,6 +38,7 @@ describe('runLogStatsCommand', () => {
         hit: true,
         latencyMs: 2,
         topQualifiedNames: [],
+        error: null,
       })
       db.close()
       const stats = runLogStatsCommand(config)
