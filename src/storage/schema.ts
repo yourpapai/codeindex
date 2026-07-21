@@ -79,6 +79,15 @@ const schemaStatements = [
   'CREATE INDEX IF NOT EXISTS idx_symbol_references_target_name ON symbol_references(target_name)',
   'CREATE INDEX IF NOT EXISTS idx_symbol_references_edge_type ON symbol_references(edge_type)',
   'CREATE INDEX IF NOT EXISTS idx_symbol_references_confidence ON symbol_references(confidence)',
+  `CREATE TABLE IF NOT EXISTS index_meta (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    git_commit TEXT,
+    git_branch TEXT,
+    config_hash TEXT NOT NULL,
+    roots TEXT NOT NULL,
+    languages TEXT NOT NULL,
+    indexed_at TEXT NOT NULL
+  )`,
 ]
 
 const ftsStatements = [
@@ -113,9 +122,17 @@ const ftsStatements = [
 ]
 
 // Bump when any table/column/index definition changes; ensureSchema will wipe and rebuild.
-const SCHEMA_VERSION = 1
+const SCHEMA_VERSION = 2
 
-const DROP_ORDER = ['symbol_fts', 'symbol_references', 'module_exports', 'symbols', 'module_aliases', 'files']
+const DROP_ORDER = [
+  'index_meta',
+  'symbol_fts',
+  'symbol_references',
+  'module_exports',
+  'symbols',
+  'module_aliases',
+  'files',
+]
 
 const runStatements = (db: Database, statements: readonly string[]): void => {
   for (const statement of statements) {

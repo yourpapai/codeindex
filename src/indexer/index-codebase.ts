@@ -30,6 +30,7 @@ import { discoverSourceFiles, type DiscoveredFile } from './discover.js'
 import { extractReferenceCandidates, type ExtractReferenceCandidatesResult } from './extract-references.js'
 import { extractSymbolsFromSource, type ExtractedSymbol } from './extract-symbols.js'
 import { createParserLoader, type ParserLoader } from './parser.js'
+import { stampIndexProvenance } from './stamp-provenance.js'
 
 export interface IndexSummary {
   readonly filesIndexed: number
@@ -280,6 +281,7 @@ export const indexCodebase = async (input: Readonly<IndexCodebaseInput>): Promis
 
   const { filesIndexed, filesFailed, symbolsIndexed, parsedFiles } = applyProcessedFiles(db, processedFiles)
   const { referencesIndexed, referencesUnresolved } = persistResolvedReferences(db, parsedFiles)
+  stampIndexProvenance(db, input.config)
   db.close()
 
   return {
