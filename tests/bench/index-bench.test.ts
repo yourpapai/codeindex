@@ -47,6 +47,9 @@ describe('runIndexBench', () => {
     // Sum of phases should not exceed total (with a small tolerance for Date.now granularity + inter-phase gaps).
     const phaseSum = Object.values(report.phaseMs).reduce((total, ms) => total + ms, 0)
     expect(phaseSum).toBeLessThanOrEqual(report.elapsedMs + 50)
+    // Lower bound: phases must account for most of elapsedMs (elapsedMs additionally covers only
+    // openDatabase + tiny overhead outside the phases). Guards against undercounting a phase's work.
+    expect(phaseSum).toBeGreaterThanOrEqual(report.elapsedMs - 100)
     expect(report.filesPerSecond).toBeGreaterThanOrEqual(0)
     expect(report.cpuCount).toBeGreaterThanOrEqual(1)
     expect(report.bunVersion.length).toBeGreaterThan(0)

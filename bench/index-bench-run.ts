@@ -46,6 +46,8 @@ const parseArgs = (argv: readonly string[]): IndexBenchArgs => {
   return { repo, mode, baseline, updateBaseline }
 }
 
+// The count baseline is a snapshot of the target repo's indexed counts at a point in time;
+// regenerate it (--update-baseline) in the same change that legitimately alters those counts.
 const toBaselineCounts = (report: IndexBenchReport): IndexBaselineCounts => ({
   filesIndexed: report.filesIndexed,
   symbolsIndexed: report.symbolsIndexed,
@@ -61,6 +63,10 @@ const main = async (): Promise<void> => {
   })
   const report = await runIndexBench(config, args.mode)
   console.log(JSON.stringify(report, null, 2))
+
+  if (args.updateBaseline && args.baseline === null) {
+    console.error('--update-baseline requires --baseline <path>; no baseline written.')
+  }
 
   if (args.updateBaseline && args.baseline !== null) {
     writeFileSync(args.baseline, `${JSON.stringify(toBaselineCounts(report), null, 2)}\n`)

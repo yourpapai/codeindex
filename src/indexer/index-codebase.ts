@@ -235,8 +235,8 @@ interface IndexPhasesResult {
 }
 
 const runIndexPhases = async (db: Database, input: Readonly<IndexCodebaseInput>): Promise<IndexPhasesResult> => {
-  ensureSchema(db)
   let mark = Date.now()
+  ensureSchema(db)
   const parserLoader = await createParserLoader()
   const tsconfigAliases = loadTsconfigPathAliases(input.config.tsconfigPaths)
   emitPhase(input.onPhase, 'init', mark)

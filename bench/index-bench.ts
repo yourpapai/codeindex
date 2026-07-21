@@ -27,6 +27,8 @@ export const runIndexBench = async (
       phaseMs[phase] = ms
     },
   })
+  // DB size assumes the index db was closed (indexCodebase closes it in its finally) so WAL is
+  // checkpointed; a concurrent connection (e.g. a running MCP server) could make this understate size.
   const dbSizeBytes = statSync(config.dbPath).size
   return {
     repo: config.repoRoot,
