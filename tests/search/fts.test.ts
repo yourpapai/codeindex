@@ -72,4 +72,12 @@ describe('runFtsSearch', () => {
     const results = runFtsSearch(db, 'getDrizzleDb', 10, { kinds: ['variable_declaration'] })
     expect(results).toEqual([])
   })
+
+  test('FTS results carry a defined, non-negative bm25 relevance', () => {
+    const db = makeDb('getDrizzleDb')
+    const results = runFtsSearch(db, 'getDrizzleDb', 10, {})
+    expect(results.length).toBeGreaterThan(0)
+    expect(typeof results[0]!.relevance).toBe('number')
+    expect(results[0]!.relevance!).toBeGreaterThanOrEqual(0)
+  })
 })
