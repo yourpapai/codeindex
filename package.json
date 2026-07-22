@@ -18,7 +18,10 @@
     "bench:index": "bun run bench/index-bench-run.ts",
     "bench:index:check": "bun run bench/index-bench-run.ts --baseline bench/index-baseline.json",
     "bench:index:papai": "bun run bench/index-bench-run.ts --repo ../papai",
-    "bench:fuzz": "bun run bench/edit-fuzz-run.ts"
+    "bench:fuzz": "bun run bench/edit-fuzz-run.ts",
+    "bench:impact": "bun run bench/impact-run.ts",
+    "bench:impact:check": "bun run bench/impact-run.ts --baseline bench/impact-baseline.json",
+    "bench:impact:papai": "bun run bench/impact-run.ts --repo ../papai --max-targets 300 --baseline bench/impact-baseline.papai.json"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
