@@ -41,7 +41,7 @@
       "id": "who-uses-ensureSchema",
       "kind": "who-uses",
       "target": "src/storage/schema#ensureSchema",
-      "relevant": ["src/indexer/index-codebase#indexCodebase"]
+      "relevant": ["src/indexer/index-codebase#runIndexPhases"]
     }
   ]
 }
