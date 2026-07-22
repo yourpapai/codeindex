@@ -3,7 +3,10 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { createTsProject } from '../../bench/impact-oracle.js'
+import { buildReferenceOracle, createTsProject } from '../../bench/impact-oracle.js'
+import { loadCodeindexConfig } from '../../src/config.js'
+import { indexCodebase } from '../../src/indexer/index-codebase.js'
+import { openDatabase } from '../../src/storage/db.js'
 
 const dirs: string[] = []
 const makeRepo = (): string => {
@@ -35,5 +38,23 @@ describe('createTsProject', () => {
     const files = program.getSourceFiles().map((s) => path.basename(s.fileName))
     expect(files).toContain('a.ts')
     expect(files).toContain('b.ts')
+  })
+})
+
+describe('buildReferenceOracle', () => {
+  test('maps true references back to the enclosing codeindex symbol', async () => {
+    const dir = makeRepo()
+    writeFileSync(path.join(dir, '.codeindex.json'), JSON.stringify({ roots: ['src'] }))
+    const config = await loadCodeindexConfig({ configPath: path.join(dir, '.codeindex.json'), repoRoot: dir })
+    await indexCodebase({ config, mode: 'full' })
+    const db = openDatabase(config.dbPath)
+    try {
+      const oracle = buildReferenceOracle(db, { repoRoot: dir, tsconfigPath: path.join(dir, 'tsconfig.json') })
+      const foo = oracle.find((t) => t.target.endsWith('#foo'))
+      expect(foo).toBeDefined()
+      expect(foo!.trueSources.some((s) => s.endsWith('#bar'))).toBe(true)
+    } finally {
+      db.close()
+    }
   })
 })
