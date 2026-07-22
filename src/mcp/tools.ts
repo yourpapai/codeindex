@@ -107,10 +107,11 @@ export const CodeIndexOutputSchema = z.object({
 export const buildStructuredToolResult = <S extends z.ZodType>(
   schema: S,
   output: unknown,
+  summaryText: string,
 ): { content: Array<{ type: 'text'; text: string }>; structuredContent: z.output<S> } => {
   const parsed = schema.parse(output)
   return {
-    content: [{ type: 'text', text: JSON.stringify(parsed) }],
+    content: [{ type: 'text', text: summaryText }],
     structuredContent: parsed,
   }
 }

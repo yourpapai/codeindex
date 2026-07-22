@@ -99,21 +99,21 @@ describe('output schemas', () => {
 })
 
 describe('buildStructuredToolResult', () => {
-  test('returns both content and structuredContent', () => {
+  test('returns structuredContent plus a compact text summary (not full JSON)', () => {
     const schema = z.object({ value: z.number() })
-    const output = { value: 42 }
-    const result = buildStructuredToolResult(schema, output)
+    const result = buildStructuredToolResult(schema, { value: 42 }, '1 value')
 
-    expect(result.content).toBeDefined()
     expect(result.content[0]!.type).toBe('text')
+    expect(result.content[0]!.text).toBe('1 value')
     expect(result.structuredContent).toEqual({ value: 42 })
   })
 
-  test('serializes content as JSON', () => {
+  test('does not duplicate the full payload into the text channel', () => {
     const schema = z.object({ items: z.array(z.string()) })
-    const output = { items: ['a', 'b'] }
-    const result = buildStructuredToolResult(schema, output)
+    const result = buildStructuredToolResult(schema, { items: ['a', 'b'] }, '2 items')
 
-    expect(JSON.parse(result.content[0]!.text)).toEqual({ items: ['a', 'b'] })
+    expect(result.content[0]!.text).toBe('2 items')
+    expect(result.content[0]!.text).not.toContain('[')
+    expect(result.structuredContent).toEqual({ items: ['a', 'b'] })
   })
 })

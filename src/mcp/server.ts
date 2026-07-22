@@ -31,12 +31,19 @@ const registerSearchTool = (server: McpServer, deps: Readonly<CodeindexToolDeps>
         results.length === 0
           ? 'No symbol matches. Retry with broader terms, relax scopeTiers, or use code_symbol when you know the exact name.'
           : undefined
-      return buildStructuredToolResult(CodeSearchOutputSchema, {
-        query,
-        resultCount: results.length,
-        results: [...results],
-        guidance,
-      })
+      const topNames = results
+        .slice(0, 5)
+        .map((r) => r.qualifiedName)
+        .join(', ')
+      const summary =
+        results.length === 0
+          ? (guidance ?? 'No matches.')
+          : `${results.length} result(s): ${topNames}${results.length > 5 ? ', …' : ''}`
+      return buildStructuredToolResult(
+        CodeSearchOutputSchema,
+        { query, resultCount: results.length, results: [...results], guidance },
+        summary,
+      )
     },
   )
 }
@@ -51,7 +58,11 @@ const registerSymbolTool = (server: McpServer, deps: Readonly<CodeindexToolDeps>
     },
     async ({ query, limit }: CodeSymbolInput) => {
       const results = await deps.codeSymbol(query, limit)
-      return buildStructuredToolResult(CodeSymbolOutputSchema, { results: [...results] })
+      const summary = `${results.length} candidate(s): ${results
+        .slice(0, 5)
+        .map((r) => r.qualifiedName)
+        .join(', ')}`
+      return buildStructuredToolResult(CodeSymbolOutputSchema, { results: [...results] }, summary)
     },
   )
 }
@@ -66,7 +77,8 @@ const registerImpactTool = (server: McpServer, deps: Readonly<CodeindexToolDeps>
     },
     async ({ symbolKey, qualifiedName, limit }: CodeImpactInput) => {
       const results = await deps.codeImpact({ symbolKey, qualifiedName, limit })
-      return buildStructuredToolResult(CodeImpactOutputSchema, { results: [...results] })
+      const summary = `${results.length} incoming reference(s)`
+      return buildStructuredToolResult(CodeImpactOutputSchema, { results: [...results] }, summary)
     },
   )
 }
@@ -81,7 +93,8 @@ const registerIndexTool = (server: McpServer, deps: Readonly<CodeindexToolDeps>)
     },
     async ({ mode }: CodeIndexInput) => {
       const summary = await deps.codeIndex({ mode })
-      return buildStructuredToolResult(CodeIndexOutputSchema, summary)
+      const summaryText = `Indexed ${summary.filesIndexed} files, ${summary.symbolsIndexed} symbols, ${summary.referencesIndexed} references`
+      return buildStructuredToolResult(CodeIndexOutputSchema, summary, summaryText)
     },
   )
 }
