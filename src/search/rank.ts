@@ -16,22 +16,29 @@ const scopeScore = (scopeTier: SearchResult['scopeTier']): number => {
 }
 
 const matchScore = (matchReason: string): number => {
-  if (matchReason.includes('exact export_names')) {
-    return 500
-  }
-  if (matchReason.includes('exact qualified_name')) {
-    return 450
-  }
-  if (matchReason.includes('exact local_name')) {
-    return 425
-  }
+  if (matchReason.includes('exact export_names')) return 500
+  if (matchReason.includes('exact qualified_name')) return 450
+  if (matchReason.includes('exact local_name')) return 425
   return 0
 }
+
+// BM25 relevance is blended as a bounded term so lexical strength reorders results
+// *within* a scope tier (the measured NL-intent weakness) without ever letting an FTS
+// hit overtake an exact-name match. Normalized to [0,1] across the current result set.
+const RELEVANCE_WEIGHT = 100
+
+const maxRelevance = (results: readonly SearchResult[]): number =>
+  results.reduce((max, r) => (r.relevance !== undefined && r.relevance > max ? r.relevance : max), 0)
+
+const relevanceScore = (result: Readonly<SearchResult>, max: number): number =>
+  result.relevance === undefined || max <= 0 ? 0 : (result.relevance / max) * RELEVANCE_WEIGHT
 
 export const scoreSearchResult = (result: Readonly<SearchResult>): number =>
   scopeScore(result.scopeTier) + matchScore(result.matchReason)
 
-export const rerankSearchResults = (results: readonly SearchResult[]): readonly RankedSearchResult[] =>
-  [...results]
-    .map((result) => ({ ...result, rankScore: scoreSearchResult(result) }))
+export const rerankSearchResults = (results: readonly SearchResult[]): readonly RankedSearchResult[] => {
+  const maxRel = maxRelevance(results)
+  return [...results]
+    .map((result) => ({ ...result, rankScore: scoreSearchResult(result) + relevanceScore(result, maxRel) }))
     .sort((left, right) => right.rankScore - left.rankScore)
+}

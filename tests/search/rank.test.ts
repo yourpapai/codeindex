@@ -60,3 +60,58 @@ describe('rerankSearchResults', () => {
     expect(ranked.map((r) => r.symbolKey)).toEqual(['b', 'a'])
   })
 })
+
+test('blends relevance: within a tier, higher bm25 relevance ranks higher', () => {
+  const base = {
+    symbolKey: 'k',
+    qualifiedName: 'm#a',
+    localName: 'a',
+    kind: 'function',
+    scopeTier: 'exported' as const,
+    filePath: 'm.ts',
+    startLine: 1,
+    endLine: 2,
+    exportNames: [],
+    matchReason: 'fts identifier_terms/doc_text/body_text',
+    confidence: 'resolved' as const,
+    snippet: '',
+  }
+  const weak = { ...base, symbolKey: 'weak', qualifiedName: 'm#weak', relevance: 1 }
+  const strong = { ...base, symbolKey: 'strong', qualifiedName: 'm#strong', relevance: 9 }
+  const ranked = rerankSearchResults([weak, strong])
+  expect(ranked[0]!.symbolKey).toBe('strong')
+})
+
+test('an exact match still outranks a strong FTS hit', () => {
+  const exact = {
+    symbolKey: 'exact',
+    qualifiedName: 'm#z',
+    localName: 'z',
+    kind: 'function',
+    scopeTier: 'local' as const,
+    filePath: 'm.ts',
+    startLine: 1,
+    endLine: 2,
+    exportNames: [],
+    matchReason: 'exact local_name',
+    confidence: 'exact' as const,
+    snippet: '',
+  }
+  const fts = {
+    symbolKey: 'fts',
+    qualifiedName: 'm#y',
+    localName: 'y',
+    kind: 'function',
+    scopeTier: 'exported' as const,
+    filePath: 'm.ts',
+    startLine: 1,
+    endLine: 2,
+    exportNames: [],
+    matchReason: 'fts identifier_terms/doc_text/body_text',
+    confidence: 'resolved' as const,
+    snippet: '',
+    relevance: 999,
+  }
+  const ranked = rerankSearchResults([fts, exact])
+  expect(ranked[0]!.symbolKey).toBe('exact')
+})
