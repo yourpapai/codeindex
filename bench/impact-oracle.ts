@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import ts from 'typescript'
 
-import type { OracleTarget } from './impact-types.js'
+import type { OracleSource, OracleTarget } from './impact-types.js'
 
 export interface TsProject {
   readonly service: ts.LanguageService
@@ -125,6 +125,34 @@ const declarationOffset = (
   return offset
 }
 
+// Descend to the innermost node whose span contains `pos` (the reference identifier token).
+const nodeAtPosition = (sf: ts.SourceFile, pos: number): ts.Node => {
+  const find = (node: ts.Node): ts.Node => {
+    const child = node.getChildren(sf).find((c) => pos >= c.getStart(sf) && pos < c.getEnd())
+    return child === undefined ? node : find(child)
+  }
+  return find(sf)
+}
+
+// Classify a reference position as value or type. A HeritageClause ANYWHERE up the chain
+// decides first: `implements` (and an interface's `extends`) are type; a class's `extends`
+// is value — even though its base sits inside an ExpressionWithTypeArguments, which is
+// itself a type-node (verified against tsc). Otherwise any type-node ancestor means type.
+// Default value: the fail-safe never hides a value false-negative.
+const classifyPosition = (sf: ts.SourceFile, pos: number): 'value' | 'type' => {
+  const node = nodeAtPosition(sf, pos)
+  for (let a: ts.Node | undefined = node; a !== undefined && !ts.isSourceFile(a); a = a.parent) {
+    if (ts.isHeritageClause(a)) {
+      if (a.token === ts.SyntaxKind.ImplementsKeyword) return 'type'
+      return ts.isClassDeclaration(a.parent) || ts.isClassExpression(a.parent) ? 'value' : 'type'
+    }
+  }
+  for (let a: ts.Node | undefined = node; a !== undefined && !ts.isSourceFile(a); a = a.parent) {
+    if (ts.isTypeNode(a)) return 'type'
+  }
+  return 'value'
+}
+
 export const buildReferenceOracle = (
   db: Database,
   opts: Readonly<{ repoRoot: string; tsconfigPath: string; maxTargets?: number }>,
@@ -144,17 +172,26 @@ export const buildReferenceOracle = (
     const absFile = path.resolve(opts.repoRoot, symbol.filePath)
     const offset = declarationOffset(program, absFile, symbol.localName, symbol.startLine)
     const entries = offset === null ? [] : (service.getReferencesAtPosition(absFile, offset) ?? [])
-    const sources = new Set<string>()
+    const byName = new Map<string, { value: boolean; type: boolean }>()
     for (const entry of entries) {
       const sf = program.getSourceFile(entry.fileName)
       if (sf === undefined) continue
-      const line = sf.getLineAndCharacterOfPosition(entry.textSpan.start).line + 1
+      const pos = entry.textSpan.start
+      const line = sf.getLineAndCharacterOfPosition(pos).line + 1
       const relPath = path.relative(opts.repoRoot, entry.fileName)
       const enclosing = enclosingQualifiedName(db, relPath, line)
-      // Exclude module-scope refs (unnameable by code_impact) and self-references,
-      // keeping the comparison apples-to-apples with code_impact's output shape.
-      if (enclosing !== null && enclosing !== symbol.qualifiedName) sources.add(enclosing)
+      // Exclude module-scope refs (unnameable by code_impact) and self-references.
+      if (enclosing === null || enclosing === symbol.qualifiedName) continue
+      const position = classifyPosition(sf, pos)
+      const agg = byName.get(enclosing) ?? { value: false, type: false }
+      if (position === 'value') agg.value = true
+      else agg.type = true
+      byName.set(enclosing, agg)
     }
-    return { target: symbol.qualifiedName, trueSources: [...sources] }
+    const trueSources: readonly OracleSource[] = [...byName].map(([name, agg]) => ({
+      name,
+      position: agg.value && agg.type ? 'both' : agg.value ? 'value' : 'type',
+    }))
+    return { target: symbol.qualifiedName, trueSources }
   })
 }

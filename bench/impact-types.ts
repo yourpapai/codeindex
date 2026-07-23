@@ -1,8 +1,13 @@
 import { z } from 'zod'
 
+export interface OracleSource {
+  readonly name: string
+  readonly position: 'value' | 'type' | 'both'
+}
+
 export interface OracleTarget {
   readonly target: string
-  readonly trueSources: readonly string[]
+  readonly trueSources: readonly OracleSource[]
 }
 
 export interface ImpactTargetScore {

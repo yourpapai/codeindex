@@ -52,7 +52,7 @@ describe('buildReferenceOracle', () => {
       const oracle = buildReferenceOracle(db, { repoRoot: dir, tsconfigPath: path.join(dir, 'tsconfig.json') })
       const foo = oracle.find((t) => t.target.endsWith('#foo'))
       expect(foo).toBeDefined()
-      expect(foo!.trueSources.some((s) => s.endsWith('#bar'))).toBe(true)
+      expect(foo!.trueSources.some((s) => s.name.endsWith('#bar'))).toBe(true)
     } finally {
       db.close()
     }
@@ -96,9 +96,40 @@ describe('buildReferenceOracle', () => {
       const foo = oracle.find((t) => t.target.endsWith('#foo'))
       expect(foo).toBeDefined()
       // The genuine caller must still be found...
-      expect(foo!.trueSources.some((s) => s.endsWith('#bar'))).toBe(true)
+      expect(foo!.trueSources.some((s) => s.name.endsWith('#bar'))).toBe(true)
       // ...and the decoy parameter's enclosing function must not be fabricated as a source.
-      expect(foo!.trueSources.some((s) => s.endsWith('#unrelatedHolder'))).toBe(false)
+      expect(foo!.trueSources.some((s) => s.name.endsWith('#unrelatedHolder'))).toBe(false)
+    } finally {
+      db.close()
+    }
+  })
+
+  test('classifies class extends as value and implements as type', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'codeindex-oracle-heritage-'))
+    dirs.push(dir)
+    mkdirSync(path.join(dir, 'src'), { recursive: true })
+    writeFileSync(path.join(dir, 'src/base.ts'), 'export class Base {}\nexport interface Iface {}\n')
+    writeFileSync(
+      path.join(dir, 'src/widget.ts'),
+      "import { Base, Iface } from './base'\nexport class Widget extends Base implements Iface {}\n",
+    )
+    writeFileSync(
+      path.join(dir, 'tsconfig.json'),
+      JSON.stringify({
+        compilerOptions: { module: 'esnext', moduleResolution: 'bundler', strict: true },
+        include: ['src'],
+      }),
+    )
+    writeFileSync(path.join(dir, '.codeindex.json'), JSON.stringify({ roots: ['src'] }))
+    const config = await loadCodeindexConfig({ configPath: path.join(dir, '.codeindex.json'), repoRoot: dir })
+    await indexCodebase({ config, mode: 'full' })
+    const db = openDatabase(config.dbPath)
+    try {
+      const oracle = buildReferenceOracle(db, { repoRoot: dir, tsconfigPath: path.join(dir, 'tsconfig.json') })
+      const base = oracle.find((t) => t.target.endsWith('#Base'))
+      expect(base!.trueSources.find((s) => s.name.endsWith('#Widget'))!.position).toBe('value')
+      const iface = oracle.find((t) => t.target.endsWith('#Iface'))
+      expect(iface!.trueSources.find((s) => s.name.endsWith('#Widget'))!.position).toBe('type')
     } finally {
       db.close()
     }

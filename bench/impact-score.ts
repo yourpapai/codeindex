@@ -47,22 +47,22 @@ export const scoreImpact = (db: Database, oracle: readonly OracleTarget[], repo:
   let falsePositives = 0
 
   const perTarget: readonly ImpactTargetScore[] = oracle.map((entry) => {
-    const truth = new Set(entry.trueSources)
+    const truthNames = new Set(entry.trueSources.map((s) => s.name))
     const reported = impactSources(db, entry.target)
     const reportedNames = new Set(reported.map((r) => r.name))
 
-    const fn = [...truth].filter((s) => !reportedNames.has(s)).length
-    const fpRows = reported.filter((r) => !truth.has(r.name))
+    const fn = [...truthNames].filter((n) => !reportedNames.has(n)).length
+    const fpRows = reported.filter((r) => !truthNames.has(r.name))
     for (const fp of fpRows) fpByConfidence[fp.confidence] = (fpByConfidence[fp.confidence] ?? 0) + 1
 
-    trueReferenceCount += truth.size
+    trueReferenceCount += entry.trueSources.length
     impactReferenceCount += reported.length
     falseNegatives += fn
     falsePositives += fpRows.length
 
     return {
       target: entry.target,
-      trueSourceCount: truth.size,
+      trueSourceCount: entry.trueSources.length,
       impactSourceCount: reported.length,
       falseNegatives: fn,
       falsePositives: fpRows.length,
