@@ -93,7 +93,10 @@ const main = async (): Promise<void> => {
     const baseline = ImpactBaselineSchema.parse(JSON.parse(readFileSync(args.baseline, 'utf8')) as unknown)
     const comparison = compareImpact(report, baseline, 1e-9)
     console.error(
-      `falseNegativeRate: ${baseline.falseNegativeRate.toFixed(4)} -> ${report.falseNegativeRate.toFixed(4)} (${comparison.delta >= 0 ? '+' : ''}${comparison.delta.toFixed(4)})`,
+      `valueFalseNegativeRate: ${baseline.valueFalseNegativeRate.toFixed(4)} -> ${report.valueFalseNegativeRate.toFixed(4)} (${comparison.delta >= 0 ? '+' : ''}${comparison.delta.toFixed(4)})`,
+    )
+    console.error(
+      `typeFalseNegativeRate (diagnostic, sizes B7): ${report.typeFalseNegativeRate.toFixed(4)} | totalFN ${report.falseNegativeRate.toFixed(4)}`,
     )
     console.error(
       `falsePositiveRate (diagnostic): ${report.falsePositiveRate.toFixed(4)} by confidence ${JSON.stringify(report.falsePositivesByConfidence)}`,

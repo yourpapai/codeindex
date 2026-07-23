@@ -9,33 +9,33 @@ const baseline: ImpactBaseline = {
   falseNegatives: 30,
   falseNegativeRate: 0.3,
   falsePositiveRate: 0.1,
-  valueFalseNegativeRate: 0.3,
-  typeFalseNegativeRate: 0.3,
+  valueFalseNegativeRate: 0.5,
+  typeFalseNegativeRate: 0.9,
 }
-const report = (fnRate: number): ImpactBenchReport => ({
+const report = (valueFnRate: number): ImpactBenchReport => ({
   repo: 'x',
   targetsScored: 10,
   trueReferenceCount: 100,
   impactReferenceCount: 90,
-  falseNegatives: Math.round(fnRate * 100),
-  falseNegativeRate: fnRate,
+  falseNegatives: 30,
+  falseNegativeRate: 0.3,
   falsePositives: 9,
   falsePositiveRate: 0.1,
   falsePositivesByConfidence: {},
-  valueTrueReferenceCount: 100,
-  valueFalseNegatives: Math.round(fnRate * 100),
-  valueFalseNegativeRate: fnRate,
-  typeTrueReferenceCount: 0,
-  typeFalseNegatives: 0,
-  typeFalseNegativeRate: 0,
+  valueTrueReferenceCount: 50,
+  valueFalseNegatives: Math.round(valueFnRate * 50),
+  valueFalseNegativeRate: valueFnRate,
+  typeTrueReferenceCount: 50,
+  typeFalseNegatives: 45,
+  typeFalseNegativeRate: 0.9,
   perTarget: [],
 })
 
 describe('compareImpact', () => {
-  test('FN rate increasing past tolerance is a regression', () => {
-    expect(compareImpact(report(0.35), baseline, 1e-9).regressed).toBe(true)
+  test('value FN rate increasing past tolerance is a regression', () => {
+    expect(compareImpact(report(0.55), baseline, 1e-9).regressed).toBe(true)
   })
-  test('FN rate dropping is an improvement, not a regression', () => {
-    expect(compareImpact(report(0.2), baseline, 1e-9).regressed).toBe(false)
+  test('value FN rate dropping is an improvement, not a regression', () => {
+    expect(compareImpact(report(0.4), baseline, 1e-9).regressed).toBe(false)
   })
 })

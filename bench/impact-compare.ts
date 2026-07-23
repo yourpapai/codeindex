@@ -5,13 +5,13 @@ export interface ImpactComparison {
   readonly delta: number
 }
 
-// FN rate going UP means code_impact newly misses more true usages — a regression.
-// FP rate is reported by the runner but not gated in Slice 1 (diagnostic only).
+// Value-position FN going UP means code_impact newly misses more real (value) usages —
+// a regression. Type-only FN, total FN, and FP are diagnostics, not gated (Slice 2).
 export const compareImpact = (
   report: ImpactBenchReport,
   baseline: ImpactBaseline,
   tolerance: number,
 ): ImpactComparison => {
-  const delta = report.falseNegativeRate - baseline.falseNegativeRate
+  const delta = report.valueFalseNegativeRate - baseline.valueFalseNegativeRate
   return { regressed: delta > tolerance, delta }
 }
