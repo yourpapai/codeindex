@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { buildReferenceOracle } from '../../bench/impact-oracle.js'
-import { scoreImpact } from '../../bench/impact-score.js'
+import { assertScored, scoreImpact } from '../../bench/impact-score.js'
+import type { ImpactBenchReport } from '../../bench/impact-types.js'
 import { loadCodeindexConfig } from '../../src/config.js'
 import { indexCodebase } from '../../src/indexer/index-codebase.js'
 import { openDatabase } from '../../src/storage/db.js'
@@ -66,5 +67,28 @@ describe('scoreImpact', () => {
     } finally {
       db.close()
     }
+  })
+})
+
+const reportWithTargetsScored = (targetsScored: number): ImpactBenchReport => ({
+  repo: 'fixture',
+  targetsScored,
+  trueReferenceCount: 0,
+  impactReferenceCount: 0,
+  falseNegatives: 0,
+  falseNegativeRate: 0,
+  falsePositives: 0,
+  falsePositiveRate: 0,
+  falsePositivesByConfidence: {},
+  perTarget: [],
+})
+
+describe('assertScored', () => {
+  test('throws on a zero-target report instead of letting a broken run gate silently', () => {
+    expect(() => assertScored(reportWithTargetsScored(0))).toThrow()
+  })
+
+  test('does not throw when at least one target was scored', () => {
+    expect(() => assertScored(reportWithTargetsScored(1))).not.toThrow()
   })
 })

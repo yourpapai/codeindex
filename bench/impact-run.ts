@@ -6,7 +6,7 @@ import { indexCodebase } from '../src/indexer/index-codebase.js'
 import { openDatabase } from '../src/storage/db.js'
 import { compareImpact } from './impact-compare.js'
 import { buildReferenceOracle } from './impact-oracle.js'
-import { scoreImpact } from './impact-score.js'
+import { assertScored, scoreImpact } from './impact-score.js'
 import { type ImpactBaseline, ImpactBaselineSchema, type ImpactBenchReport } from './impact-types.js'
 
 interface Args {
@@ -36,7 +36,11 @@ const parseArgs = (argv: readonly string[]): Args => {
       baseline = path.resolve(value)
       i += 1
     } else if (flag === '--max-targets' && value !== undefined) {
-      maxTargets = Number.parseInt(value, 10)
+      const parsed = Number.parseInt(value, 10)
+      if (Number.isNaN(parsed)) {
+        throw new Error(`Invalid --max-targets value: ${value} (expected an integer)`)
+      }
+      maxTargets = parsed
       i += 1
     } else if (flag === '--update-baseline') {
       updateBaseline = true
@@ -70,6 +74,9 @@ const main = async (): Promise<void> => {
       db.close()
     }
   })()
+  // A zero-target scan is a broken run, not a valid (perfect-looking) result — refuse
+  // to print/gate on it rather than silently reporting a 0.0 false-negative rate.
+  assertScored(report)
   console.log(JSON.stringify(report, null, 2))
 
   if (args.updateBaseline && args.baseline === null) {

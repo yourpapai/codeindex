@@ -72,6 +72,33 @@ const enclosingQualifiedName = (db: Database, filePath: string, line: number): s
     )
     .get(filePath, line, line)?.qualified_name ?? null
 
+type NamedDeclaration =
+  | ts.FunctionDeclaration
+  | ts.ClassDeclaration
+  | ts.InterfaceDeclaration
+  | ts.TypeAliasDeclaration
+  | ts.EnumDeclaration
+  | ts.VariableDeclaration
+  | ts.MethodDeclaration
+
+// True when `node` is one of the declaration forms that give a symbol its name
+// (function / class, incl. abstract / interface / type-alias / variable declarator /
+// method / enum) — i.e. a node with a `name` property comparable to an identifier.
+const isNamedDeclaration = (node: ts.Node): node is NamedDeclaration =>
+  ts.isFunctionDeclaration(node) ||
+  ts.isClassDeclaration(node) ||
+  ts.isInterfaceDeclaration(node) ||
+  ts.isTypeAliasDeclaration(node) ||
+  ts.isEnumDeclaration(node) ||
+  ts.isVariableDeclaration(node) ||
+  ts.isMethodDeclaration(node)
+
+// True when `identifier` IS the name of its parent declaration, as opposed to some
+// unrelated identifier that merely shares the same text nearby (an object-literal
+// property key, a parameter, a plain reference) — see declarationOffset below.
+const isDeclarationName = (identifier: ts.Identifier): boolean =>
+  isNamedDeclaration(identifier.parent) && identifier.parent.name === identifier
+
 const declarationOffset = (
   program: ts.Program,
   absFilePath: string,
@@ -83,8 +110,13 @@ const declarationOffset = (
   let offset: number | null = null
   const visit = (node: ts.Node): void => {
     if (offset !== null) return
-    if (ts.isIdentifier(node) && node.text === localName) {
+    // Require the identifier to BE a declaration name, not merely text-equal to one
+    // nearby (e.g. a same-named parameter, property key, or reference) — otherwise
+    // getReferencesAtPosition runs at the wrong AST node entirely.
+    if (ts.isIdentifier(node) && node.text === localName && isDeclarationName(node)) {
       const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1
+      // start_line proximity disambiguates multiple same-named declarations in the
+      // file (e.g. overloads, or the same name declared in nested scopes).
       if (Math.abs(line - startLine) <= 1) offset = node.getStart(sf)
     }
     ts.forEachChild(node, visit)
@@ -99,6 +131,14 @@ export const buildReferenceOracle = (
 ): readonly OracleTarget[] => {
   const { program, service } = createTsProject(opts.tsconfigPath)
   const symbols = loadExportedSymbols(db)
+  // NOTE: `symbols` is ORDER BY qualified_name (loadExportedSymbols above), so this
+  // slice takes a deterministic ALPHABETICAL PREFIX of exported symbols, not a
+  // representative random sample. That's intentional for run-over-run regression
+  // comparison (the same targets are scored every run, so deltas are attributable to
+  // real changes rather than sampling noise) but it means the resulting FN/FP rates
+  // are biased toward whatever symbol kinds/modules happen to sort first and should
+  // NOT be read as a representative estimate across the whole repo. A representative
+  // estimate would need a strided or seeded random sample — left for a future slice.
   const selected = opts.maxTargets === undefined ? symbols : symbols.slice(0, opts.maxTargets)
   return selected.map((symbol) => {
     const absFile = path.resolve(opts.repoRoot, symbol.filePath)

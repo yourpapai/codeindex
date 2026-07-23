@@ -26,6 +26,19 @@ const impactSources = (db: Database, target: string): readonly ImpactSource[] =>
   return [...byName].map(([name, confidence]) => ({ name, confidence }))
 }
 
+// A zero-target scan is a broken run (bad --max-targets, an empty/unresolved oracle,
+// a repo with no exported symbols), not a real result — both falseNegativeRate and
+// falsePositiveRate default to 0 in that case (see the 0-denominator guards below),
+// which reads as a suspiciously perfect score. Callers MUST call this before
+// printing/gating a report and treat a throw as a hard failure, not a pass.
+export const assertScored = (report: ImpactBenchReport): void => {
+  if (report.targetsScored === 0) {
+    throw new Error(
+      'code_impact bench: 0 targets scored — broken run (check --max-targets and oracle resolution); refusing to gate on it.',
+    )
+  }
+}
+
 export const scoreImpact = (db: Database, oracle: readonly OracleTarget[], repo: string): ImpactBenchReport => {
   const fpByConfidence: Record<string, number> = {}
   let trueReferenceCount = 0
