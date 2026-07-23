@@ -3,5 +3,7 @@
   "trueReferenceCount": 390,
   "falseNegatives": 338,
   "falseNegativeRate": 0.8666666666666667,
-  "falsePositiveRate": 0.13333333333333333
+  "falsePositiveRate": 0.13333333333333333,
+  "valueFalseNegativeRate": 0.7319587628865979,
+  "typeFalseNegativeRate": 1
 }

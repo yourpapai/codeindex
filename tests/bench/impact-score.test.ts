@@ -64,6 +64,11 @@ describe('scoreImpact', () => {
       expect(baz!.trueSourceCount).toBeGreaterThan(0)
       expect(baz!.falseNegatives).toBeGreaterThan(0)
       expect(report.falseNegatives).toBeGreaterThanOrEqual(1)
+      // baz's only true source (qux, via ns.baz()) is a value-position call code_impact
+      // misses → it must land in the value bucket, not merely the total.
+      expect(report.valueTrueReferenceCount).toBeGreaterThan(0)
+      expect(report.valueFalseNegatives).toBeGreaterThanOrEqual(1)
+      expect(report.valueFalseNegativeRate).toBeGreaterThan(0)
     } finally {
       db.close()
     }
@@ -80,6 +85,12 @@ const reportWithTargetsScored = (targetsScored: number): ImpactBenchReport => ({
   falsePositives: 0,
   falsePositiveRate: 0,
   falsePositivesByConfidence: {},
+  valueTrueReferenceCount: 0,
+  valueFalseNegatives: 0,
+  valueFalseNegativeRate: 0,
+  typeTrueReferenceCount: 0,
+  typeFalseNegatives: 0,
+  typeFalseNegativeRate: 0,
   perTarget: [],
 })
 

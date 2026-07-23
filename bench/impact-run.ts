@@ -55,6 +55,8 @@ const toBaseline = (r: ImpactBenchReport): ImpactBaseline => ({
   falseNegatives: r.falseNegatives,
   falseNegativeRate: r.falseNegativeRate,
   falsePositiveRate: r.falsePositiveRate,
+  valueFalseNegativeRate: r.valueFalseNegativeRate,
+  typeFalseNegativeRate: r.typeFalseNegativeRate,
 })
 
 const main = async (): Promise<void> => {

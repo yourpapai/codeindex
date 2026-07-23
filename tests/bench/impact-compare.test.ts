@@ -9,6 +9,8 @@ const baseline: ImpactBaseline = {
   falseNegatives: 30,
   falseNegativeRate: 0.3,
   falsePositiveRate: 0.1,
+  valueFalseNegativeRate: 0.3,
+  typeFalseNegativeRate: 0.3,
 }
 const report = (fnRate: number): ImpactBenchReport => ({
   repo: 'x',
@@ -20,6 +22,12 @@ const report = (fnRate: number): ImpactBenchReport => ({
   falsePositives: 9,
   falsePositiveRate: 0.1,
   falsePositivesByConfidence: {},
+  valueTrueReferenceCount: 100,
+  valueFalseNegatives: Math.round(fnRate * 100),
+  valueFalseNegativeRate: fnRate,
+  typeTrueReferenceCount: 0,
+  typeFalseNegatives: 0,
+  typeFalseNegativeRate: 0,
   perTarget: [],
 })
 

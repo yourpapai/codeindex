@@ -28,6 +28,12 @@ export interface ImpactBenchReport {
   readonly falsePositives: number
   readonly falsePositiveRate: number
   readonly falsePositivesByConfidence: Readonly<Record<string, number>>
+  readonly valueTrueReferenceCount: number
+  readonly valueFalseNegatives: number
+  readonly valueFalseNegativeRate: number
+  readonly typeTrueReferenceCount: number
+  readonly typeFalseNegatives: number
+  readonly typeFalseNegativeRate: number
   readonly perTarget: readonly ImpactTargetScore[]
 }
 
@@ -37,6 +43,8 @@ export interface ImpactBaseline {
   readonly falseNegatives: number
   readonly falseNegativeRate: number
   readonly falsePositiveRate: number
+  readonly valueFalseNegativeRate: number
+  readonly typeFalseNegativeRate: number
 }
 
 export const ImpactBaselineSchema = z.object({
@@ -45,4 +53,6 @@ export const ImpactBaselineSchema = z.object({
   falseNegatives: z.number(),
   falseNegativeRate: z.number(),
   falsePositiveRate: z.number(),
+  valueFalseNegativeRate: z.number(),
+  typeFalseNegativeRate: z.number(),
 })

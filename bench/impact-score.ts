@@ -39,35 +39,87 @@ export const assertScored = (report: ImpactBenchReport): void => {
   }
 }
 
+// Per-target tally: the report row plus the value/type and fp-by-confidence buckets
+// scoreImpact accumulates across all targets. Split out of scoreImpact purely to stay
+// under max-lines-per-function — behavior is identical to inlining this in a .map.
+interface TargetTally {
+  readonly score: ImpactTargetScore
+  readonly valueTrue: number
+  readonly valueFalseNegatives: number
+  readonly typeTrue: number
+  readonly typeFalseNegatives: number
+  readonly fpByConfidence: Readonly<Record<string, number>>
+}
+
+const scoreTarget = (db: Database, entry: OracleTarget): TargetTally => {
+  const truthNames = new Set(entry.trueSources.map((s) => s.name))
+  const reported = impactSources(db, entry.target)
+  const reportedNames = new Set(reported.map((r) => r.name))
+
+  let fn = 0
+  let valueTrue = 0
+  let valueFalseNegatives = 0
+  let typeTrue = 0
+  let typeFalseNegatives = 0
+  for (const source of entry.trueSources) {
+    const covered = reportedNames.has(source.name)
+    if (!covered) fn += 1
+    if (source.position === 'value' || source.position === 'both') {
+      valueTrue += 1
+      if (!covered) valueFalseNegatives += 1
+    } else {
+      typeTrue += 1
+      if (!covered) typeFalseNegatives += 1
+    }
+  }
+
+  const fpRows = reported.filter((r) => !truthNames.has(r.name))
+  const fpByConfidence: Record<string, number> = {}
+  for (const fp of fpRows) fpByConfidence[fp.confidence] = (fpByConfidence[fp.confidence] ?? 0) + 1
+
+  return {
+    score: {
+      target: entry.target,
+      trueSourceCount: entry.trueSources.length,
+      impactSourceCount: reported.length,
+      falseNegatives: fn,
+      falsePositives: fpRows.length,
+    },
+    valueTrue,
+    valueFalseNegatives,
+    typeTrue,
+    typeFalseNegatives,
+    fpByConfidence,
+  }
+}
+
 export const scoreImpact = (db: Database, oracle: readonly OracleTarget[], repo: string): ImpactBenchReport => {
   const fpByConfidence: Record<string, number> = {}
   let trueReferenceCount = 0
   let impactReferenceCount = 0
   let falseNegatives = 0
   let falsePositives = 0
+  let valueTrueReferenceCount = 0
+  let valueFalseNegatives = 0
+  let typeTrueReferenceCount = 0
+  let typeFalseNegatives = 0
+  const perTarget: ImpactTargetScore[] = []
 
-  const perTarget: readonly ImpactTargetScore[] = oracle.map((entry) => {
-    const truthNames = new Set(entry.trueSources.map((s) => s.name))
-    const reported = impactSources(db, entry.target)
-    const reportedNames = new Set(reported.map((r) => r.name))
-
-    const fn = [...truthNames].filter((n) => !reportedNames.has(n)).length
-    const fpRows = reported.filter((r) => !truthNames.has(r.name))
-    for (const fp of fpRows) fpByConfidence[fp.confidence] = (fpByConfidence[fp.confidence] ?? 0) + 1
-
+  for (const entry of oracle) {
+    const tally = scoreTarget(db, entry)
+    perTarget.push(tally.score)
     trueReferenceCount += entry.trueSources.length
-    impactReferenceCount += reported.length
-    falseNegatives += fn
-    falsePositives += fpRows.length
-
-    return {
-      target: entry.target,
-      trueSourceCount: entry.trueSources.length,
-      impactSourceCount: reported.length,
-      falseNegatives: fn,
-      falsePositives: fpRows.length,
+    impactReferenceCount += tally.score.impactSourceCount
+    falseNegatives += tally.score.falseNegatives
+    falsePositives += tally.score.falsePositives
+    valueTrueReferenceCount += tally.valueTrue
+    valueFalseNegatives += tally.valueFalseNegatives
+    typeTrueReferenceCount += tally.typeTrue
+    typeFalseNegatives += tally.typeFalseNegatives
+    for (const [confidence, count] of Object.entries(tally.fpByConfidence)) {
+      fpByConfidence[confidence] = (fpByConfidence[confidence] ?? 0) + count
     }
-  })
+  }
 
   return {
     repo,
@@ -79,6 +131,12 @@ export const scoreImpact = (db: Database, oracle: readonly OracleTarget[], repo:
     falsePositives,
     falsePositiveRate: impactReferenceCount === 0 ? 0 : falsePositives / impactReferenceCount,
     falsePositivesByConfidence: fpByConfidence,
+    valueTrueReferenceCount,
+    valueFalseNegatives,
+    valueFalseNegativeRate: valueTrueReferenceCount === 0 ? 0 : valueFalseNegatives / valueTrueReferenceCount,
+    typeTrueReferenceCount,
+    typeFalseNegatives,
+    typeFalseNegativeRate: typeTrueReferenceCount === 0 ? 0 : typeFalseNegatives / typeTrueReferenceCount,
     perTarget,
   }
 }
