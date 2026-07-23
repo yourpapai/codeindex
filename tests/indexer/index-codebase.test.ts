@@ -5,6 +5,7 @@ import path from 'node:path'
 
 import { loadCodeindexConfig } from '../../src/config.js'
 import { indexCodebase } from '../../src/indexer/index-codebase.js'
+import { findIncomingReferences } from '../../src/search/index.js'
 import { openDatabase } from '../../src/storage/db.js'
 import { ensureSchema } from '../../src/storage/schema.js'
 
@@ -157,4 +158,36 @@ describe('indexCodebase pruning', () => {
 
     expect(summary.filesPruned).toBe(0)
   })
+})
+
+test('code_impact reports JSX component usage and class heritage end-to-end', async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'codeindex-s2-e2e-'))
+  try {
+    mkdirSync(path.join(dir, 'src'), { recursive: true })
+    writeFileSync(path.join(dir, 'src/button.tsx'), 'export function Button() { return null }\n')
+    writeFileSync(path.join(dir, 'src/base.ts'), 'export class Base {}\n')
+    writeFileSync(
+      path.join(dir, 'src/app.tsx'),
+      "import { Button } from './button.js'\n" +
+        "import { Base } from './base.js'\n" +
+        'export class App extends Base {}\n' +
+        'export function Screen() { return <Button /> }\n',
+    )
+    writeFileSync(path.join(dir, '.codeindex.json'), JSON.stringify({ roots: ['src'] }))
+    const config = await loadCodeindexConfig({ configPath: path.join(dir, '.codeindex.json'), repoRoot: dir })
+    await indexCodebase({ config, mode: 'full' })
+    const db = openDatabase(config.dbPath)
+    try {
+      const buttonRefs = findIncomingReferences(db, { qualifiedName: 'src/button#Button', limit: 100 })
+      const screenReference = buttonRefs.find((r) => r.sourceQualifiedName === 'src/app#Screen')
+      expect(screenReference?.edgeType).toBe('references')
+      const baseRefs = findIncomingReferences(db, { qualifiedName: 'src/base#Base', limit: 100 })
+      const appReference = baseRefs.find((r) => r.sourceQualifiedName === 'src/app#App')
+      expect(appReference?.edgeType).toBe('extends')
+    } finally {
+      db.close()
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })
