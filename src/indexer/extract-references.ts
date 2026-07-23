@@ -100,6 +100,43 @@ const collectJsxReference = (
   })
 }
 
+const collectHeritageReferences = (
+  node: SyntaxNode,
+  enclosingSymbol: string | null,
+  references: ReferenceCandidate[],
+): void => {
+  if (node.type === 'extends_clause') {
+    // Class `extends` — value position. `value` is the base identifier (skip
+    // member-expression bases like `extends Foo.Bar`, handled with namespaces later).
+    const base = node.childForFieldName('value')
+    if (base !== null && base.type === 'identifier') {
+      references.push({
+        sourceQualifiedName: enclosingSymbol,
+        edgeType: 'extends',
+        targetName: base.text,
+        targetExportName: null,
+        targetModuleSpecifier: null,
+        lineNumber: base.startPosition.row + 1,
+      })
+    }
+    return
+  }
+  // implements_clause — type position; one edge per implemented interface identifier.
+  for (let i = 0; i < node.namedChildCount; i += 1) {
+    const child = node.namedChild(i)
+    if (child?.type === 'type_identifier') {
+      references.push({
+        sourceQualifiedName: enclosingSymbol,
+        edgeType: 'implements',
+        targetName: child.text,
+        targetExportName: null,
+        targetModuleSpecifier: null,
+        lineNumber: child.startPosition.row + 1,
+      })
+    }
+  }
+}
+
 export const extractReferenceCandidates = (
   input: Readonly<ExtractReferenceCandidatesInput>,
 ): ExtractReferenceCandidatesResult => {
@@ -129,6 +166,9 @@ export const extractReferenceCandidates = (
     if (node.type === 'call_expression') collectCallReference(node, enclosingSymbol, references)
     if (node.type === 'jsx_opening_element' || node.type === 'jsx_self_closing_element') {
       collectJsxReference(node, enclosingSymbol, references)
+    }
+    if (node.type === 'extends_clause' || node.type === 'implements_clause') {
+      collectHeritageReferences(node, enclosingSymbol, references)
     }
     visitChildren(node, enclosingSymbol, visit)
   }

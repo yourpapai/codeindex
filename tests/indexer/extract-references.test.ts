@@ -443,4 +443,29 @@ describe('extractReferenceCandidates', () => {
     })
     expect(references.filter((ref) => ref.edgeType === 'references')).toHaveLength(0)
   })
+
+  test('captures class extends and implements as heritage edges', async () => {
+    const loader = await createParserLoader()
+    const parsed = await loader.createParserForExtension('.ts')
+    const source = [
+      "import { Base } from './base.js'",
+      "import { Left, Right } from './ifaces.js'",
+      'export class Widget extends Base implements Left, Right {}',
+    ].join('\n')
+    const tree = parsed.parser.parse(source)
+    expect(tree).not.toBeNull()
+    const { references } = extractReferenceCandidates({
+      source,
+      tree: tree!,
+      relativeFilePath: 'src/widget.ts',
+      moduleKey: 'src/widget',
+    })
+    const ext = references.filter((ref) => ref.edgeType === 'extends')
+    expect(ext).toHaveLength(1)
+    expect(ext[0]!.targetName).toBe('Base')
+    expect(ext[0]!.sourceQualifiedName).toBe('src/widget#Widget')
+    const impl = references.filter((ref) => ref.edgeType === 'implements')
+    expect(impl.map((ref) => ref.targetName)).toEqual(['Left', 'Right'])
+    expect(impl[0]!.sourceQualifiedName).toBe('src/widget#Widget')
+  })
 })
