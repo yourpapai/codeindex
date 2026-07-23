@@ -32,9 +32,7 @@ export interface ExtractReferenceCandidatesResult {
 
 const normalizeSpecifier = (node: SyntaxNode | null | undefined): string | null => {
   const text = node?.text
-  if (text === undefined) {
-    return null
-  }
+  if (text === undefined) return null
   if ((text.startsWith("'") && text.endsWith("'")) || (text.startsWith('"') && text.endsWith('"'))) {
     return text.slice(1, -1)
   }
@@ -54,17 +52,16 @@ const pushExportSpecifier = (
     localName,
     targetModuleSpecifier: sourceSpecifier,
   })
-  if (sourceSpecifier !== null) {
-    const targetName = localName ?? child.text
-    references.push({
-      sourceQualifiedName: null,
-      edgeType: 'reexports',
-      targetName,
-      targetExportName: targetName,
-      targetModuleSpecifier: sourceSpecifier,
-      lineNumber: child.startPosition.row + 1,
-    })
-  }
+  if (sourceSpecifier === null) return
+  const targetName = localName ?? child.text
+  references.push({
+    sourceQualifiedName: null,
+    edgeType: 'reexports',
+    targetName,
+    targetExportName: targetName,
+    targetModuleSpecifier: sourceSpecifier,
+    lineNumber: child.startPosition.row + 1,
+  })
 }
 
 const visitChildren = (
@@ -74,17 +71,13 @@ const visitChildren = (
 ): void => {
   for (let index = 0; index < node.namedChildCount; index += 1) {
     const child = node.namedChild(index)
-    if (child !== null) {
-      visit(child, enclosingSymbol)
-    }
+    if (child !== null) visit(child, enclosingSymbol)
   }
 }
 
 const nextEnclosingSymbol = (moduleKey: string, node: SyntaxNode, enclosingSymbol: string | null): string | null => {
   const functionName = node.childForFieldName('name')?.text
-  if (functionName === undefined) {
-    return enclosingSymbol
-  }
+  if (functionName === undefined) return enclosingSymbol
   return enclosingSymbol === null ? `${moduleKey}#${functionName}` : `${enclosingSymbol}>${functionName}`
 }
 
@@ -100,9 +93,7 @@ const isNamedScopeBoundary = (node: SyntaxNode): boolean =>
 
 const hasDefaultKeyword = (node: SyntaxNode): boolean => {
   for (let i = 0; i < node.childCount; i += 1) {
-    if (node.child(i)?.type === 'default') {
-      return true
-    }
+    if (node.child(i)?.type === 'default') return true
   }
   return false
 }
@@ -134,17 +125,15 @@ const pushLexicalExportCandidates = (
   const isDefault = hasDefaultKeyword(exportStatement)
   for (let i = 0; i < lexicalDecl.namedChildCount; i += 1) {
     const declarator = lexicalDecl.namedChild(i)
-    if (declarator?.type === 'variable_declarator') {
-      const localName = declarator.childForFieldName('name')?.text
-      if (localName !== undefined) {
-        moduleExports.push({
-          exportName: isDefault ? 'default' : localName,
-          exportKind: isDefault ? 'default' : 'named',
-          localName,
-          targetModuleSpecifier: null,
-        })
-      }
-    }
+    if (declarator?.type !== 'variable_declarator') continue
+    const localName = declarator.childForFieldName('name')?.text
+    if (localName === undefined) continue
+    moduleExports.push({
+      exportName: isDefault ? 'default' : localName,
+      exportKind: isDefault ? 'default' : 'named',
+      localName,
+      targetModuleSpecifier: null,
+    })
   }
 }
 
@@ -173,13 +162,12 @@ const collectExportClauseSpecifiers = (
   references: ReferenceCandidate[],
 ): void => {
   for (let i = 0; i < clauseNode.namedChildCount; i += 1) {
-    const nestedChild = clauseNode.namedChild(i)
-    if (nestedChild?.type === 'export_specifier') {
-      pushExportSpecifier(nestedChild, sourceSpecifier, moduleExports, references)
-    }
+    const child = clauseNode.namedChild(i)
+    if (child?.type === 'export_specifier') pushExportSpecifier(child, sourceSpecifier, moduleExports, references)
   }
 }
 
+const NAMED_TYPE_EXPORT_KINDS = new Set(['interface_declaration', 'type_alias_declaration', 'enum_declaration'])
 const collectExportCandidates = (
   node: SyntaxNode,
   enclosingSymbol: string | null,
@@ -189,7 +177,6 @@ const collectExportCandidates = (
   visit: (child: SyntaxNode, childEnclosingSymbol: string | null) => void,
 ): void => {
   const sourceSpecifier = normalizeSpecifier(node.childForFieldName('source'))
-
   for (let index = 0; index < node.namedChildCount; index += 1) {
     const child = node.namedChild(index)
     if (child === null) continue
@@ -201,11 +188,7 @@ const collectExportCandidates = (
       handleFunctionExportChild(node, child, enclosingSymbol, moduleKey, moduleExports, visit)
       continue
     }
-    if (
-      child.type === 'interface_declaration' ||
-      child.type === 'type_alias_declaration' ||
-      child.type === 'enum_declaration'
-    ) {
+    if (NAMED_TYPE_EXPORT_KINDS.has(child.type)) {
       pushNamedExportCandidate(node, child, moduleExports)
       visit(child, enclosingSymbol)
       continue
@@ -257,20 +240,39 @@ const collectCallReference = (
   })
 }
 
+const collectJsxReference = (
+  node: SyntaxNode,
+  enclosingSymbol: string | null,
+  references: ReferenceCandidate[],
+): void => {
+  const nameNode = node.childForFieldName('name')
+  // Only bare, capitalized identifiers are component references: lowercase tags are intrinsic
+  // host elements (<div>); member-expression tags (<Foo.Bar/>) are the namespace case, deferred with B5.
+  if (nameNode === null || nameNode.type !== 'identifier') return
+  const tag = nameNode.text
+  const first = tag.charAt(0)
+  if (first === '' || first !== first.toUpperCase()) return
+  references.push({
+    sourceQualifiedName: enclosingSymbol,
+    edgeType: 'references',
+    targetName: tag,
+    targetExportName: null,
+    targetModuleSpecifier: null,
+    lineNumber: node.startPosition.row + 1,
+  })
+}
+
 export const extractReferenceCandidates = (
   input: Readonly<ExtractReferenceCandidatesInput>,
 ): ExtractReferenceCandidatesResult => {
   const moduleExports: ModuleExportCandidate[] = []
   const references: ReferenceCandidate[] = []
-
   const visit = (node: SyntaxNode, enclosingSymbol: string | null): void => {
     if (node.type === 'export_statement') {
       collectExportCandidates(node, enclosingSymbol, input.moduleKey, moduleExports, references, visit)
       return
     }
-    if (node.type === 'import_specifier') {
-      collectImportReference(node, references)
-    }
+    if (node.type === 'import_specifier') collectImportReference(node, references)
     if (node.type === 'identifier' && node.parent?.type === 'import_clause') {
       const importStatement = node.parent.parent
       references.push({
@@ -286,8 +288,9 @@ export const extractReferenceCandidates = (
       visitChildren(node, nextEnclosingSymbol(input.moduleKey, node, enclosingSymbol), visit)
       return
     }
-    if (node.type === 'call_expression') {
-      collectCallReference(node, enclosingSymbol, references)
+    if (node.type === 'call_expression') collectCallReference(node, enclosingSymbol, references)
+    if (node.type === 'jsx_opening_element' || node.type === 'jsx_self_closing_element') {
+      collectJsxReference(node, enclosingSymbol, references)
     }
     visitChildren(node, enclosingSymbol, visit)
   }

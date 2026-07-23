@@ -401,4 +401,46 @@ describe('extractReferenceCandidates', () => {
     expect(reexports[1]!.targetName).toBe('bar')
     expect(reexports[1]!.targetModuleSpecifier).toBe('./bar.js')
   })
+
+  test('captures capitalized JSX tags as reference edges; skips intrinsic and member tags', async () => {
+    const loader = await createParserLoader()
+    const parsed = await loader.createParserForExtension('.tsx')
+    const source = [
+      "import { Button } from './button.js'",
+      'export function App() {',
+      '  return <div><Button /><Panel>hi</Panel></div>',
+      '}',
+    ].join('\n')
+    const tree = parsed.parser.parse(source)
+    expect(tree).not.toBeNull()
+    const { references } = extractReferenceCandidates({
+      source,
+      tree: tree!,
+      relativeFilePath: 'src/app.tsx',
+      moduleKey: 'src/app',
+    })
+    const jsx = references.filter((ref) => ref.edgeType === 'references')
+    const names = jsx.map((ref) => ref.targetName)
+    expect(names).toContain('Button')
+    // closing tag must NOT double-count
+    expect(names).toContain('Panel')
+    expect(names.filter((n) => n === 'Panel')).toHaveLength(1)
+    expect(names).not.toContain('div')
+    expect(jsx.find((ref) => ref.targetName === 'Button')!.sourceQualifiedName).toBe('src/app#App')
+  })
+
+  test('skips member-expression JSX tags (namespace case, deferred to B5)', async () => {
+    const loader = await createParserLoader()
+    const parsed = await loader.createParserForExtension('.tsx')
+    const source = ["import * as UI from './ui.js'", 'export function App() {', '  return <UI.Panel />', '}'].join('\n')
+    const tree = parsed.parser.parse(source)
+    expect(tree).not.toBeNull()
+    const { references } = extractReferenceCandidates({
+      source,
+      tree: tree!,
+      relativeFilePath: 'src/app.tsx',
+      moduleKey: 'src/app',
+    })
+    expect(references.filter((ref) => ref.edgeType === 'references')).toHaveLength(0)
+  })
 })
