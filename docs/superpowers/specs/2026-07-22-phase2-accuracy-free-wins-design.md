@@ -161,6 +161,60 @@ order below — JSX + heritage leading — is the hypothesis; if the oracle says
 dominates the FN mass, it leads instead. The gate's output is a prioritized Slice 2 plan, which is
 when `writing-plans` is next invoked.
 
+### Slice 1 outcomes (recorded 2026-07-23)
+
+Slice 1 shipped (branch `1101edd..eb00908` on `master`; all tasks + a whole-branch review clean, 174
+tests green). Plan:
+`docs/superpowers/plans/2026-07-22-phase2-slice1-instrument-and-measurable-wins.md`.
+
+**Frozen baselines** (`bench/impact-baseline*.json`, gated by `bench:impact:check`):
+
+| Repo | `code_impact` FN | FP (by tier) | Targets |
+|---|---|---|---|
+| codeindex | **0.8281** (183/221) | 0.4412 — `resolved` 25 / `name_only` 5 | 101 (all exported) |
+| papai | **0.8667** (338/390) | 0.1333 — `resolved` 7 / `name_only` 1 | 300 (alphabetical prefix) |
+
+**Answers to the gate's questions:**
+
+- **The headline FN is type-position-dominated.** ~41/101 codeindex targets are `interface`/`type`
+  declarations with **zero** `code_impact` edges — type-only references are untracked (**gap B7**),
+  which the tsc oracle counts. So the 82.8% conflates B7 (a *distinct* gap, not in the pool below)
+  with the value/structural misses Slice 2 targets. **Decision (2026-07-23): baseline as-is; the
+  value-vs-type FN breakdown is Slice 2's FIRST task** — otherwise the FN gate can't move on B1/B2/B3
+  work. The value-FN (the real target) is estimated ~40–55%, still substantial.
+- **FP is a real, tiered signal.** The `resolved`-tier FPs (25 on codeindex) are the interesting ones
+  — they mean `code_impact` reports an edge tsc's truth set lacks (enclosing-scope / re-export
+  attribution differences, or genuine over-attribution). C2-suppression's go/no-go can read this.
+- **The BM25 blend (Unit 2) is a measured no-op** (MRR held: codeindex 0.9048, papai 0.8295). Within-tier
+  FTS was already bm25-ordered via SQL order + stable sort; the low NL-intent RRs rank the right answer
+  below higher-bm25 *wrong* exports, which bm25 magnitude can't fix. **This empirically confirms the
+  decision to defer in-degree ranking until the graph is complete** — ranking cannot be meaningfully
+  improved before the graph is. The blend was kept as explicit-ordering groundwork; the payload win
+  (Unit 3, −48% response tokens) is Slice 1's one user-facing improvement.
+
+**Two bugs surfaced and fixed during Slice 1** (both silent, neither caught by `bun run check`):
+
+1. A **stale golden query** (`who-uses-ensureSchema` → `indexCodebase`) that had silently broken
+   `bench:check` since Phase 1's Plan 5 moved `ensureSchema` into `runIndexPhases`. `bench:check` is not
+   part of `bun run check`, so it rotted unnoticed. Fixed (`a3dbc69`). *Lesson: the IR/FN gates need a
+   CI hook, or they will drift.*
+2. An **oracle `declarationOffset` mislocation** — matched any same-text identifier near the
+   declaration line, not the declaration *name* — which could corrupt FN/FP. Caught and reproduced by
+   the whole-branch review; fixed + regression-tested (`eb00908`). Re-captured baselines were
+   byte-identical (it wasn't biting these corpora).
+
+**Note for the tier1 pre-flight:** Slice 1 deliberately did **not** use `symbols.start_byte`/`end_byte`
+in the oracle — tree-sitter byte offsets (UTF-8) don't equal TS positions (UTF-16 code units) for
+non-ASCII source. Keep-or-drop of those columns should weigh that they're not a drop-in position source.
+
+**Slice 2's concrete first steps** (this refines the pool below, it does not replace it):
+
+1. **Value/type FN breakdown in the oracle** — label each true reference value-position vs
+   type-position; gate Slice 2 on `valueFalseNegativeRate` (and report `typeFalseNegativeRate` to size
+   B7). Keep `extends`(value) distinct from `implements`(type) so B3 targets stay counted as value.
+2. Then the graph work below, re-ranked by the *value*-FN contribution.
+3. Add a CI hook for `bench:impact:check` (+ the IR gates) so they can't silently rot again.
+
 ---
 
 ## Slice 2 — Complete the graph (provisional)
