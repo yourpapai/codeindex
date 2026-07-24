@@ -3,7 +3,7 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     "strict": true,
-    "jsx": "react-jsx"
+    "jsx": "preserve"
   },
   "include": ["src"]
 }
