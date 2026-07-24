@@ -22,7 +22,6 @@ const insertSymbol = (
     qualifiedName: string
     kind: string
     scopeTier: string
-    isExported: number
     exportNames: string
     signatureText: string
     docText: string
@@ -30,12 +29,10 @@ const insertSymbol = (
     identifierTerms: string
     startLine: number
     endLine: number
-    startByte: number
-    endByte: number
   },
 ): void => {
   db.query(
-    `INSERT INTO symbols (id, file_id, file_path, module_key, symbol_key, local_name, qualified_name, kind, scope_tier, parent_symbol_id, is_exported, export_names, signature_text, doc_text, body_text, identifier_terms, start_line, end_line, start_byte, end_byte) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO symbols (id, file_id, file_path, module_key, symbol_key, local_name, qualified_name, kind, scope_tier, parent_symbol_id, export_names, signature_text, doc_text, body_text, identifier_terms, start_line, end_line) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     opts.id,
     opts.fileId,
@@ -46,7 +43,6 @@ const insertSymbol = (
     opts.qualifiedName,
     opts.kind,
     opts.scopeTier,
-    opts.isExported,
     opts.exportNames,
     opts.signatureText,
     opts.docText,
@@ -54,8 +50,6 @@ const insertSymbol = (
     opts.identifierTerms,
     opts.startLine,
     opts.endLine,
-    opts.startByte,
-    opts.endByte,
   )
 }
 
@@ -74,7 +68,6 @@ describe('runExactSearch snippet preview', () => {
       qualifiedName: 'src/helper#helper',
       kind: 'function_declaration',
       scopeTier: 'exported',
-      isExported: 1,
       exportNames: '["helper"]',
       signatureText: 'export function helper()',
       docText: '',
@@ -82,8 +75,6 @@ describe('runExactSearch snippet preview', () => {
       identifierTerms: 'helper',
       startLine: 1,
       endLine: 5,
-      startByte: 0,
-      endByte: 50,
     })
 
     const results = runExactSearch(db, 'helper', 10, {})
@@ -106,7 +97,6 @@ describe('runExactSearch snippet preview', () => {
       qualifiedName: 'src/helper#helper',
       kind: 'function_declaration',
       scopeTier: 'exported',
-      isExported: 1,
       exportNames: '["helper"]',
       signatureText: 'export function helper()',
       docText: '',
@@ -114,8 +104,6 @@ describe('runExactSearch snippet preview', () => {
       identifierTerms: 'helper',
       startLine: 1,
       endLine: 1,
-      startByte: 0,
-      endByte: 20,
     })
 
     const results = runExactSearch(db, 'helper', 10, {})
@@ -138,7 +126,6 @@ describe('runExactSearch snippet preview', () => {
       qualifiedName: 'src/helper#helper',
       kind: 'function_declaration',
       scopeTier: 'exported',
-      isExported: 1,
       exportNames: '["helper"]',
       signatureText: '',
       docText: '',
@@ -146,8 +133,6 @@ describe('runExactSearch snippet preview', () => {
       identifierTerms: 'helper',
       startLine: 1,
       endLine: 1,
-      startByte: 0,
-      endByte: 20,
     })
 
     const results = runExactSearch(db, 'helper', 10, {})

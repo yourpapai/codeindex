@@ -12,8 +12,8 @@ const makeDb = (localName: string): Database => {
      VALUES (1, 'src/db/drizzle.ts', 'src/db/drizzle', 'ts', 'x', 'indexed', NULL, datetime('now'))`,
   )
   db.run(
-    `INSERT INTO symbols (id, file_id, file_path, module_key, symbol_key, local_name, qualified_name, kind, scope_tier, parent_symbol_id, is_exported, export_names, signature_text, doc_text, body_text, identifier_terms, start_line, end_line, start_byte, end_byte)
-     VALUES (1, 1, 'src/db/drizzle.ts', 'src/db/drizzle', 'src/db/drizzle.ts#0-20', ?, ?, 'function_declaration', 'exported', NULL, 1, ?, '', '', '', ?, 1, 1, 0, 20)`,
+    `INSERT INTO symbols (id, file_id, file_path, module_key, symbol_key, local_name, qualified_name, kind, scope_tier, parent_symbol_id, export_names, signature_text, doc_text, body_text, identifier_terms, start_line, end_line)
+     VALUES (1, 1, 'src/db/drizzle.ts', 'src/db/drizzle', 'src/db/drizzle.ts#0-20', ?, ?, 'function_declaration', 'exported', NULL, ?, '', '', '', ?, 1, 1)`,
     [localName, `src/db/drizzle#${localName}`, JSON.stringify([localName]), localName],
   )
   return db

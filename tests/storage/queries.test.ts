@@ -32,8 +32,6 @@ const makeSymbol = (
   identifierTerms: '',
   startLine: 1,
   endLine: 1,
-  startByte: 0,
-  endByte: 10,
   parentQualifiedName: null,
   ...overrides,
 })

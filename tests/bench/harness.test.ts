@@ -23,8 +23,8 @@ const insertFile = (db: Database, id: number, filePath: string, moduleKey: strin
 
 const insertSymbol = (db: Database, symbol: SeedSymbol): void => {
   db.query(
-    `INSERT INTO symbols (id, file_id, file_path, module_key, symbol_key, local_name, qualified_name, kind, scope_tier, parent_symbol_id, is_exported, export_names, signature_text, doc_text, body_text, identifier_terms, start_line, end_line, start_byte, end_byte)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'variable_declarator', 'exported', NULL, 1, ?, ?, '', ?, ?, 1, 1, 0, 10)`,
+    `INSERT INTO symbols (id, file_id, file_path, module_key, symbol_key, local_name, qualified_name, kind, scope_tier, parent_symbol_id, export_names, signature_text, doc_text, body_text, identifier_terms, start_line, end_line)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'variable_declarator', 'exported', NULL, ?, ?, '', ?, ?, 1, 1)`,
   ).run(
     symbol.id,
     symbol.fileId,

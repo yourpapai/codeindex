@@ -15,8 +15,6 @@ export interface ExtractedSymbol {
   readonly identifierTerms: string
   readonly startLine: number
   readonly endLine: number
-  readonly startByte: number
-  readonly endByte: number
   readonly parentQualifiedName: string | null
 }
 
@@ -129,8 +127,6 @@ const buildSymbol = (
   identifierTerms: normalizeIdentifierTerms(localName),
   startLine: node.startPosition.row + 1,
   endLine: node.endPosition.row + 1,
-  startByte: node.startIndex,
-  endByte: node.endIndex,
   parentQualifiedName: context.parentQualifiedName,
 })
 

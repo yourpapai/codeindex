@@ -126,9 +126,9 @@ export const persistSymbols = (
     db.query(
       `INSERT INTO symbols (
           file_id, file_path, module_key, symbol_key, local_name, qualified_name, kind, scope_tier,
-          parent_symbol_id, is_exported, export_names, signature_text, doc_text, body_text, identifier_terms,
-          start_line, end_line, start_byte, end_byte
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          parent_symbol_id, export_names, signature_text, doc_text, body_text, identifier_terms,
+          start_line, end_line
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       fileId,
       filePath,
@@ -138,7 +138,6 @@ export const persistSymbols = (
       symbol.qualifiedName,
       symbol.kind,
       symbol.scopeTier,
-      symbol.scopeTier === 'exported' ? 1 : 0,
       JSON.stringify(symbol.exportNames),
       symbol.signatureText,
       symbol.docText,
@@ -146,8 +145,6 @@ export const persistSymbols = (
       symbol.identifierTerms,
       symbol.startLine,
       symbol.endLine,
-      symbol.startByte,
-      symbol.endByte,
     )
     count += 1
   }
@@ -202,7 +199,7 @@ export const persistModuleExports = (
   for (const moduleExport of referenceCandidates.moduleExports) {
     const matchingSymbol = storedSymbols.find((symbol) => symbol.localName === moduleExport.localName)
     db.query(
-      'INSERT INTO module_exports (file_id, export_name, export_kind, symbol_id, target_module_specifier, resolved_file_id) VALUES (?, ?, ?, ?, ?, NULL)',
+      'INSERT INTO module_exports (file_id, export_name, export_kind, symbol_id, target_module_specifier) VALUES (?, ?, ?, ?, ?)',
     ).run(
       fileId,
       moduleExport.exportName,

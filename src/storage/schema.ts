@@ -29,16 +29,13 @@ const schemaStatements = [
     kind TEXT NOT NULL,
     scope_tier TEXT NOT NULL,
     parent_symbol_id INTEGER REFERENCES symbols(id) ON DELETE CASCADE,
-    is_exported INTEGER NOT NULL,
     export_names TEXT NOT NULL,
     signature_text TEXT NOT NULL,
     doc_text TEXT NOT NULL,
     body_text TEXT NOT NULL,
     identifier_terms TEXT NOT NULL,
     start_line INTEGER NOT NULL,
-    end_line INTEGER NOT NULL,
-    start_byte INTEGER NOT NULL,
-    end_byte INTEGER NOT NULL
+    end_line INTEGER NOT NULL
   )`,
   `CREATE TABLE IF NOT EXISTS module_exports (
     id INTEGER PRIMARY KEY,
@@ -46,8 +43,7 @@ const schemaStatements = [
     export_name TEXT NOT NULL,
     export_kind TEXT NOT NULL,
     symbol_id INTEGER REFERENCES symbols(id) ON DELETE SET NULL,
-    target_module_specifier TEXT,
-    resolved_file_id INTEGER REFERENCES files(id) ON DELETE SET NULL
+    target_module_specifier TEXT
   )`,
   `CREATE TABLE IF NOT EXISTS symbol_references (
     id INTEGER PRIMARY KEY,
@@ -72,7 +68,6 @@ const schemaStatements = [
   'CREATE INDEX IF NOT EXISTS idx_module_exports_file_id ON module_exports(file_id)',
   'CREATE INDEX IF NOT EXISTS idx_module_exports_export_name ON module_exports(export_name)',
   'CREATE INDEX IF NOT EXISTS idx_module_exports_symbol_id ON module_exports(symbol_id)',
-  'CREATE INDEX IF NOT EXISTS idx_module_exports_resolved_file_id ON module_exports(resolved_file_id)',
   'CREATE INDEX IF NOT EXISTS idx_symbol_references_source_symbol_id ON symbol_references(source_symbol_id)',
   'CREATE INDEX IF NOT EXISTS idx_symbol_references_target_symbol_id ON symbol_references(target_symbol_id)',
   'CREATE INDEX IF NOT EXISTS idx_symbol_references_target_file_id ON symbol_references(target_file_id)',
@@ -122,7 +117,7 @@ const ftsStatements = [
 ]
 
 // Bump when any table/column/index definition changes; ensureSchema will wipe and rebuild.
-const SCHEMA_VERSION = 2
+const SCHEMA_VERSION = 3
 
 const DROP_ORDER = [
   'index_meta',

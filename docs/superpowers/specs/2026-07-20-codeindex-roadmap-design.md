@@ -200,6 +200,13 @@ regression · measured token reduction per response.
 **Pre-flight.** Reconcile the "tier1" scaffolding (dead/write-only columns `resolved_file_id`,
 `is_exported`, `start/end_byte`, `precedence`; modeled-but-unproduced edge types) — decide keep-or-drop
 per item rather than building on ambiguous groundwork.
+**DONE (2026-07-24, SCHEMA_VERSION 3).** Dropped the four genuinely dead columns —
+`symbols.is_exported` (derivable from `scope_tier`), `symbols.start_byte` / `symbols.end_byte`
+(never read; line spans suffice), and `module_exports.resolved_file_id` (always written `NULL`) plus its
+index. Kept `module_aliases.precedence` — it is genuinely written from alias-collection order and reserved
+for import-shadowing resolution. No modeled-but-unproduced edge types survived the audit: every member of
+`ReferenceEdgeType` (`imports`, `reexports`, `calls`, `extends`, `implements`, `references`) is produced by
+the resolver, so the union stays as-is. B4/B5 edges now build on a schema with no dead groundwork.
 
 ---
 
