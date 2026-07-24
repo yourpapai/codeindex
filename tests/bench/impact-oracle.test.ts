@@ -5,7 +5,13 @@ import path from 'node:path'
 
 import ts from 'typescript'
 
-import { buildReferenceOracle, classifyPosition, classifyShape, createTsProject } from '../../bench/impact-oracle.js'
+import {
+  buildReferenceOracle,
+  classifyPosition,
+  classifyShape,
+  createTsProject,
+  strideSample,
+} from '../../bench/impact-oracle.js'
 import type { Shape } from '../../bench/impact-types.js'
 import { loadCodeindexConfig } from '../../src/config.js'
 import { indexCodebase } from '../../src/indexer/index-codebase.js'
@@ -232,6 +238,45 @@ describe('classifyShape', () => {
       expect(classifyShape(sf, posOf(c.needle), checker)).toBe(c.expected)
     })
   }
+})
+
+describe('strideSample', () => {
+  test('returns the whole list untouched when maxTargets >= length', () => {
+    const items = [0, 1, 2, 3, 4]
+    expect(strideSample(items, 5)).toBe(items)
+    expect(strideSample(items, 99)).toBe(items)
+  })
+
+  test('returns nothing for a non-positive budget', () => {
+    expect(strideSample([1, 2, 3], 0)).toEqual([])
+    expect(strideSample([1, 2, 3], -1)).toEqual([])
+  })
+
+  test('picks exactly maxTargets distinct items', () => {
+    const items = Array.from({ length: 1000 }, (_, i) => i)
+    const sample = strideSample(items, 37)
+    expect(sample).toHaveLength(37)
+    expect(new Set(sample).size).toBe(37)
+  })
+
+  test('spreads across the WHOLE list, not a prefix', () => {
+    // The bug this replaces: `.slice(0, maxTargets)` only ever returns items[0..N),
+    // so anything that sorts past the cutoff (papai's client/shared/* member,
+    // namespace and construct targets) never gets sampled. A strided sample must
+    // reach deep into the tail.
+    const items = Array.from({ length: 1000 }, (_, i) => i)
+    const sample = strideSample(items, 10)
+    expect(sample[0]).toBe(0)
+    // Last pick lands in the final tenth of the list — a prefix slice would top out at 9.
+    expect(sample.at(-1)).toBeGreaterThanOrEqual(900)
+    // Coverage is monotonic and evenly spaced across the range.
+    expect(sample).toEqual([...sample].sort((a, b) => a - b))
+  })
+
+  test('is deterministic — same inputs give byte-identical output (regression-comparison invariant)', () => {
+    const items = Array.from({ length: 500 }, (_, i) => `sym-${i}`)
+    expect(strideSample(items, 42)).toEqual(strideSample(items, 42))
+  })
 })
 
 describe('createTsProject', () => {

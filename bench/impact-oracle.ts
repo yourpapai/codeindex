@@ -200,6 +200,27 @@ export const classifyShape = (sf: ts.SourceFile, pos: number, checker: ts.TypeCh
   return 'bare-value'
 }
 
+// Deterministically down-sample `items` to at most `maxTargets` by taking evenly-spaced indices
+// across the WHOLE list (index floor(i * N / M) for i in [0, M)), rather than a contiguous
+// alphabetical prefix. The pick stays deterministic — same list + same `maxTargets` always yield
+// the same indices — so run-over-run regression deltas remain attributable to real changes rather
+// than sampling noise (the property the old `.slice(0, maxTargets)` prefix was chosen for). Unlike
+// that prefix, a stride reaches the tail of the sorted symbol list, so member-tier methods,
+// namespace imports and `new X()` constructors that sort past a cutoff (e.g. papai's
+// `client/shared/*`) still enter the scored set. Indices floor(i*N/M) are strictly increasing for
+// 0 <= i < M <= N, so the sample contains M distinct items. See the Reassessment Gate memo, whose
+// alphabetical-prefix caveat this removes.
+export const strideSample = <T>(items: readonly T[], maxTargets: number): readonly T[] => {
+  if (maxTargets <= 0) return []
+  if (maxTargets >= items.length) return items
+  const out: T[] = []
+  for (let i = 0; i < maxTargets; i += 1) {
+    const item = items[Math.floor((i * items.length) / maxTargets)]
+    if (item !== undefined) out.push(item)
+  }
+  return out
+}
+
 export const buildReferenceOracle = (
   db: Database,
   opts: Readonly<{ repoRoot: string; tsconfigPath: string; maxTargets?: number }>,
@@ -207,15 +228,14 @@ export const buildReferenceOracle = (
   const { program, service } = createTsProject(opts.tsconfigPath)
   const checker = program.getTypeChecker()
   const symbols = loadScoredSymbols(db)
-  // NOTE: `symbols` is ORDER BY qualified_name (loadScoredSymbols above), so this
-  // slice takes a deterministic ALPHABETICAL PREFIX of exported symbols, not a
-  // representative random sample. That's intentional for run-over-run regression
-  // comparison (the same targets are scored every run, so deltas are attributable to
-  // real changes rather than sampling noise) but it means the resulting FN/FP rates
-  // are biased toward whatever symbol kinds/modules happen to sort first and should
-  // NOT be read as a representative estimate across the whole repo. A representative
-  // estimate would need a strided or seeded random sample — left for a future slice.
-  const selected = opts.maxTargets === undefined ? symbols : symbols.slice(0, opts.maxTargets)
+  // `symbols` is ORDER BY qualified_name (loadScoredSymbols above). When a target budget is set we
+  // take a deterministic STRIDED sample across that whole sorted list (strideSample), not a
+  // contiguous alphabetical prefix: the stride is still fixed run-over-run (so regression deltas
+  // stay attributable to real changes), but it spreads targets across every module the sort
+  // interleaves — so member/namespace/construct-bearing directories that sort past a prefix cutoff
+  // (e.g. papai's `client/shared/*`) still enter the scored set. Without a budget every symbol is
+  // scored (codeindex's own gated run), so no sampling applies.
+  const selected = opts.maxTargets === undefined ? symbols : strideSample(symbols, opts.maxTargets)
   return selected.map((symbol) => {
     const absFile = path.resolve(opts.repoRoot, symbol.filePath)
     const offset = declarationOffset(program, absFile, symbol.localName, symbol.startLine)
