@@ -117,18 +117,24 @@ readBody(res) }`, the nearest boundary above the `readBody` call is the arrow-va
 `obj.m()` the function node is a `member_expression`, so `targetName` is the literal `"this.m"` /
 `"obj.m"`, which resolves to nothing — the entire B2 miss.
 
-**Build, staged by precision (gated by the now-honest FP metric).**
+**Build: `this.m()` only; `obj.m()` deferred.** The committed position (not an open decision):
+4b builds `this.m()` and defers `obj.m()`. `this.m()` is high-precision — the receiver is the
+unambiguous enclosing class, so the method resolves deterministically. `obj.m()` is FP-prone — a bare
+method name collides across every class declaring `m`, and without types there is no principled
+receiver resolution — so it is out of scope for 4b and revisited only if a later, typed approach can
+clear the honest FP bar. This keeps 4b a clean, near-zero-FP win rather than trading the honesty 4a
+just bought back for marginal recall.
 
-1. **Split the 22 first.** Measure `this.m()` vs `obj.m()` among the genuine member-FN. `this.m()` is
-   high-precision (receiver is the unambiguous enclosing class); `obj.m()` is FP-prone (a bare method
-   name collides across every class declaring `m`).
-2. **Build `this.m()` resolution (safe subset).** In `collectCallReference`, detect a
-   `member_expression` function node; when the receiver is `this`, emit a `calls` reference to the
-   property name `m`. Resolve it to a `method_definition` symbol named `m` whose parent is the
-   enclosing class → `resolved` confidence, near-zero FP.
-3. **Decide `obj.m()` against the honest FP metric.** Include cross-object resolution only if it
-   clears the FP bar 4a made trustworthy; otherwise emit at `name_only` confidence or defer. This is
-   the magnitude-to-risk gate — 4a is what makes the FP number honest enough to gate on.
+1. **Split the 22 to size the target.** Measure `this.m()` vs `obj.m()` among the genuine member-FN,
+   so 4b's expected recovery (the `this.m()` share) is known before building and confirmed after.
+   This sizes the win; it does **not** reopen the `obj.m()` decision.
+2. **Build `this.m()` resolution.** In `collectCallReference`, detect a `member_expression` function
+   node; when the receiver is `this`, emit a `calls` reference to the property name `m`. Resolve it to
+   a `method_definition` symbol named `m` whose parent is the enclosing class → `resolved` confidence,
+   near-zero FP. `obj.m()` (non-`this` receiver) is left unresolved, exactly as today.
+3. **Confirm the honest FP rate does not regress.** 4a makes the FP metric trustworthy; 4b must not
+   move it — the `this.m()` edge is deterministic, so any FP increase is a bug to fix, not a
+   tolerance to accept.
 
 **Verification.** Extend the committed fixture (which already seeds `member:1/1`) to cover `this.m()`
 explicitly. Success = member value-FN drops on the fixture and papai with the honest FP rate not
@@ -138,12 +144,14 @@ regressing.
 
 - 4a: gated codeindex `valueFalseNegativeRate` reflects the honest ~0.10; papai call-FN ≈ 14 and FP
   rate collapsed; memo re-recorded; focused attribution tests green; `bun run check` green.
-- 4b: `this.m()` member calls resolve end-to-end; member value-FN measurably reduced on fixture and
-  papai; honest FP rate not regressed; `obj.m()` include/defer decision recorded with its measured
-  basis.
+- 4b: `this.m()` member calls resolve end-to-end; member value-FN reduced on the fixture and papai by
+  the measured `this.m()` share of the 22; honest FP rate not regressed; `obj.m()` left unresolved
+  (deferred, per the committed position above).
 
 ## Out of scope / deferred
 
+- **`obj.m()` member calls (non-`this` receiver)** — FP-prone without types; deferred, revisited only
+  behind a typed receiver-resolution approach that can clear the honest FP bar (see 4b).
 - **namespace (B5)** — `—/—` on real code even after striding; no measured mass to justify a build.
 - **construct (`new X()`)** — 1 genuine miss; tracked, not built this slice.
 - **barrel re-exports (B4)** — the ~14 genuine call-FN residue may include these; not this slice.
