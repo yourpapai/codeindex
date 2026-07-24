@@ -63,6 +63,33 @@ code_impact emits no edge for member calls, so no enclosing declaration is repor
 bucket — then call ~14, then construct 1, namespace 0; bare-value 302 is larger but genuinely
 graph-unrecoverable (untyped assignment/destructure origins, no planned edge type).
 
+### Post-4a measured (artifact-free)
+
+After landing the `nearestNamedBoundary` oracle fix (`db1c894`) and regenerating all three gated
+baselines, the actual measured numbers (not forecasts):
+
+| Repo | `valueFalseNegativeRate` (before → after) | `falsePositiveRate` (before → after) | `valueTrueReferenceCountByShape` | `valueFalseNegativesByShape` |
+|---|---|---|---|---|
+| codeindex (full, `bun run bench:impact:check`) | `0.4875 → 0.1000` | `0.4306 → 0` | `{"call":72,"bare-value":8}` | `{"bare-value":8}` |
+| papai (strided 300, `bun run bench:impact:papai`) | `0.7864 → 0.4816` | `0.4387 → 0.0047` | `{"call":220,"bare-value":160,"member":22,"property-unknown":1,"other":4}` | `{"bare-value":160,"member":22,"property-unknown":1,"call":9,"other":4}` |
+| fixture (`bun run bench:impact:fixture:check`) | `0.5 → 0.5` (unchanged) | `0 → 0` | `{"bare-value":1,"heritage":1,"jsx":1,"namespace":1,"member":1,"call":1}` | `{"bare-value":1,"namespace":1,"member":1}` |
+
+Note: the reported baseline `trueReferenceCount`/`falseNegatives` totals (which include type refs) also
+shrank on both real repos — e.g. papai `854 → 605` true references — because the boundary-attribution
+fix deduplicates multiple raw reference sites that previously fanned out to distinct innermost-local
+sources (the artifact) down onto one shared boundary source; this dedup effect touches non-`call`
+shapes too (papai bare-value mass moved `302 → 160`), not just the `call` artifact the design section
+above isolated. The **direction and shape-level conclusions are unaffected**: bare-value and member
+remain fully unrecovered (100% FN) either way, and the `call` shape shows the same large,
+artifact-driven collapse.
+
+codeindex honest value-FN confirmed ~0.10 (bare-value 8/8; call 0); papai call-FN dropped
+107 → 9 genuine (even lower than the ~14 forecast), member 22/22 unchanged (artifact-free, confirming
+it as the largest recoverable bucket for 4b); FP rate collapsed papai `0.4387 → 0.0047`, codeindex
+`0.4306 → 0`. All three regenerated baselines (`bench/impact-baseline.json`,
+`bench/impact-baseline.papai.json`, `bench/impact-baseline.fixture.json`) pass their own
+`--baseline` check.
+
 ## Slice 4a — Oracle source-attribution fix
 
 **Goal.** Attribute a true reference to the same symbol code_impact does: the nearest enclosing
