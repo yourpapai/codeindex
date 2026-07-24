@@ -101,6 +101,11 @@ syntactic form that explains *why* `code_impact` does or does not resolve it.
 - **`Shape`** = one of:
   - `'call'` — a bare identifier in call position, `foo()`. `code_impact` resolves this today (a
     `calls` edge) — typically **not** a false negative.
+  - `'construct'` — a class instantiation, `new Foo()` (a `NewExpression`, distinct from a
+    `CallExpression`). `code_impact` does **not** emit an edge for `new_expression` today, so these are
+    **missed** — but recoverable by extending call-edge resolution to `new_expression`, so a distinct
+    candidate from the truly-unrecoverable `bare-value`. (Added during the final review — a `new X()`
+    ref was otherwise mislabelled `bare-value`.)
   - `'member'` — a property-access call/reference whose receiver is a **local value / parameter /
     `this`**, e.g. `local.foo()`. The honestly-scoped **B2** territory.
   - `'namespace'` — a property-access whose receiver is an **`import * as ns`** binding, e.g.
@@ -129,7 +134,7 @@ syntactic form that explains *why* `code_impact` does or does not resolve it.
 
 ```ts
 type Shape =
-  | 'call' | 'member' | 'namespace' | 'jsx' | 'heritage'
+  | 'call' | 'construct' | 'member' | 'namespace' | 'jsx' | 'heritage'
   | 'bare-value' | 'property-unknown' | 'other'
 
 // classifyShape(sf, pos, checker): Shape   — value-position refs only
@@ -189,8 +194,10 @@ ranked by measured contribution.
 ### Ranking read-out
 
 For each candidate: **B2 ≈ `valueFalseNegativesByShape.member`**, **B5 ≈
-`valueFalseNegativesByShape.namespace`**, and the un-recoverable-by-graph residue ≈ `bare-value` +
-`property-unknown`. The relative magnitudes are the re-rank.
+`valueFalseNegativesByShape.namespace`**, **`construct`** is a separate recoverable candidate (extend
+call-edge resolution to `new_expression`), and the truly un-recoverable-by-graph residue ≈ `bare-value`
++ `property-unknown`. The relative magnitudes are the re-rank. (See the Reassessment Gate memo for the
+measured values; `construct` was split out of `bare-value` during the final review.)
 
 ---
 
