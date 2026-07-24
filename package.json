@@ -8,7 +8,7 @@
     "lint": "oxlint --config .oxlintrc.json src tests bench",
     "format": "oxfmt --write src tests bench --ignore-path=.oxfmtignore",
     "format:check": "oxfmt --check src tests bench --ignore-path=.oxfmtignore",
-    "check:bench": "bun run bench:check && bun run bench:index:check && bun run bench:impact:check",
+    "check:bench": "bun run bench:check && bun run bench:index:check && bun run bench:impact:check && bun run bench:impact:fixture:check",
     "check": "bun run --parallel lint typecheck format:check test check:bench",
     "start": "bun run src/cli.ts",
     "mcp": "bun run src/cli.ts mcp",
@@ -22,7 +22,9 @@
     "bench:fuzz": "bun run bench/edit-fuzz-run.ts",
     "bench:impact": "bun run bench/impact-run.ts",
     "bench:impact:check": "bun run bench/impact-run.ts --baseline bench/impact-baseline.json",
-    "bench:impact:papai": "bun run bench/impact-run.ts --repo ../papai --max-targets 300 --baseline bench/impact-baseline.papai.json"
+    "bench:impact:papai": "bun run bench/impact-run.ts --repo ../papai --max-targets 300 --baseline bench/impact-baseline.papai.json",
+    "bench:impact:fixture": "bun run bench/impact-run.ts --repo bench/fixtures/impact-demo",
+    "bench:impact:fixture:check": "bun run bench/impact-run.ts --repo bench/fixtures/impact-demo --baseline bench/impact-baseline.fixture.json"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
