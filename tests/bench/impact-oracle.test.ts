@@ -3,7 +3,9 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { buildReferenceOracle, createTsProject } from '../../bench/impact-oracle.js'
+import ts from 'typescript'
+
+import { buildReferenceOracle, classifyPosition, createTsProject } from '../../bench/impact-oracle.js'
 import { loadCodeindexConfig } from '../../src/config.js'
 import { indexCodebase } from '../../src/indexer/index-codebase.js'
 import { openDatabase } from '../../src/storage/db.js'
@@ -29,6 +31,79 @@ const makeRepo = (): string => {
 }
 afterAll(() => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true })
+})
+
+// Parse a fixture standalone (no type-checking needed — the classifier is purely syntactic)
+// and classify the first identifier token whose text is `needle`. Each fixture places that
+// identifier exactly once in the position under test.
+const classifyIn = (source: string, needle: string, ext: '.ts' | '.tsx'): 'value' | 'type' => {
+  // setParentNodes must be true — classifyPosition walks node.parent up to the SourceFile.
+  const sf = ts.createSourceFile(
+    `fixture${ext}`,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ext === '.tsx' ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+  )
+  let pos = -1
+  const walk = (node: ts.Node): void => {
+    if (pos !== -1) return
+    if (ts.isIdentifier(node) && node.text === needle) {
+      pos = node.getStart(sf)
+      return
+    }
+    node.forEachChild(walk)
+  }
+  walk(sf)
+  if (pos === -1) throw new Error(`identifier '${needle}' not found in fixture`)
+  return classifyPosition(sf, pos)
+}
+
+describe('classifyPosition', () => {
+  // The nine positions the Slice 2 spec's go/no-go names for the trust-critical classifier:
+  // value-call, `new`, JSX tag, class-`extends`, interface-`implements`, `: T`, `Array<T>`,
+  // `typeof X`, interface-`extends`. Pinned directly so a regression in the syntactic walk
+  // (heritage-first, then any type-node ancestor) surfaces without a full oracle run.
+  const cases: ReadonlyArray<{
+    readonly label: string
+    readonly source: string
+    readonly needle: string
+    readonly ext: '.ts' | '.tsx'
+    readonly expected: 'value' | 'type'
+  }> = [
+    { label: 'value call foo()', source: 'foo()', needle: 'foo', ext: '.ts', expected: 'value' },
+    { label: 'new Foo()', source: 'new Foo()', needle: 'Foo', ext: '.ts', expected: 'value' },
+    { label: 'JSX tag <Foo/>', source: 'const x = <Foo />', needle: 'Foo', ext: '.tsx', expected: 'value' },
+    {
+      label: "class's extends (value)",
+      source: 'class W extends Base {}',
+      needle: 'Base',
+      ext: '.ts',
+      expected: 'value',
+    },
+    {
+      label: 'class implements (type)',
+      source: 'class W implements Iface {}',
+      needle: 'Iface',
+      ext: '.ts',
+      expected: 'type',
+    },
+    { label: 'annotation : T', source: 'let x: T', needle: 'T', ext: '.ts', expected: 'type' },
+    { label: 'generic arg Array<T>', source: 'let x: Array<T>', needle: 'T', ext: '.ts', expected: 'type' },
+    { label: 'typeof X query', source: 'let x: typeof X', needle: 'X', ext: '.ts', expected: 'type' },
+    {
+      label: "interface's extends (type)",
+      source: 'interface I extends Base {}',
+      needle: 'Base',
+      ext: '.ts',
+      expected: 'type',
+    },
+  ]
+  for (const c of cases) {
+    test(`classifies ${c.label} as ${c.expected}`, () => {
+      expect(classifyIn(c.source, c.needle, c.ext)).toBe(c.expected)
+    })
+  }
 })
 
 describe('createTsProject', () => {

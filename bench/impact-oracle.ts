@@ -139,7 +139,9 @@ const nodeAtPosition = (sf: ts.SourceFile, pos: number): ts.Node => {
 // is value — even though its base sits inside an ExpressionWithTypeArguments, which is
 // itself a type-node (verified against tsc). Otherwise any type-node ancestor means type.
 // Default value: the fail-safe never hides a value false-negative.
-const classifyPosition = (sf: ts.SourceFile, pos: number): 'value' | 'type' => {
+// Exported for the focused fixture test (tests/bench/impact-oracle.test.ts) — the trust-critical
+// classifier is pinned directly against hand-built ASTs, not only through the full oracle pipeline.
+export const classifyPosition = (sf: ts.SourceFile, pos: number): 'value' | 'type' => {
   const node = nodeAtPosition(sf, pos)
   for (let a: ts.Node | undefined = node; a !== undefined && !ts.isSourceFile(a); a = a.parent) {
     if (ts.isHeritageClause(a)) {

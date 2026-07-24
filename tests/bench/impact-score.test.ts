@@ -5,7 +5,7 @@ import path from 'node:path'
 
 import { buildReferenceOracle } from '../../bench/impact-oracle.js'
 import { assertScored, scoreImpact } from '../../bench/impact-score.js'
-import type { ImpactBenchReport } from '../../bench/impact-types.js'
+import type { ImpactBenchReport, OracleTarget } from '../../bench/impact-types.js'
 import { loadCodeindexConfig } from '../../src/config.js'
 import { indexCodebase } from '../../src/indexer/index-codebase.js'
 import { openDatabase } from '../../src/storage/db.js'
@@ -69,6 +69,36 @@ describe('scoreImpact', () => {
       expect(report.valueTrueReferenceCount).toBeGreaterThan(0)
       expect(report.valueFalseNegatives).toBeGreaterThanOrEqual(1)
       expect(report.valueFalseNegativeRate).toBeGreaterThan(0)
+    } finally {
+      db.close()
+    }
+  })
+
+  test("buckets 'both'-position sources as value and type-only sources as type", async () => {
+    const { db } = await build()
+    try {
+      // Hand-built oracle over synthetic targets that have NO incoming edges in the DB, so
+      // every true source is a false negative — this isolates the value/type bucketing from
+      // code_impact's coverage. Pins the spec's invariance property: a source used in BOTH a
+      // value and a type position lands in the value denominator (and never the type one),
+      // while the type diagnostic counts type-only sources.
+      const oracle: OracleTarget[] = [
+        { target: 'synthetic#Both', trueSources: [{ name: 'synthetic#User', position: 'both' }] },
+        { target: 'synthetic#TypeOnly', trueSources: [{ name: 'synthetic#User', position: 'type' }] },
+        { target: 'synthetic#Value', trueSources: [{ name: 'synthetic#User', position: 'value' }] },
+      ]
+      const report = scoreImpact(db, oracle, 'fixture')
+      // 'both' + 'value' → 2 value-denominator refs, both uncovered → value FN.
+      expect(report.valueTrueReferenceCount).toBe(2)
+      expect(report.valueFalseNegatives).toBe(2)
+      expect(report.valueFalseNegativeRate).toBe(1)
+      // 'both' must NOT inflate the type diagnostic — only the type-only source counts.
+      expect(report.typeTrueReferenceCount).toBe(1)
+      expect(report.typeFalseNegatives).toBe(1)
+      expect(report.typeFalseNegativeRate).toBe(1)
+      // Total is the union of both buckets.
+      expect(report.trueReferenceCount).toBe(3)
+      expect(report.falseNegatives).toBe(3)
     } finally {
       db.close()
     }
