@@ -1,8 +1,11 @@
 import { z } from 'zod'
 
+export type Shape = 'call' | 'member' | 'namespace' | 'jsx' | 'heritage' | 'bare-value' | 'property-unknown' | 'other'
+
 export interface OracleSource {
   readonly name: string
   readonly position: 'value' | 'type' | 'both'
+  readonly shapes: readonly Shape[]
 }
 
 export interface OracleTarget {

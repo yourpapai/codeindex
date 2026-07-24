@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import ts from 'typescript'
 
-import type { OracleSource, OracleTarget } from './impact-types.js'
+import type { OracleSource, OracleTarget, Shape } from './impact-types.js'
 
 export interface TsProject {
   readonly service: ts.LanguageService
@@ -155,11 +155,50 @@ export const classifyPosition = (sf: ts.SourceFile, pos: number): 'value' | 'typ
   return 'value'
 }
 
+// Classify the receiver of a property access: an `import * as ns` binding is a namespace
+// reference (B5); `this` or a local value/parameter/variable is a member reference (B2);
+// an unresolved receiver is neutral `property-unknown` (never biases a candidate bucket).
+const classifyReceiver = (receiver: ts.Expression, checker: ts.TypeChecker): Shape => {
+  if (receiver.kind === ts.SyntaxKind.ThisKeyword) return 'member'
+  const symbol = checker.getSymbolAtLocation(receiver)
+  if (symbol === undefined) return 'property-unknown'
+  const declarations = symbol.declarations ?? []
+  if (declarations.some((d) => ts.isNamespaceImport(d))) return 'namespace'
+  return 'member'
+}
+
+// Classify a VALUE-position reference by its syntactic form — the reason code_impact does or
+// does not resolve it. Only called for refs classifyPosition labelled 'value'. Heritage is
+// checked first (a class's `extends` base sits under an ExpressionWithTypeArguments); then JSX
+// tag, property-access (member/namespace via the receiver), element-access, bare call, and
+// finally a bare value identifier.
+export const classifyShape = (sf: ts.SourceFile, pos: number, checker: ts.TypeChecker): Shape => {
+  const node = nodeAtPosition(sf, pos)
+  for (let a: ts.Node | undefined = node; a !== undefined && !ts.isSourceFile(a); a = a.parent) {
+    if (ts.isHeritageClause(a)) return 'heritage'
+  }
+  const parent = node.parent
+  if (
+    parent !== undefined &&
+    (ts.isJsxOpeningElement(parent) || ts.isJsxSelfClosingElement(parent) || ts.isJsxClosingElement(parent)) &&
+    parent.tagName === node
+  ) {
+    return 'jsx'
+  }
+  if (parent !== undefined && ts.isPropertyAccessExpression(parent) && parent.name === node) {
+    return classifyReceiver(parent.expression, checker)
+  }
+  if (parent !== undefined && ts.isElementAccessExpression(parent)) return 'other'
+  if (parent !== undefined && ts.isCallExpression(parent) && parent.expression === node) return 'call'
+  return 'bare-value'
+}
+
 export const buildReferenceOracle = (
   db: Database,
   opts: Readonly<{ repoRoot: string; tsconfigPath: string; maxTargets?: number }>,
 ): readonly OracleTarget[] => {
   const { program, service } = createTsProject(opts.tsconfigPath)
+  const checker = program.getTypeChecker()
   const symbols = loadExportedSymbols(db)
   // NOTE: `symbols` is ORDER BY qualified_name (loadExportedSymbols above), so this
   // slice takes a deterministic ALPHABETICAL PREFIX of exported symbols, not a
@@ -174,7 +213,7 @@ export const buildReferenceOracle = (
     const absFile = path.resolve(opts.repoRoot, symbol.filePath)
     const offset = declarationOffset(program, absFile, symbol.localName, symbol.startLine)
     const entries = offset === null ? [] : (service.getReferencesAtPosition(absFile, offset) ?? [])
-    const byName = new Map<string, { value: boolean; type: boolean }>()
+    const byName = new Map<string, { value: boolean; type: boolean; shapes: Set<Shape> }>()
     for (const entry of entries) {
       const sf = program.getSourceFile(entry.fileName)
       if (sf === undefined) continue
@@ -185,14 +224,19 @@ export const buildReferenceOracle = (
       // Exclude module-scope refs (unnameable by code_impact) and self-references.
       if (enclosing === null || enclosing === symbol.qualifiedName) continue
       const position = classifyPosition(sf, pos)
-      const agg = byName.get(enclosing) ?? { value: false, type: false }
-      if (position === 'value') agg.value = true
-      else agg.type = true
+      const agg = byName.get(enclosing) ?? { value: false, type: false, shapes: new Set<Shape>() }
+      if (position === 'value') {
+        agg.value = true
+        agg.shapes.add(classifyShape(sf, pos, checker))
+      } else {
+        agg.type = true
+      }
       byName.set(enclosing, agg)
     }
     const trueSources: readonly OracleSource[] = [...byName].map(([name, agg]) => ({
       name,
       position: agg.value && agg.type ? 'both' : agg.value ? 'value' : 'type',
+      shapes: [...agg.shapes],
     }))
     return { target: symbol.qualifiedName, trueSources }
   })

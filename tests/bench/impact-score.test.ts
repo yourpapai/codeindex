@@ -83,9 +83,12 @@ describe('scoreImpact', () => {
       // value and a type position lands in the value denominator (and never the type one),
       // while the type diagnostic counts type-only sources.
       const oracle: OracleTarget[] = [
-        { target: 'synthetic#Both', trueSources: [{ name: 'synthetic#User', position: 'both' }] },
-        { target: 'synthetic#TypeOnly', trueSources: [{ name: 'synthetic#User', position: 'type' }] },
-        { target: 'synthetic#Value', trueSources: [{ name: 'synthetic#User', position: 'value' }] },
+        { target: 'synthetic#Both', trueSources: [{ name: 'synthetic#User', position: 'both', shapes: ['member'] }] },
+        { target: 'synthetic#TypeOnly', trueSources: [{ name: 'synthetic#User', position: 'type', shapes: [] }] },
+        {
+          target: 'synthetic#Value',
+          trueSources: [{ name: 'synthetic#User', position: 'value', shapes: ['namespace'] }],
+        },
       ]
       const report = scoreImpact(db, oracle, 'fixture')
       // 'both' + 'value' → 2 value-denominator refs, both uncovered → value FN.

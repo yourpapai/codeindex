@@ -5,7 +5,8 @@ import path from 'node:path'
 
 import ts from 'typescript'
 
-import { buildReferenceOracle, classifyPosition, createTsProject } from '../../bench/impact-oracle.js'
+import { buildReferenceOracle, classifyPosition, classifyShape, createTsProject } from '../../bench/impact-oracle.js'
+import type { Shape } from '../../bench/impact-types.js'
 import { loadCodeindexConfig } from '../../src/config.js'
 import { indexCodebase } from '../../src/indexer/index-codebase.js'
 import { openDatabase } from '../../src/storage/db.js'
@@ -102,6 +103,130 @@ describe('classifyPosition', () => {
   for (const c of cases) {
     test(`classifies ${c.label} as ${c.expected}`, () => {
       expect(classifyIn(c.source, c.needle, c.ext)).toBe(c.expected)
+    })
+  }
+})
+
+describe('classifyShape', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'codeindex-shape-'))
+  dirs.push(dir)
+  mkdirSync(path.join(dir, 'src'), { recursive: true })
+  writeFileSync(path.join(dir, 'src/mod.ts'), 'export function nsFn(): number {\n  return 1\n}\n')
+  writeFileSync(
+    path.join(dir, 'src/main.tsx'),
+    [
+      "import * as api from './mod'",
+      'class BaseCls {}',
+      'function CompFn(): null {',
+      '  return null',
+      '}',
+      'function plainFn(): number {',
+      '  return 1',
+      '}',
+      'function bareFn(): number {',
+      '  return 2',
+      '}',
+      'function helperFn(): { ghostProp: number } {',
+      '  return { ghostProp: 1 }',
+      '}',
+      'const bag: Record<string, number> = { k: 1 }',
+      'const keyVar = "k"',
+      'class Holder {',
+      '  hitFn(): number {',
+      '    return 1',
+      '  }',
+      '  useThis(): number {',
+      '    return this.hitFn()',
+      '  }',
+      '}',
+      'const obj = {',
+      '  omFn(): number {',
+      '    return 1',
+      '  },',
+      '}',
+      'class WidgetX extends BaseCls {}',
+      'export function outer(): unknown {',
+      '  const g = bareFn',
+      '  return [api.nsFn(), obj.omFn(), plainFn(), helperFn().ghostProp, bag[keyVar], g, new Holder(), <CompFn />, WidgetX]',
+      '}',
+    ].join('\n'),
+  )
+  writeFileSync(
+    path.join(dir, 'tsconfig.json'),
+    JSON.stringify({
+      compilerOptions: { module: 'esnext', moduleResolution: 'bundler', strict: true, jsx: 'react-jsx' },
+      include: ['src'],
+    }),
+  )
+  const { program } = createTsProject(path.join(dir, 'tsconfig.json'))
+  const checker = program.getTypeChecker()
+  // Match by basename — tmpdir paths symlink-normalize on macOS (/var → /private/var), so an
+  // exact-path getSourceFile can miss.
+  const sf = program.getSourceFiles().find((s) => s.fileName.endsWith('main.tsx'))!
+
+  const inImport = (node: ts.Node): boolean => {
+    for (let a: ts.Node | undefined = node; a !== undefined; a = a.parent) if (ts.isImportDeclaration(a)) return true
+    return false
+  }
+  // True when `id` IS the name of its parent declaration (function/class/method/var/param/
+  // property/interface/enum/type-alias) — the position to skip when finding the reference site.
+  const isDeclarationName = (id: ts.Identifier): boolean => {
+    const p = id.parent
+    if (
+      ts.isFunctionDeclaration(p) ||
+      ts.isClassDeclaration(p) ||
+      ts.isMethodDeclaration(p) ||
+      ts.isVariableDeclaration(p) ||
+      ts.isParameter(p) ||
+      ts.isPropertyAssignment(p) ||
+      ts.isShorthandPropertyAssignment(p) ||
+      ts.isPropertySignature(p) ||
+      ts.isMethodSignature(p) ||
+      ts.isPropertyDeclaration(p) ||
+      ts.isInterfaceDeclaration(p) ||
+      ts.isEnumDeclaration(p) ||
+      ts.isTypeAliasDeclaration(p)
+    ) {
+      return p.name === id
+    }
+    return false
+  }
+  const posOf = (needle: string): number => {
+    const hits: number[] = []
+    const walk = (node: ts.Node): void => {
+      if (ts.isIdentifier(node) && node.text === needle && !inImport(node) && !isDeclarationName(node)) {
+        hits.push(node.getStart(sf))
+      }
+      node.forEachChild(walk)
+    }
+    walk(sf)
+    if (hits.length !== 1) throw new Error(`expected exactly 1 reference of '${needle}', found ${hits.length}`)
+    return hits[0]!
+  }
+
+  const cases: ReadonlyArray<{ needle: string; expected: Shape }> = [
+    // api.nsFn() — receiver is `import * as api`
+    { needle: 'nsFn', expected: 'namespace' },
+    // obj.omFn() — receiver is a local const
+    { needle: 'omFn', expected: 'member' },
+    // this.hitFn()
+    { needle: 'hitFn', expected: 'member' },
+    // plainFn()
+    { needle: 'plainFn', expected: 'call' },
+    // <CompFn />
+    { needle: 'CompFn', expected: 'jsx' },
+    // class WidgetX extends BaseCls
+    { needle: 'BaseCls', expected: 'heritage' },
+    // const g = bareFn
+    { needle: 'bareFn', expected: 'bare-value' },
+    // helperFn().ghostProp — receiver is a call
+    { needle: 'ghostProp', expected: 'property-unknown' },
+    // bag[keyVar] — element access
+    { needle: 'keyVar', expected: 'other' },
+  ]
+  for (const c of cases) {
+    test(`classifies ${c.needle} as ${c.expected}`, () => {
+      expect(classifyShape(sf, posOf(c.needle), checker)).toBe(c.expected)
     })
   }
 })
