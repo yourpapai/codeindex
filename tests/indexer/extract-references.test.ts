@@ -468,4 +468,34 @@ describe('extractReferenceCandidates', () => {
     expect(impl.map((ref) => ref.targetName)).toEqual(['Left', 'Right'])
     expect(impl[0]!.sourceQualifiedName).toBe('src/widget#Widget')
   })
+
+  test('this.m() emits a calls reference to the bare method name with a this receiver', async () => {
+    const loader = await createParserLoader()
+    const parsed = await loader.createParserForExtension('.ts')
+    const source = [
+      'export class C {',
+      '  foo(): number { return this.bar() }',
+      '  bar(): number { return 1 }',
+      '}',
+    ].join('\n')
+    const tree = parsed.parser.parse(source)
+    const result = extractReferenceCandidates({ source, tree: tree!, relativeFilePath: 'src/c.ts', moduleKey: 'src/c' })
+
+    const thisCall = result.references.filter((r) => r.edgeType === 'calls').find((r) => r.targetName === 'bar')
+    expect(thisCall).toBeDefined()
+    expect(thisCall!.receiver).toBe('this')
+    expect(thisCall!.sourceQualifiedName).toBe('src/c#C>foo')
+  })
+
+  test('obj.m() is left as a whole-member-expression targetName with no receiver (deferred)', async () => {
+    const loader = await createParserLoader()
+    const parsed = await loader.createParserForExtension('.ts')
+    const source = ['export function run(obj: { baz(): number }): number {', '  return obj.baz()', '}'].join('\n')
+    const tree = parsed.parser.parse(source)
+    const result = extractReferenceCandidates({ source, tree: tree!, relativeFilePath: 'src/r.ts', moduleKey: 'src/r' })
+
+    const objCall = result.references.find((r) => r.edgeType === 'calls')
+    expect(objCall!.targetName).toBe('obj.baz')
+    expect(objCall!.receiver).toBeUndefined()
+  })
 })

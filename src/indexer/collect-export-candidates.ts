@@ -15,6 +15,7 @@ export interface ReferenceCandidate {
   readonly targetName: string
   readonly targetExportName: string | null
   readonly targetModuleSpecifier: string | null
+  readonly receiver?: 'this'
   readonly lineNumber: number
 }
 

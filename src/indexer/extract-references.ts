@@ -68,6 +68,26 @@ const collectCallReference = (
   references: ReferenceCandidate[],
 ): void => {
   const functionNode = node.childForFieldName('function')
+  // this.m() — a member call whose receiver is `this` resolves to the enclosing class's method (B2).
+  // Emit the bare property name plus a `this` receiver marker so the resolver can bind it to
+  // <enclosingClass>>m. Non-`this` receivers (obj.m()) are left as the whole member-expression text
+  // (unresolved) — deferred.
+  if (functionNode?.type === 'member_expression') {
+    const object = functionNode.childForFieldName('object')
+    const property = functionNode.childForFieldName('property')
+    if (object?.type === 'this' && property?.type === 'property_identifier') {
+      references.push({
+        sourceQualifiedName: enclosingSymbol,
+        edgeType: 'calls',
+        targetName: property.text,
+        targetExportName: null,
+        targetModuleSpecifier: null,
+        receiver: 'this',
+        lineNumber: node.startPosition.row + 1,
+      })
+      return
+    }
+  }
   references.push({
     sourceQualifiedName: enclosingSymbol,
     edgeType: 'calls',
