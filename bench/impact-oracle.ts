@@ -3,7 +3,12 @@ import path from 'node:path'
 
 import ts from 'typescript'
 
+import { classifyPosition, classifyShape, nodeAtPosition } from './impact-ast.js'
 import type { OracleSource, OracleTarget, Shape } from './impact-types.js'
+
+// Re-exported so the focused classifier tests (tests/bench/impact-oracle.test.ts) keep importing
+// them from the oracle entrypoint; the implementations now live in impact-ast.ts.
+export { classifyPosition, classifyShape } from './impact-ast.js'
 
 export interface TsProject {
   readonly service: ts.LanguageService
@@ -128,13 +133,36 @@ const declarationOffset = (
   return offset
 }
 
-// Descend to the innermost node whose span contains `pos` (the reference identifier token).
-const nodeAtPosition = (sf: ts.SourceFile, pos: number): ts.Node => {
-  const find = (node: ts.Node): ts.Node => {
-    const child = node.getChildren(sf).find((c) => pos >= c.getStart(sf) && pos < c.getEnd())
-    return child === undefined ? node : find(child)
+// True when the identifier at `pos` IS the *name* of a declaration (a method/property/variable/
+// function/class/interface/enum/type-alias/parameter/object-literal-member), as opposed to a use
+// site. `tsc`'s getReferencesAtPosition unifies every implementation of a shared interface member
+// into one symbol — so find-references on one `Migration.up` returns the interface signature PLUS
+// every sibling migration's `up` DECLARATION. Those sibling declarations are not uses; counting them
+// fabricates cross-implementation references (papai: 102 spurious bare-value FNs across 3 migration
+// targets, ~18 points of the value gate). A declaration is never an incoming reference, so we skip
+// any entry that lands on a declaration name (Slice 5a).
+const isReferenceAtDeclarationName = (sf: ts.SourceFile, pos: number): boolean => {
+  const node = nodeAtPosition(sf, pos)
+  if (!ts.isIdentifier(node)) return false
+  const p = node.parent
+  if (
+    ts.isFunctionDeclaration(p) ||
+    ts.isClassDeclaration(p) ||
+    ts.isMethodDeclaration(p) ||
+    ts.isMethodSignature(p) ||
+    ts.isPropertyDeclaration(p) ||
+    ts.isPropertySignature(p) ||
+    ts.isPropertyAssignment(p) ||
+    ts.isShorthandPropertyAssignment(p) ||
+    ts.isVariableDeclaration(p) ||
+    ts.isParameter(p) ||
+    ts.isInterfaceDeclaration(p) ||
+    ts.isEnumDeclaration(p) ||
+    ts.isTypeAliasDeclaration(p)
+  ) {
+    return p.name === node
   }
-  return find(sf)
+  return false
 }
 
 // Mirror the indexer's isNamedScopeBoundary + nextEnclosingSymbol: nearest enclosing NAMED
@@ -148,6 +176,11 @@ const nearestNamedBoundary = (node: ts.Node): ts.Node | null => {
   for (let a: ts.Node | undefined = node.parent; a !== undefined && !ts.isSourceFile(a); a = a.parent) {
     if ((ts.isFunctionDeclaration(a) || ts.isClassDeclaration(a)) && a.name !== undefined) return a
     if (ts.isMethodDeclaration(a)) return a
+    // A constructor body is its own symbol row (`Class>constructor`) on the indexer side, so a
+    // reference inside it belongs to the constructor, NOT the enclosing class. Without this, the
+    // oracle attributes a `new Foo()` / `this.x = f()` call in a constructor to `Foo` while
+    // code_impact reports `Foo>constructor` — a spurious value/`call` false negative (Slice 5a).
+    if (ts.isConstructorDeclaration(a)) return a
     const isNamedVarBoundary =
       (ts.isArrowFunction(a) || ts.isFunctionExpression(a)) &&
       ts.isVariableDeclaration(a.parent) &&
@@ -155,67 +188,6 @@ const nearestNamedBoundary = (node: ts.Node): ts.Node | null => {
     if (isNamedVarBoundary) return a.parent
   }
   return null
-}
-
-// Classify a reference position as value or type. A HeritageClause ANYWHERE up the chain
-// decides first: `implements` (and an interface's `extends`) are type; a class's `extends`
-// is value — even though its base sits inside an ExpressionWithTypeArguments, which is
-// itself a type-node (verified against tsc). Otherwise any type-node ancestor means type.
-// Default value: the fail-safe never hides a value false-negative.
-// Exported for the focused fixture test (tests/bench/impact-oracle.test.ts) — the trust-critical
-// classifier is pinned directly against hand-built ASTs, not only through the full oracle pipeline.
-export const classifyPosition = (sf: ts.SourceFile, pos: number): 'value' | 'type' => {
-  const node = nodeAtPosition(sf, pos)
-  for (let a: ts.Node | undefined = node; a !== undefined && !ts.isSourceFile(a); a = a.parent) {
-    if (ts.isHeritageClause(a)) {
-      if (a.token === ts.SyntaxKind.ImplementsKeyword) return 'type'
-      return ts.isClassDeclaration(a.parent) || ts.isClassExpression(a.parent) ? 'value' : 'type'
-    }
-  }
-  for (let a: ts.Node | undefined = node; a !== undefined && !ts.isSourceFile(a); a = a.parent) {
-    if (ts.isTypeNode(a)) return 'type'
-  }
-  return 'value'
-}
-
-// Classify the receiver of a property access: an `import * as ns` binding is a namespace
-// reference (B5); `this` or a local value/parameter/variable is a member reference (B2);
-// an unresolved receiver is neutral `property-unknown` (never biases a candidate bucket).
-const classifyReceiver = (receiver: ts.Expression, checker: ts.TypeChecker): Shape => {
-  if (receiver.kind === ts.SyntaxKind.ThisKeyword) return 'member'
-  const symbol = checker.getSymbolAtLocation(receiver)
-  if (symbol === undefined) return 'property-unknown'
-  const declarations = symbol.declarations ?? []
-  if (declarations.some((d) => ts.isNamespaceImport(d))) return 'namespace'
-  return 'member'
-}
-
-// Classify a VALUE-position reference by its syntactic form — the reason code_impact does or does not resolve it. Only
-// called for refs classifyPosition labelled 'value'. Heritage is checked first (a class's `extends` base sits under an
-// ExpressionWithTypeArguments); then JSX tag, property-access (member/namespace via the receiver), element-access,
-// bare call, `new X()` (a NewExpression, distinct from a CallExpression — the shipped resolver doesn't emit an edge
-// for it either, but it's tracked as its own 'construct' shape rather than folded into 'call' or left to fall through
-// to 'bare-value', since a plain call is resolved and a constructor call is not), and finally a bare value identifier.
-export const classifyShape = (sf: ts.SourceFile, pos: number, checker: ts.TypeChecker): Shape => {
-  const node = nodeAtPosition(sf, pos)
-  for (let a: ts.Node | undefined = node; a !== undefined && !ts.isSourceFile(a); a = a.parent) {
-    if (ts.isHeritageClause(a)) return 'heritage'
-  }
-  const parent = node.parent
-  if (
-    parent !== undefined &&
-    (ts.isJsxOpeningElement(parent) || ts.isJsxSelfClosingElement(parent) || ts.isJsxClosingElement(parent)) &&
-    parent.tagName === node
-  ) {
-    return 'jsx'
-  }
-  if (parent !== undefined && ts.isPropertyAccessExpression(parent) && parent.name === node) {
-    return classifyReceiver(parent.expression, checker)
-  }
-  if (parent !== undefined && ts.isElementAccessExpression(parent)) return 'other'
-  if (parent !== undefined && ts.isCallExpression(parent) && parent.expression === node) return 'call'
-  if (parent !== undefined && ts.isNewExpression(parent) && parent.expression === node) return 'construct'
-  return 'bare-value'
 }
 
 // Deterministically down-sample `items` to at most `maxTargets` by taking evenly-spaced indices across the WHOLE list
@@ -276,6 +248,9 @@ export const buildReferenceOracle = (
       const sf = program.getSourceFile(entry.fileName)
       if (sf === undefined) continue
       const pos = entry.textSpan.start
+      // A declaration name is not a use — skip sibling interface-member declarations tsc unifies
+      // into the target symbol (Slice 5a; see isReferenceAtDeclarationName).
+      if (isReferenceAtDeclarationName(sf, pos)) continue
       const relPath = path.relative(opts.repoRoot, entry.fileName)
       // Nearest named scope boundary, not the innermost symbol (Slice 4a).
       const enclosing = attributeReferenceSource(db, sf, pos, relPath, symbol.qualifiedName)

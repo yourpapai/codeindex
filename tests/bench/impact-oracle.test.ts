@@ -352,6 +352,76 @@ describe('buildReferenceOracle', () => {
     }
   })
 
+  test('a sibling interface-member implementation is NOT a true reference (Slice 5a)', async () => {
+    // tsc unifies every implementation of `Handler.handle` into one symbol, so
+    // getReferencesAtPosition on h1's `handle` returns the interface signature PLUS h2's `handle`
+    // DECLARATION. A declaration is not a use — h2 must not be fabricated as a source of h1 (this is
+    // the papai migration `up` artifact in miniature).
+    const dir = mkdtempSync(path.join(tmpdir(), 'codeindex-oracle-ifacemember-'))
+    dirs.push(dir)
+    mkdirSync(path.join(dir, 'src'), { recursive: true })
+    writeFileSync(path.join(dir, 'src/iface.ts'), 'export interface Handler {\n  handle(): void\n}\n')
+    writeFileSync(
+      path.join(dir, 'src/h1.ts'),
+      "import type { Handler } from './iface'\nexport const h1: Handler = {\n  handle(): void {},\n}\n",
+    )
+    writeFileSync(
+      path.join(dir, 'src/h2.ts'),
+      "import type { Handler } from './iface'\nexport const h2: Handler = {\n  handle(): void {},\n}\n",
+    )
+    writeFileSync(
+      path.join(dir, 'tsconfig.json'),
+      JSON.stringify({
+        compilerOptions: { module: 'esnext', moduleResolution: 'bundler', strict: true },
+        include: ['src'],
+      }),
+    )
+    writeFileSync(path.join(dir, '.codeindex.json'), JSON.stringify({ roots: ['src'] }))
+    const config = await loadCodeindexConfig({ configPath: path.join(dir, '.codeindex.json'), repoRoot: dir })
+    await indexCodebase({ config, mode: 'full' })
+    const db = openDatabase(config.dbPath)
+    try {
+      const oracle = buildReferenceOracle(db, { repoRoot: dir, tsconfigPath: path.join(dir, 'tsconfig.json') })
+      const h1handle = oracle.find((t) => t.target.endsWith('h1>handle'))
+      expect(h1handle).toBeDefined()
+      // h2's `handle` declaration must NOT be counted as a source.
+      expect(h1handle!.trueSources.some((s) => s.name.includes('h2'))).toBe(false)
+    } finally {
+      db.close()
+    }
+  })
+
+  test('a call inside a constructor attributes to Class>constructor, not the class (Slice 5a)', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'codeindex-oracle-ctor-'))
+    dirs.push(dir)
+    mkdirSync(path.join(dir, 'src'), { recursive: true })
+    writeFileSync(path.join(dir, 'src/dep.ts'), 'export function makeThing(): number {\n  return 1\n}\n')
+    writeFileSync(
+      path.join(dir, 'src/widget.ts'),
+      "import { makeThing } from './dep'\nexport class Widget {\n  private thing: number\n  constructor() {\n    this.thing = makeThing()\n  }\n}\n",
+    )
+    writeFileSync(
+      path.join(dir, 'tsconfig.json'),
+      JSON.stringify({
+        compilerOptions: { module: 'esnext', moduleResolution: 'bundler', strict: true },
+        include: ['src'],
+      }),
+    )
+    writeFileSync(path.join(dir, '.codeindex.json'), JSON.stringify({ roots: ['src'] }))
+    const config = await loadCodeindexConfig({ configPath: path.join(dir, '.codeindex.json'), repoRoot: dir })
+    await indexCodebase({ config, mode: 'full' })
+    const db = openDatabase(config.dbPath)
+    try {
+      const oracle = buildReferenceOracle(db, { repoRoot: dir, tsconfigPath: path.join(dir, 'tsconfig.json') })
+      const makeThing = oracle.find((t) => t.target.endsWith('#makeThing'))
+      const sources = makeThing!.trueSources.map((s) => s.name)
+      expect(sources).toContain('src/widget#Widget>constructor')
+      expect(sources).not.toContain('src/widget#Widget')
+    } finally {
+      db.close()
+    }
+  })
+
   test('classifies class extends as value and implements as type', async () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'codeindex-oracle-heritage-'))
     dirs.push(dir)
