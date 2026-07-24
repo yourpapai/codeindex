@@ -44,9 +44,15 @@ symbols. (b) You cannot manufacture a `member` miss over an *exported* target ei
 references for an exported `memberCalled` are the declaration, the import, and a shorthand
 `{ memberCalled }` — **never** `api.memberCalled()`. So over the exported-only oracle the `member`
 bucket is ≈0 and B2 is unmeasurable. Blast radius of broadening to `member` tier: **codeindex is
-byte-identical** (it is functional — 0 member-tier symbols), **papai re-baselines** (402 member
-methods; the `--max-targets 300` alphabetical sample now includes some, so its `valueFalseNegativeRate`
-shifts and its `member` bucket populates), and the **fixture** carries a deterministic member case.
+byte-identical** (it is functional — 0 member-tier symbols), and the **fixture** carries a deterministic
+member case.
+
+> **Superseded by measurement (see the Reassessment Gate below).** This planning-time forecast
+> predicted papai's `member` bucket would populate from the `--max-targets 300` sample. It did **not**:
+> that alphabetical sample fills up inside `client/settings/*` before reaching `client/shared/*` where
+> methods start, so **0 member targets enter papai's sample** and its baseline came back byte-identical
+> too. B2 ends up measurable only on the fixture. This is the finding that makes representative
+> sampling the Slice 4 prerequisite recorded in the memo.
 
 ### Naming / roadmap reconciliation
 
