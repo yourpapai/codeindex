@@ -49,11 +49,14 @@ interface DbExportedSymbol {
   readonly startLine: number
 }
 
-const loadExportedSymbols = (db: Database): readonly DbExportedSymbol[] =>
+// Scored targets are `exported` symbols PLUS `member`-tier methods. Members are included so
+// this.method() / obj.method() misses (B2) are measurable — they resolve to member-tier symbols
+// that exported-only scoring never saw. Functional repos (0 members) are unaffected.
+const loadScoredSymbols = (db: Database): readonly DbExportedSymbol[] =>
   db
     .query<{ qualified_name: string; local_name: string; file_path: string; start_line: number }, []>(
       `SELECT qualified_name, local_name, file_path, start_line
-       FROM symbols WHERE scope_tier = 'exported' ORDER BY qualified_name`,
+       FROM symbols WHERE scope_tier IN ('exported', 'member') ORDER BY qualified_name`,
     )
     .all()
     .map((r) => ({
@@ -199,8 +202,8 @@ export const buildReferenceOracle = (
 ): readonly OracleTarget[] => {
   const { program, service } = createTsProject(opts.tsconfigPath)
   const checker = program.getTypeChecker()
-  const symbols = loadExportedSymbols(db)
-  // NOTE: `symbols` is ORDER BY qualified_name (loadExportedSymbols above), so this
+  const symbols = loadScoredSymbols(db)
+  // NOTE: `symbols` is ORDER BY qualified_name (loadScoredSymbols above), so this
   // slice takes a deterministic ALPHABETICAL PREFIX of exported symbols, not a
   // representative random sample. That's intentional for run-over-run regression
   // comparison (the same targets are scored every run, so deltas are attributable to
