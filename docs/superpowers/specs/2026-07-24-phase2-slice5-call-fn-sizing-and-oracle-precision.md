@@ -136,3 +136,19 @@ Recommended Slice 5 shape, in order:
 
 The nested-scope path bug (`#4/#5`) is a cheap indexer follow-up (extractor path agreement) that can
 ride along with the oracle-precision work or be recorded for Slice 6.
+
+## Progress log
+
+User decision (post-sizing): **oracle-fix → B4 → B6**, three sub-slices.
+
+- **5a — oracle precision (done, committed).** Skip declaration-name reference entries + add
+  `ConstructorDeclaration` to `nearestNamedBoundary`. papai valueFalseNegativeRate **0.4545 → 0.2640**
+  (honest floor), falsePositiveRate 0.0045 → 0. self/fixture unchanged. Extracted the syntactic
+  classifier layer to `bench/impact-ast.ts`.
+- **5b — B4 barrel bridging (done, committed).** `resolveReferenceCandidates` follows `module_exports`
+  re-export chains (`buildReexportResolver`) to bridge caller → barrel → real target. papai
+  valueFalseNegativeRate **0.2640 → 0.2475**; `call` FN **8 → 3**; falsePositiveRate stays 0 (zero
+  over-match). self **0.1000 → 0.0988**. Covers the 5 direct `export { x } from './y'` cases. The
+  remaining 3 `call` FN are #7 (import-then-`export { x }`, needs indexer import→export linking —
+  **deferred**) and #4/#5 (nested-scope path). Baselines ratcheted.
+- **5c — B6 bare-value edges (next).** ~56 honest bare-value FN — the largest remaining value-FN mass.

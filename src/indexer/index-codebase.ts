@@ -19,6 +19,7 @@ import {
   persistSymbols,
   selectAllFiles,
   selectAllModuleAliases,
+  selectAllModuleExports,
   selectAllSymbols,
   selectStoredSymbols,
 } from '../storage/queries.js'
@@ -178,6 +179,7 @@ const persistResolvedReferences = (
   const allSymbols = selectAllSymbols(db)
   const allFiles = selectAllFiles(db)
   const allModuleAliases = selectAllModuleAliases(db)
+  const allModuleExports = selectAllModuleExports(db)
   let referencesIndexed = 0
   let referencesUnresolved = 0
 
@@ -188,6 +190,7 @@ const persistResolvedReferences = (
       files: allFiles,
       references: parsedFile.referenceCandidates.references,
       currentModuleKey: parsedFile.moduleKey,
+      moduleExports: allModuleExports,
     })
 
     for (const reference of resolvedReferences) {

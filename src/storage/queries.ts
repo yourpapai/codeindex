@@ -243,3 +243,28 @@ export const selectAllModuleAliases = (db: Database): readonly { aliasKey: strin
     .query<{ alias_key: string; file_id: number }, []>('SELECT alias_key, file_id FROM module_aliases')
     .all()
     .map((row) => ({ aliasKey: row.alias_key, fileId: row.file_id }))
+
+// Every module export, keyed by the exporting file's module key. A re-export (`export { x } from
+// './y'`) stores symbol_id = NULL and target_module_specifier = './y'; a local export stores its
+// symbol_id. The resolver walks these to bridge a caller's import of a name through a barrel to the
+// real declaration (B4). Only parsed files participate.
+export const selectAllModuleExports = (
+  db: Database,
+): readonly { moduleKey: string; exportName: string; symbolId: number | null; targetModuleSpecifier: string | null }[] =>
+  db
+    .query<
+      { module_key: string; export_name: string; symbol_id: number | null; target_module_specifier: string | null },
+      []
+    >(
+      `SELECT f.module_key AS module_key, me.export_name AS export_name, me.symbol_id AS symbol_id,
+              me.target_module_specifier AS target_module_specifier
+       FROM module_exports me JOIN files f ON f.id = me.file_id
+       WHERE f.parse_status = 'indexed'`,
+    )
+    .all()
+    .map((row) => ({
+      moduleKey: row.module_key,
+      exportName: row.export_name,
+      symbolId: row.symbol_id,
+      targetModuleSpecifier: row.target_module_specifier,
+    }))

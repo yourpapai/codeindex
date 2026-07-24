@@ -1,9 +1,9 @@
 {
-  "targetsScored": 103,
-  "trueReferenceCount": 197,
-  "falseNegatives": 125,
-  "falseNegativeRate": 0.6345177664974619,
+  "targetsScored": 104,
+  "trueReferenceCount": 200,
+  "falseNegatives": 127,
+  "falseNegativeRate": 0.635,
   "falsePositiveRate": 0,
-  "valueFalseNegativeRate": 0.1,
+  "valueFalseNegativeRate": 0.09876543209876543,
   "typeFalseNegativeRate": 1
 }
