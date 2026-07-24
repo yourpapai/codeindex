@@ -191,6 +191,27 @@ const resolveThisMemberCall = (
   return match?.id ?? null
 }
 
+// this.m() → the enclosing class's method (B2). Split out of the main map to keep it under the
+// max-lines cap; behaviour is identical to inlining.
+const resolveThisReference = (
+  input: Readonly<ResolveReferenceCandidatesInput>,
+  reference: Readonly<ReferenceCandidate>,
+  sourceSymbols: ReadonlyMap<string, number>,
+): ResolvedReference => {
+  const targetSymbolId =
+    reference.sourceQualifiedName === null
+      ? null
+      : resolveThisMemberCall(input.symbols, reference.sourceQualifiedName, reference.targetName)
+  return {
+    sourceSymbolId:
+      reference.sourceQualifiedName === null ? null : (sourceSymbols.get(reference.sourceQualifiedName) ?? null),
+    ...reference,
+    targetSymbolId,
+    targetFileId: null,
+    confidence: targetSymbolId === null ? 'name_only' : 'resolved',
+  }
+}
+
 export const resolveReferenceCandidates = (
   input: Readonly<ResolveReferenceCandidatesInput>,
 ): readonly ResolvedReference[] => {
@@ -199,20 +220,7 @@ export const resolveReferenceCandidates = (
   const resolveReexport = buildReexportResolver(input.moduleExports ?? [])
 
   return input.references.map((reference) => {
-    if (reference.receiver === 'this') {
-      const targetSymbolId =
-        reference.sourceQualifiedName === null
-          ? null
-          : resolveThisMemberCall(input.symbols, reference.sourceQualifiedName, reference.targetName)
-      return {
-        sourceSymbolId:
-          reference.sourceQualifiedName === null ? null : (sourceSymbols.get(reference.sourceQualifiedName) ?? null),
-        ...reference,
-        targetSymbolId,
-        targetFileId: null,
-        confidence: targetSymbolId === null ? 'name_only' : 'resolved',
-      }
-    }
+    if (reference.receiver === 'this') return resolveThisReference(input, reference, sourceSymbols)
 
     const matchedFileId = findMatchedFileId(input, reference.targetModuleSpecifier)
     const { targetSymbolId, confidence } = findResolvedSymbol(
@@ -227,11 +235,20 @@ export const resolveReferenceCandidates = (
       importMap.set(reference.targetName, targetSymbolId)
     }
 
+    // B6 false-positive guard: a bare value `references` edge that resolves ONLY by same-module name
+    // (name_only) is the shadowing-prone case — a local or parameter sharing a top-level symbol's
+    // name, which scope-free resolution cannot tell apart from a real use. Keep only import- or
+    // file-backed resolutions (resolved / file_resolved); drop the name-only guess to a null target,
+    // which findIncomingReferences never surfaces. Calls keep their same-module name_only resolution
+    // (measured FP-free); the risk is specific to identifiers used as values.
+    const guardedTargetSymbolId =
+      reference.edgeType === 'references' && confidence === 'name_only' ? null : targetSymbolId
+
     return {
       sourceSymbolId:
         reference.sourceQualifiedName === null ? null : (sourceSymbols.get(reference.sourceQualifiedName) ?? null),
       ...reference,
-      targetSymbolId,
+      targetSymbolId: guardedTargetSymbolId,
       targetFileId: matchedFileId,
       confidence,
     }

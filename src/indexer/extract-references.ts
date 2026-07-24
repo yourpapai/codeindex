@@ -125,6 +125,64 @@ const collectJsxReference = (
   })
 }
 
+// Parent node types under which a bare `identifier` is NOT a value reference to a symbol: the
+// callee of a call/new (calls handles it / construct is intentionally unresolved), import & export
+// bindings, parameter and destructuring binders, and JSX-tag / heritage identifiers (their own
+// handlers emit the edge). Object-literal keys and member property names are `property_identifier`
+// / `shorthand_property_identifier`, a different node type, so they never reach this path.
+const NON_VALUE_REFERENCE_PARENTS: ReadonlySet<string> = new Set([
+  'call_expression',
+  'new_expression',
+  'import_specifier',
+  'import_clause',
+  'namespace_import',
+  'export_specifier',
+  'required_parameter',
+  'optional_parameter',
+  'object_pattern',
+  'array_pattern',
+  'rest_pattern',
+  'pair_pattern',
+  'jsx_opening_element',
+  'jsx_self_closing_element',
+  'jsx_closing_element',
+  'extends_clause',
+  'implements_clause',
+])
+
+const occupiesNameField = (parent: SyntaxNode, node: SyntaxNode): boolean => {
+  const nameField = parent.childForFieldName('name')
+  return nameField !== null && nameField.startIndex === node.startIndex && nameField.endIndex === node.endIndex
+}
+
+// A bare value identifier used AS a value — an argument (`f(target)`), initializer (`const g = target`),
+// array/return/assignment operand, or member-expression object (`target.foo`). This is the "used as a
+// value, not called" reference form the graph missed entirely (B6): the indexer only emitted edges for
+// calls / JSX / heritage / imports. Emitted as a `references` edge with NO module specifier, so the
+// resolver binds it through the same import map / same-module path as a bare call — and because
+// findIncomingReferences only surfaces edges with a resolved target, an unresolved bare identifier
+// (a local, a parameter, a non-imported name) is inserted with a null target and never appears as a
+// false incoming reference. Shorthand `{ target }` (a `shorthand_property_identifier`) is a known
+// recall gap, not handled here.
+const collectValueReference = (
+  node: SyntaxNode,
+  enclosingSymbol: string | null,
+  references: ReferenceCandidate[],
+): void => {
+  const parent = node.parent
+  if (parent === null || NON_VALUE_REFERENCE_PARENTS.has(parent.type)) return
+  // The name being declared (variable_declarator / function / class / etc.) is a binder, not a use.
+  if (occupiesNameField(parent, node)) return
+  references.push({
+    sourceQualifiedName: enclosingSymbol,
+    edgeType: 'references',
+    targetName: node.text,
+    targetExportName: null,
+    targetModuleSpecifier: null,
+    lineNumber: node.startPosition.row + 1,
+  })
+}
+
 const collectHeritageReferences = (
   node: SyntaxNode,
   enclosingSymbol: string | null,
@@ -197,6 +255,7 @@ export const extractReferenceCandidates = (
       return
     }
     if (node.type === 'call_expression') collectCallReference(node, enclosingSymbol, references)
+    if (node.type === 'identifier') collectValueReference(node, enclosingSymbol, references)
     if (node.type === 'jsx_opening_element' || node.type === 'jsx_self_closing_element') {
       collectJsxReference(node, enclosingSymbol, references)
     }

@@ -15,7 +15,7 @@ afterAll(() => {
 })
 
 describe('impact-demo fixture', () => {
-  test('B1/B3 zero the jsx & heritage value-FN buckets; namespace/bare-value stay lit; member now resolved (B2)', async () => {
+  test('B1/B3/B6 zero jsx, heritage & bare-value FN; member resolved (B2); namespace stays lit (B5)', async () => {
     const config = await loadCodeindexConfig({
       configPath: path.join(repoRoot, '.codeindex.json'),
       repoRoot,
@@ -33,11 +33,13 @@ describe('impact-demo fixture', () => {
       expect(report.valueFalseNegativesByShape['jsx']).toBeFalsy()
       expect(report.valueTrueReferenceCountByShape['heritage']).toBe(1)
       expect(report.valueFalseNegativesByShape['heritage']).toBeFalsy()
-      // The ranked remaining work is lit and separated.
       // Slice 4b: this.helper() now resolves to the enclosing class method, so member is no longer a FN.
       expect(report.valueFalseNegativesByShape['member']).toBeFalsy()
+      // Slice 5c (B6): a bare value reference (const use of an imported symbol) now resolves.
+      expect(report.valueTrueReferenceCountByShape['bare-value']).toBe(1)
+      expect(report.valueFalseNegativesByShape['bare-value']).toBeFalsy()
+      // namespace (B5, import * as ns) remains the lit deferred bucket.
       expect(report.valueFalseNegativesByShape['namespace']).toBeGreaterThan(0)
-      expect(report.valueFalseNegativesByShape['bare-value']).toBeGreaterThan(0)
     } finally {
       db.close()
     }

@@ -74,10 +74,10 @@ const compareAgainstBaseline = (report: ImpactBenchReport, baselinePath: string)
     `valueFalseNegativesByShape (diagnostic): ${JSON.stringify(report.valueFalseNegativesByShape)} of ${JSON.stringify(report.valueTrueReferenceCountByShape)}`,
   )
   console.error(
-    `falsePositiveRate (diagnostic): ${report.falsePositiveRate.toFixed(4)} by confidence ${JSON.stringify(report.falsePositivesByConfidence)}`,
+    `falsePositiveRate: ${baseline.falsePositiveRate.toFixed(4)} -> ${report.falsePositiveRate.toFixed(4)} (${comparison.fpDelta >= 0 ? '+' : ''}${comparison.fpDelta.toFixed(4)}) by confidence ${JSON.stringify(report.falsePositivesByConfidence)}`,
   )
   if (comparison.regressed) {
-    console.error('code_impact false-negative rate regressed against baseline.')
+    console.error('code_impact regressed against baseline (value false-negative rate or false-positive rate rose).')
     process.exit(1)
   }
 }

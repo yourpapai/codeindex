@@ -250,7 +250,12 @@ export const selectAllModuleAliases = (db: Database): readonly { aliasKey: strin
 // real declaration (B4). Only parsed files participate.
 export const selectAllModuleExports = (
   db: Database,
-): readonly { moduleKey: string; exportName: string; symbolId: number | null; targetModuleSpecifier: string | null }[] =>
+): readonly {
+  moduleKey: string
+  exportName: string
+  symbolId: number | null
+  targetModuleSpecifier: string | null
+}[] =>
   db
     .query<
       { module_key: string; export_name: string; symbol_id: number | null; target_module_specifier: string | null },

@@ -461,6 +461,40 @@ describe('extractReferenceCandidates', () => {
     expect(jsx.find((ref) => ref.targetName === 'Button')!.sourceQualifiedName).toBe('src/app#App')
   })
 
+  test('B6: emits a bare value reference for an imported symbol used as a value, not for binders', async () => {
+    const loader = await createParserLoader()
+    const parsed = await loader.createParserForExtension('.ts')
+    // `target` is a value ref (initializer, argument, return); `g` is a binder; `doThing` is a
+    // callee (calls edge); `param` is a parameter binder used later as an argument.
+    const source = [
+      "import { target } from './x.js'",
+      'export function caller(param: number): unknown {',
+      '  const g = target',
+      '  doThing(target, param)',
+      '  return target',
+      '}',
+    ].join('\n')
+    const tree = parsed.parser.parse(source)
+    expect(tree).not.toBeNull()
+    const { references } = extractReferenceCandidates({
+      source,
+      tree: tree!,
+      relativeFilePath: 'src/caller.ts',
+      moduleKey: 'src/caller',
+    })
+    const valueRefs = references.filter((ref) => ref.edgeType === 'references')
+    // `target` referenced as a value at least once, attributed to the enclosing function.
+    const targetRefs = valueRefs.filter((ref) => ref.targetName === 'target')
+    expect(targetRefs.length).toBeGreaterThanOrEqual(1)
+    expect(targetRefs.every((ref) => ref.sourceQualifiedName === 'src/caller#caller')).toBe(true)
+    expect(targetRefs.every((ref) => ref.targetModuleSpecifier === null)).toBe(true)
+    // Binders (the function name, the declared `g`) and the call callee are NOT value references.
+    const names = valueRefs.map((ref) => ref.targetName)
+    expect(names).not.toContain('caller')
+    expect(names).not.toContain('g')
+    expect(names).not.toContain('doThing')
+  })
+
   test('skips member-expression JSX tags (namespace case, deferred to B5)', async () => {
     const loader = await createParserLoader()
     const parsed = await loader.createParserForExtension('.tsx')
@@ -473,7 +507,10 @@ describe('extractReferenceCandidates', () => {
       relativeFilePath: 'src/app.tsx',
       moduleKey: 'src/app',
     })
-    expect(references.filter((ref) => ref.edgeType === 'references')).toHaveLength(0)
+    // The member-expression JSX tag itself (UI.Panel) produces no reference edge — deferred to B5.
+    // (The namespace object `UI` is a bare value reference, B6, but the deferred tag `Panel` is not.)
+    const refNames = references.filter((ref) => ref.edgeType === 'references').map((ref) => ref.targetName)
+    expect(refNames).not.toContain('Panel')
   })
 
   test('captures class extends and implements as heritage edges', async () => {

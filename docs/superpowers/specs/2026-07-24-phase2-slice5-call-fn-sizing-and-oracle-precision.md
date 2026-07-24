@@ -151,4 +151,23 @@ User decision (post-sizing): **oracle-fix → B4 → B6**, three sub-slices.
   over-match). self **0.1000 → 0.0988**. Covers the 5 direct `export { x } from './y'` cases. The
   remaining 3 `call` FN are #7 (import-then-`export { x }`, needs indexer import→export linking —
   **deferred**) and #4/#5 (nested-scope path). Baselines ratcheted.
-- **5c — B6 bare-value edges (next).** ~56 honest bare-value FN — the largest remaining value-FN mass.
+- **5c — B6 bare-value edges (done, committed).** The indexer now emits a `references` edge for an
+  identifier used AS a value (argument, initializer, array/return operand, member-expression object),
+  resolved through the same import/module path as a bare call. papai **0.2475 → 0.1023** (bare-value
+  FN 56 → 15), self **0.0988 → 0.0000**, fixture **0.3333 → 0.1667** — the largest single-edge value
+  gate gain in Phase 2.
+  - **FP guard (the memo's prescribed "resolves-to-known-symbol" guard).** Unguarded, B6 introduced 5
+    papai FPs (0.0171) from `name_only` same-module matches (a local/param shadowing a top-level
+    symbol name — scope-free resolution can't tell them apart). The resolver now drops `name_only`
+    resolution for `references` edges (keeps import-/file-backed only), restoring **falsePositiveRate
+    0** at the cost of 14 same-module bare-value recoveries (recovered 41/56 = 73%). `findIncoming­References`
+    only surfaces resolved targets, so unresolved bare-value edges are invisible.
+  - **FP gate added** (`compareImpact`): the bench now regresses on a falsePositiveRate rise too, not
+    just value FN — locking in the zero-FP invariant B6 first put at risk.
+  - **Deferred:** the 15 same-module bare-value residue (needs scope-aware resolution, obj.m()/2b
+    territory); shorthand `{ target }` (`shorthand_property_identifier`, a known recall gap).
+
+## Slice 5 net result (papai strided 300)
+
+valueFalseNegativeRate **0.4545 → 0.1023** across 5a+5b+5c, falsePositiveRate held at **0**. Of that,
+~0.19 was oracle-precision honesty (5a), 0.016 B4 barrels (5b), and 0.145 B6 bare-value (5c).
