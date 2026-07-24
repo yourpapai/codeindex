@@ -448,4 +448,21 @@ describe('buildReferenceOracle — source attribution (Slice 4a)', () => {
       db.close()
     }
   })
+
+  // Plan-deferred gap (pinned, not fixed): the indexer treats a NAMED function expression used as a
+  // bare callback as a scope boundary, but nearestNamedBoundary does not — it is skipped here and the
+  // reference attributes to the next enclosing named boundary above it instead.
+  test('a named function-expression bare callback is skipped — attributes to the enclosing function above it', async () => {
+    const { db, dir } = await makeAttributionRepo(
+      'export function outer(): void {\n  setTimeout(function handler(): void {\n    target()\n  }, 0)\n}',
+    )
+    try {
+      const oracle = buildReferenceOracle(db, { repoRoot: dir, tsconfigPath: path.join(dir, 'tsconfig.json') })
+      const sources = oracle.find((t) => t.target.endsWith('#target'))!.trueSources.map((s) => s.name)
+      expect(sources).toContain('src/b#outer')
+      expect(sources).not.toContain('src/b#outer>handler')
+    } finally {
+      db.close()
+    }
+  })
 })

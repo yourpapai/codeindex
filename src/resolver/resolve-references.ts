@@ -123,6 +123,9 @@ const findResolvedSymbol = (
 // enclosing class is any ancestor prefix of that qualified name. Match a symbol `<class>>m` whose
 // class prefix is an ancestor of the source, so only the enclosing class chain matches (deterministic,
 // near-zero FP). obj.m() never reaches here (no `this` receiver) and stays unresolved — deferred.
+// Scope note: resolution is limited to the enclosing class chain only — it does NOT resolve methods
+// inherited from a base class (a recall gap, not an FP risk; inheritance resolution needs
+// class-hierarchy data outside this scope).
 const resolveThisMemberCall = (
   symbols: readonly SymbolSummary[],
   source: string,
@@ -144,10 +147,14 @@ export const resolveReferenceCandidates = (
   const importMap = new Map<string, number>()
 
   return input.references.map((reference) => {
-    if (reference.receiver === 'this' && reference.sourceQualifiedName !== null) {
-      const targetSymbolId = resolveThisMemberCall(input.symbols, reference.sourceQualifiedName, reference.targetName)
+    if (reference.receiver === 'this') {
+      const targetSymbolId =
+        reference.sourceQualifiedName === null
+          ? null
+          : resolveThisMemberCall(input.symbols, reference.sourceQualifiedName, reference.targetName)
       return {
-        sourceSymbolId: sourceSymbols.get(reference.sourceQualifiedName) ?? null,
+        sourceSymbolId:
+          reference.sourceQualifiedName === null ? null : (sourceSymbols.get(reference.sourceQualifiedName) ?? null),
         ...reference,
         targetSymbolId,
         targetFileId: null,

@@ -184,4 +184,25 @@ describe('resolveReferenceCandidates', () => {
     })
     expect(resolved[0]).toMatchObject({ targetSymbolId: null, confidence: 'name_only' })
   })
+
+  test('this.m() with null source (module-scope lexical-this callback) does not fall through to bare-name matching', () => {
+    const resolved = resolveReferenceCandidates({
+      symbols: [{ id: 5, qualifiedName: 'src/c#helper', localName: 'helper', moduleKey: 'src/c', exportNames: [] }],
+      moduleAliases: [],
+      files: [{ id: 10, moduleKey: 'src/c' }],
+      references: [
+        {
+          sourceQualifiedName: null,
+          edgeType: 'calls',
+          targetName: 'helper',
+          targetExportName: null,
+          targetModuleSpecifier: null,
+          receiver: 'this',
+          lineNumber: 2,
+        },
+      ],
+      currentModuleKey: 'src/c',
+    })
+    expect(resolved[0]).toMatchObject({ targetSymbolId: null, confidence: 'name_only' })
+  })
 })

@@ -177,8 +177,9 @@ remaining 11 are `obj.m()`, deferred per the committed position above), overall 
 
 ## Success criteria
 
-- 4a: gated codeindex `valueFalseNegativeRate` reflects the honest ~0.10; papai call-FN ≈ 14 and FP
-  rate collapsed; memo re-recorded; focused attribution tests green; `bun run check` green.
+- 4a: gated codeindex `valueFalseNegativeRate` reflects the honest ~0.10; papai call-FN measured 9
+  (forecast was ≈ 14) and FP rate collapsed; memo re-recorded; focused attribution tests green;
+  `bun run check` green.
 - 4b: `this.m()` member calls resolve end-to-end; member value-FN reduced on the fixture and papai by
   the measured `this.m()` share of the 22; honest FP rate not regressed; `obj.m()` left unresolved
   (deferred, per the committed position above).

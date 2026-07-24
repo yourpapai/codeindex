@@ -140,6 +140,9 @@ const nodeAtPosition = (sf: ts.SourceFile, pos: number): ts.Node => {
 // Mirror the indexer's isNamedScopeBoundary + nextEnclosingSymbol: nearest enclosing NAMED
 // function/class/method, or arrow/function-expression bound to a named variable declarator
 // (a plain `const x = f()` declarator and unnamed callbacks are transparent). Null = module scope.
+// (Known minor, errs safe: a NAMED function-expression bare callback, e.g. `setTimeout(function
+// foo(){}, 0)`, is a boundary in the indexer but skipped here, attributed to the boundary above;
+// vanishingly rare, deliberately deferred.)
 const nearestNamedBoundary = (node: ts.Node): ts.Node | null => {
   for (let a: ts.Node | undefined = node.parent; a !== undefined && !ts.isSourceFile(a); a = a.parent) {
     if ((ts.isFunctionDeclaration(a) || ts.isClassDeclaration(a)) && a.name !== undefined) return a
@@ -186,14 +189,12 @@ const classifyReceiver = (receiver: ts.Expression, checker: ts.TypeChecker): Sha
   return 'member'
 }
 
-// Classify a VALUE-position reference by its syntactic form — the reason code_impact does or
-// does not resolve it. Only called for refs classifyPosition labelled 'value'. Heritage is
-// checked first (a class's `extends` base sits under an ExpressionWithTypeArguments); then JSX
-// tag, property-access (member/namespace via the receiver), element-access, bare call, `new X()`
-// (a NewExpression, distinct from a CallExpression — the shipped resolver doesn't emit an edge
-// for it either, but it's tracked as its own 'construct' shape rather than folded into 'call' or
-// left to fall through to 'bare-value', since a plain call is resolved and a constructor call is
-// not), and finally a bare value identifier.
+// Classify a VALUE-position reference by its syntactic form — the reason code_impact does or does not resolve it. Only
+// called for refs classifyPosition labelled 'value'. Heritage is checked first (a class's `extends` base sits under an
+// ExpressionWithTypeArguments); then JSX tag, property-access (member/namespace via the receiver), element-access,
+// bare call, `new X()` (a NewExpression, distinct from a CallExpression — the shipped resolver doesn't emit an edge
+// for it either, but it's tracked as its own 'construct' shape rather than folded into 'call' or left to fall through
+// to 'bare-value', since a plain call is resolved and a constructor call is not), and finally a bare value identifier.
 export const classifyShape = (sf: ts.SourceFile, pos: number, checker: ts.TypeChecker): Shape => {
   const node = nodeAtPosition(sf, pos)
   for (let a: ts.Node | undefined = node; a !== undefined && !ts.isSourceFile(a); a = a.parent) {
@@ -216,16 +217,14 @@ export const classifyShape = (sf: ts.SourceFile, pos: number, checker: ts.TypeCh
   return 'bare-value'
 }
 
-// Deterministically down-sample `items` to at most `maxTargets` by taking evenly-spaced indices
-// across the WHOLE list (index floor(i * N / M) for i in [0, M)), rather than a contiguous
-// alphabetical prefix. The pick stays deterministic — same list + same `maxTargets` always yield
-// the same indices — so run-over-run regression deltas remain attributable to real changes rather
-// than sampling noise (the property the old `.slice(0, maxTargets)` prefix was chosen for). Unlike
-// that prefix, a stride reaches the tail of the sorted symbol list, so member-tier methods,
-// namespace imports and `new X()` constructors that sort past a cutoff (e.g. papai's
-// `client/shared/*`) still enter the scored set. Indices floor(i*N/M) are strictly increasing for
-// 0 <= i < M <= N, so the sample contains M distinct items. See the Reassessment Gate memo, whose
-// alphabetical-prefix caveat this removes.
+// Deterministically down-sample `items` to at most `maxTargets` by taking evenly-spaced indices across the WHOLE list
+// (index floor(i * N / M) for i in [0, M)), rather than a contiguous alphabetical prefix. The pick stays deterministic
+// — same list + same `maxTargets` always yield the same indices — so run-over-run regression deltas remain
+// attributable to real changes rather than sampling noise (the property the old `.slice(0, maxTargets)` prefix was
+// chosen for). Unlike that prefix, a stride reaches the tail of the sorted symbol list, so member-tier methods,
+// namespace imports and `new X()` constructors that sort past a cutoff (e.g. papai's `client/shared/*`) still enter
+// the scored set. Indices floor(i*N/M) are strictly increasing for 0 <= i < M <= N, so the sample contains M distinct
+// items. See the Reassessment Gate memo, whose alphabetical-prefix caveat this removes.
 export const strideSample = <T>(items: readonly T[], maxTargets: number): readonly T[] => {
   if (maxTargets <= 0) return []
   if (maxTargets >= items.length) return items
