@@ -19,16 +19,34 @@ them**: codeindex has no JSX or classes at all, and papai's alphabetical 300-tar
 capture its JSX (its client is Svelte-heavy, and Svelte does not use `.tsx`). So the honest state
 entering Slice 3 is: a durable instrument and correct edges, but **no demonstrated metric movement**.
 
-Slice 3 closes that gap and makes the *rest* of the graph work evidence-driven. It does two things:
+Slice 3 closes that gap and makes the *rest* of the graph work evidence-driven. It does three things:
 
 1. **Prove** — a committed fixture corpus that contains every reference shape, so the B1/B3 wins
    *demonstrably* zero their value-FN buckets while the un-built shapes stay lit.
-2. **Re-rank** — a value-FN **by reference shape** breakdown that ranks the remaining graph
+2. **Make B2 visible** — broaden the oracle's target set from `exported`-only to `exported` **+
+   `member`** tier. This is forced by an empirical finding (below): member calls (`this.m()`,
+   `obj.m()` — the entire B2 candidate) resolve to **method** symbols, which are `member` tier and
+   were never scored, so B2 was invisible to the instrument. Broadening the target set — *not* the
+   resolver — is what lets B2 be measured.
+3. **Re-rank** — a value-FN **by reference shape** breakdown that ranks the remaining graph
    candidates (B2 member calls vs B4/B5 namespaces vs bare-value refs) by *measured* contribution.
 
-**No graph win is shipped this slice.** The operating principle is unchanged from the Phase 2 design:
-*measure before you commit.* The Slice 3 output is the ranked evidence that opens Slice 4; the next
-win is picked from that evidence, not drawn in advance.
+**No graph win is shipped this slice.** Broadening the *oracle's* target set is an instrument change
+(bench-only), not a resolver/graph change — the shipped tool is untouched. The operating principle is
+unchanged from the Phase 2 design: *measure before you commit.* The Slice 3 output is the ranked
+evidence that opens Slice 4; the next win is picked from that evidence, not drawn in advance.
+
+### Empirical finding forcing the target-set broadening
+
+Probed during planning (2026-07-24): the oracle scores `scope_tier='exported'` symbols only. (a) Class
+methods are `member` tier, so `this.helper()` / `obj.method()` — the whole B2 mass — target unscored
+symbols. (b) You cannot manufacture a `member` miss over an *exported* target either: `tsc`'s
+references for an exported `memberCalled` are the declaration, the import, and a shorthand
+`{ memberCalled }` — **never** `api.memberCalled()`. So over the exported-only oracle the `member`
+bucket is ≈0 and B2 is unmeasurable. Blast radius of broadening to `member` tier: **codeindex is
+byte-identical** (it is functional — 0 member-tier symbols), **papai re-baselines** (402 member
+methods; the `--max-targets 300` alphabetical sample now includes some, so its `valueFalseNegativeRate`
+shifts and its `member` bucket populates), and the **fixture** carries a deterministic member case.
 
 ### Naming / roadmap reconciliation
 
@@ -49,6 +67,11 @@ stays coherent; nothing about the navigation-primitives scope changes.
 - **Gate semantics unchanged.** The gated field stays the scalar `valueFalseNegativeRate`
   (no-regression, tolerance `1e-9`). The new by-shape breakdown and `typeFalseNegativeRate` are
   **printed diagnostics**, not gated.
+- **Target-set broadening re-baselines papai only.** Scoring `member`-tier symbols is a *redefinition*
+  of the scored set, so `bench/impact-baseline.papai.json` is re-frozen (its `valueFalseNegativeRate`
+  legitimately shifts — not a regression). `bench/impact-baseline.json` (codeindex) must come back
+  **byte-identical** (0 member-tier symbols); a diff there means the broadening leaked something and
+  is a bug to investigate, not to re-freeze away.
 - **Fixture is deterministic and committed.** Because it has no sibling-checkout dependency (unlike
   papai), its gate `bench:impact:fixture:check` is folded into `check:bench` and therefore rides
   `bun run check` — the Slice 1 anti-rot lesson (self-runnable gates must be in the one command
@@ -165,29 +188,68 @@ For each candidate: **B2 ≈ `valueFalseNegativesByShape.member`**, **B5 ≈
 
 ---
 
-## Unit 3 — Committed fixture corpus + gate (`bench/fixtures/impact-demo/`)
+## Unit 3 — Broaden the oracle target set to `member` tier (`bench/impact-oracle.ts`)
 
-A small, version-controlled repo whose exported symbols are each referenced through a **single,
-known shape** — so the by-shape table has a designed, stable ground truth and the B1/B3 wins
-demonstrably zero their buckets.
+The change that makes B2 measurable. `loadExportedSymbols` selects `scope_tier='exported'` only;
+Slice 3 broadens it to `scope_tier IN ('exported','member')` (rename to `loadScoredSymbols`). Nothing
+else in the oracle changes — `declarationOffset` already handles method declarations (`isNamedDeclaration`
+includes `ts.isMethodDeclaration`), and a method's `local_name` (`helper`) locates via the same
+name-proximity path.
+
+### What it does
+
+- Adds method symbols (`Class>method`) to the scored targets. A `this.helper()` reference to such a
+  method is stored by `code_impact` as opaque call text (`this.helper`) with no edge → **missed** →
+  it lands in the `member` bucket. B2 becomes a real number.
+- `member`-tier **properties** (non-method members) are also `member` tier; they are scored too and
+  fall out naturally (most have zero true sources or `bare-value` refs). No special-casing.
+
+### Blast radius (measured during planning)
+
+- **codeindex** — 0 member-tier symbols (functional codebase); `bench/impact-baseline.json` re-freezes
+  **byte-identical**. A non-empty diff is a bug signal (see Global Constraints), not a re-freeze.
+- **papai** — 402 member methods; the `--max-targets 300` alphabetical prefix now includes some, so
+  `bench/impact-baseline.papai.json` re-freezes with a shifted `valueFalseNegativeRate` and a populated
+  `member` bucket. Legitimate redefinition, not a regression.
+
+### Interfaces
+
+- Modifies: `loadExportedSymbols` → `loadScoredSymbols(db)` (same row shape; wider `WHERE`).
+- No change to `OracleTarget` / scorer / report — this unit only widens *which* targets flow through.
+
+**Go/no-go.** If member scoring makes the papai oracle run unacceptably slow or floods the sample with
+test-stub methods, cap with the existing `--max-targets` and record the composition caveat in the memo
+(the sampling is already documented as biased). It does not block the slice.
+
+---
+
+## Unit 4 — Committed fixture corpus + gate (`bench/fixtures/impact-demo/`)
+
+A small, version-controlled repo whose scored symbols are each referenced through a **single, known
+shape** — so the by-shape table has a designed, stable ground truth and the B1/B3 wins demonstrably
+zero their buckets.
 
 ### Composition
 
-`bench/fixtures/impact-demo/src/`, each target exercised by exactly one shape:
+`bench/fixtures/impact-demo/src/`, each target exercised by exactly one shape. The `member` case uses
+a **scored method referenced via `this`** (per the empirical finding — a property-access onto an
+*exported* symbol does **not** register as a member reference, so B2 must be a method target reached
+through `this`/an instance):
 
-| Exported target | Referenced via | Shape | `code_impact` today |
+| Scored target | Referenced via | Shape | `code_impact` today |
 |---|---|---|---|
 | `Button` (`.tsx`) | `<Button/>` | `jsx` | **resolved** (B1) |
 | `Base` (class) | `class Widget extends Base` | `heritage` | **resolved** (B3) |
 | `Iface` (interface) | `class Widget implements Iface` | *type* (B7) | missed (type — diagnostic) |
 | `plainCalled` | `plainCalled()` | `call` | resolved |
-| `memberCalled` | `const api = {…}; api.memberCalled()` | `member` | **missed** (B2) |
+| `Panel>helper` (method) | `this.helper()` inside `Panel>render` | `member` | **missed** (B2) |
 | `nsCalled` | `import * as ns; ns.nsCalled()` | `namespace` | **missed** (B5) |
 | `bareUsed` | `const g = bareUsed` | `bare-value` | **missed** |
 
-Ships `tsconfig.json` and `.codeindex.json`. The bench indexes it into a **temp DB** (config `dbPath`
-override) so the committed directory is never mutated; `bench/fixtures/**/.codeindex/` is gitignored
-as a belt-and-suspenders guard.
+Ships `tsconfig.json` and `.codeindex.json`. The bench indexes it in place; its `.codeindex/` DB
+directory is already covered by the repo's global `.gitignore` (`.codeindex/`, `*.db*`), so the
+committed source is never polluted by generated artifacts — no temp-DB override needed (this matches
+how the codeindex self-bench indexes into its own gitignored `.codeindex/`).
 
 ### Scripts & gate
 
@@ -260,8 +322,10 @@ codeindex .db ──► buildReferenceOracle (bench)          tsc Program/checke
 - **Unresolved receiver** → `property-unknown` (neutral bucket), never a candidate. Logged count so
   the caveat is visible.
 - **Multi-shape source** → counts in every shape it uses (overlapping buckets, documented).
-- **Fixture DB isolation** → indexed into a temp `dbPath`; committed dir never mutated;
-  `.codeindex/` gitignored.
+- **Fixture DB isolation** → indexed into the fixture's own `.codeindex/`, already covered by the
+  repo's global `.gitignore` (`.codeindex/`, `*.db*`); committed source is never tracked-dirty.
+- **Member target with zero true sources** → contributes only to denominators (or nothing); never
+  fabricates an FN. `assertScored` still guards a wholly-empty run.
 - **Zero-target guard** → the existing `assertScored` still runs; a broken fixture run throws rather
   than gating on a suspiciously-perfect empty score.
 - **Type-position refs** → carry no shape; they remain the `typeFalseNegativeRate` diagnostic (B7),
@@ -271,14 +335,19 @@ codeindex .db ──► buildReferenceOracle (bench)          tsc Program/checke
 
 ## Testing
 
-- **Unit 1:** focused fixture test over `classifyShape` — one case per shape, including a
-  namespace-import receiver, a local-object receiver, `this`, a bare value use, and an unresolved
-  receiver (`property-unknown`). Pinned against hand-built ASTs (fast, no full oracle run), mirroring
-  Slice 2's `classifyPosition` test.
+- **Unit 1:** focused test over `classifyShape` — one case per shape, including a namespace-import
+  receiver, a local-object receiver, `this`, a bare value use, and an unresolved receiver
+  (`property-unknown`). Because receiver resolution needs a real checker, the cases live in **one small
+  in-tmpdir `tsc` program** (via `createTsProject`, no `indexCodebase`), positions located by a
+  helper that skips import-binding and declaration-name identifiers — fast, and lighter than a full
+  oracle run.
 - **Unit 2:** scorer test with a hand-built oracle — a source using two shapes counts in both buckets;
   a covered source contributes to `…ByShape` denominators but not FN; the by-shape FN sums are
   consistent with the scalar `valueFalseNegatives`.
-- **Unit 3:** the demonstration test above; plus the fixture gate exercised via
+- **Unit 3 (broaden targets):** verified through the papai re-baseline (member bucket becomes
+  non-zero) and the codeindex byte-identical re-freeze; no dedicated unit test (it is a one-line
+  `WHERE` widening), but the fixture's `member > 0` assertion (Unit 4) exercises the path end-to-end.
+- **Unit 4:** the demonstration test above; plus the fixture gate exercised via
   `bench:impact:fixture:check`.
 - **Regression:** the three existing gates (`bench:check` IR MRR, `bench:index:check`,
   `bench:impact:check`) stay green; the `typescript`-in-`src` guard stays green.
@@ -291,6 +360,8 @@ codeindex .db ──► buildReferenceOracle (bench)          tsc Program/checke
   split via checker receiver-resolution, with the neutral `property-unknown` fail-safe.
 - `valueFalseNegativesByShape` / `valueTrueReferenceCountByShape` on `ImpactBenchReport`, printed as
   diagnostics on all three repos; the gated field stays the scalar `valueFalseNegativeRate`.
+- Oracle target set broadened to `exported` + `member` tier; `bench/impact-baseline.papai.json`
+  re-frozen (member bucket now non-zero), `bench/impact-baseline.json` re-frozen **byte-identical**.
 - `bench/fixtures/impact-demo/` committed; `bench:impact:fixture` / `:check` scripts; the fixture gate
   folded into `check:bench` and green under `bun run check`.
 - Demonstration test proves `jsx == 0` and `heritage == 0` while `member > 0` and `namespace > 0`.
@@ -307,7 +378,8 @@ committed corpus) plus the measured value-FN-by-shape ranking that opens Slice 4
 
 - **Shipping any graph win (B2 / B4 / B5 / C2-suppression).** Slice 3 measures and ranks; Slice 4
   builds the winner. Drawing a win in now would repeat the "ship blind" risk the whole slice exists
-  to retire.
+  to retire. (Broadening the *oracle's* target set to `member` tier is an instrument change, not a
+  resolver change — the shipped tool produces no new edges this slice.)
 - **Fixing real-repo sampling bias (strided / seeded).** Deliberately deferred — the fixture is this
   slice's demonstration vehicle; the biased-prefix real-repo numbers are directional, caveated input
   to the memo. Sampling can be revisited when a real-repo *estimate* (not just a ranking) is needed.
