@@ -105,9 +105,14 @@ const collectHeritageReferences = (
   enclosingSymbol: string | null,
   references: ReferenceCandidate[],
 ): void => {
+  // Only class heritage reaches here: a class's `extends` is an `extends_clause`, its
+  // `implements` an `implements_clause`. An interface's `extends` is a separate
+  // `extends_type_clause` node (type position) that this slice does NOT handle — those
+  // type-position edges are deferred (they show up as typeFN in the bench, the B7 gap).
   if (node.type === 'extends_clause') {
-    // Class `extends` — value position. `value` is the base identifier (skip
-    // member-expression bases like `extends Foo.Bar`, handled with namespaces later).
+    // Class `extends` — value position. `value` is the base identifier; type arguments
+    // (`extends Base<T>`) hang off a sibling `type_arguments` node, so the base is still
+    // captured. Member-expression bases (`extends Foo.Bar`) are skipped — namespaces (B5).
     const base = node.childForFieldName('value')
     if (base !== null && base.type === 'identifier') {
       references.push({
@@ -121,7 +126,10 @@ const collectHeritageReferences = (
     }
     return
   }
-  // implements_clause — type position; one edge per implemented interface identifier.
+  // implements_clause — type position; one edge per BARE implemented interface identifier.
+  // Generic (`implements Foo<X>` → `generic_type`) and qualified (`implements ns.Bar` →
+  // `nested_type_identifier`) forms are intentionally skipped here: the generic case waits on
+  // the type-argument slice and the qualified case on namespaces (B5). Both are deferred.
   for (let i = 0; i < node.namedChildCount; i += 1) {
     const child = node.namedChild(i)
     if (child?.type === 'type_identifier') {
