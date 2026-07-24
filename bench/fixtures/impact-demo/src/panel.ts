@@ -1,4 +1,4 @@
-// member (B2, missed): a scored method referenced via `this`.
+// member (B2, resolved via this.m()): a scored method referenced through `this`.
 export class Panel {
   helper(): number {
     return 1

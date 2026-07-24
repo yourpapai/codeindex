@@ -167,6 +167,14 @@ just bought back for marginal recall.
 explicitly. Success = member value-FN drops on the fixture and papai with the honest FP rate not
 regressing.
 
+**Measured (4b).** Fixture (`Panel.render` → `this.helper()`): member value-FN `1 → 0`
+(`bench/impact-baseline.fixture.json`, `valueFalseNegatives` `3 → 2`). Papai (strided 300,
+`bench/impact-baseline.papai.json`): member value-FN `22 → 11` (the `this.m()` share resolved; the
+remaining 11 are `obj.m()`, deferred per the committed position above), overall `falseNegatives`
+`394 → 383`. Honest FP rate not regressed: papai `falsePositiveRate` `0.0047169811320754715 →
+0.004484304932735426` (unchanged within noise, not higher); codeindex fixture FP stayed `0 → 0`.
+`bun run check` green after the update.
+
 ## Success criteria
 
 - 4a: gated codeindex `valueFalseNegativeRate` reflects the honest ~0.10; papai call-FN ≈ 14 and FP

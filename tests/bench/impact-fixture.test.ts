@@ -15,7 +15,7 @@ afterAll(() => {
 })
 
 describe('impact-demo fixture', () => {
-  test('B1/B3 zero the jsx & heritage value-FN buckets; member/namespace/bare-value stay lit', async () => {
+  test('B1/B3 zero the jsx & heritage value-FN buckets; namespace/bare-value stay lit; member now resolved (B2)', async () => {
     const config = await loadCodeindexConfig({
       configPath: path.join(repoRoot, '.codeindex.json'),
       repoRoot,
@@ -34,7 +34,8 @@ describe('impact-demo fixture', () => {
       expect(report.valueTrueReferenceCountByShape['heritage']).toBe(1)
       expect(report.valueFalseNegativesByShape['heritage']).toBeFalsy()
       // The ranked remaining work is lit and separated.
-      expect(report.valueFalseNegativesByShape['member']).toBeGreaterThan(0)
+      // Slice 4b: this.helper() now resolves to the enclosing class method, so member is no longer a FN.
+      expect(report.valueFalseNegativesByShape['member']).toBeFalsy()
       expect(report.valueFalseNegativesByShape['namespace']).toBeGreaterThan(0)
       expect(report.valueFalseNegativesByShape['bare-value']).toBeGreaterThan(0)
     } finally {
