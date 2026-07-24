@@ -111,4 +111,77 @@ describe('resolveReferenceCandidates', () => {
 
     expect(resolved).toEqual([expect.objectContaining({ targetSymbolId: null, targetFileId: 10 })])
   })
+
+  test('this.m() resolves to the enclosing class method, not a same-named method of another class', () => {
+    const resolved = resolveReferenceCandidates({
+      symbols: [
+        { id: 1, qualifiedName: 'src/c#C>foo', localName: 'foo', moduleKey: 'src/c', exportNames: [] },
+        { id: 2, qualifiedName: 'src/c#C>bar', localName: 'bar', moduleKey: 'src/c', exportNames: [] },
+        { id: 3, qualifiedName: 'src/c#D>bar', localName: 'bar', moduleKey: 'src/c', exportNames: [] },
+      ],
+      moduleAliases: [],
+      files: [{ id: 10, moduleKey: 'src/c' }],
+      references: [
+        {
+          sourceQualifiedName: 'src/c#C>foo',
+          edgeType: 'calls',
+          targetName: 'bar',
+          targetExportName: null,
+          targetModuleSpecifier: null,
+          receiver: 'this',
+          lineNumber: 2,
+        },
+      ],
+      currentModuleKey: 'src/c',
+    })
+    expect(resolved[0]).toMatchObject({ targetSymbolId: 2, confidence: 'resolved' })
+  })
+
+  test('this.m() resolves through a nested arrow inside the method', () => {
+    const resolved = resolveReferenceCandidates({
+      symbols: [
+        { id: 1, qualifiedName: 'src/c#C>foo>cb', localName: 'cb', moduleKey: 'src/c', exportNames: [] },
+        { id: 2, qualifiedName: 'src/c#C>bar', localName: 'bar', moduleKey: 'src/c', exportNames: [] },
+      ],
+      moduleAliases: [],
+      files: [{ id: 10, moduleKey: 'src/c' }],
+      references: [
+        {
+          sourceQualifiedName: 'src/c#C>foo>cb',
+          edgeType: 'calls',
+          targetName: 'bar',
+          targetExportName: null,
+          targetModuleSpecifier: null,
+          receiver: 'this',
+          lineNumber: 3,
+        },
+      ],
+      currentModuleKey: 'src/c',
+    })
+    expect(resolved[0]).toMatchObject({ targetSymbolId: 2, confidence: 'resolved' })
+  })
+
+  test('this.m() with no matching enclosing-class method stays unresolved (no cross-class fallback)', () => {
+    const resolved = resolveReferenceCandidates({
+      symbols: [
+        { id: 1, qualifiedName: 'src/c#C>foo', localName: 'foo', moduleKey: 'src/c', exportNames: [] },
+        { id: 3, qualifiedName: 'src/c#D>bar', localName: 'bar', moduleKey: 'src/c', exportNames: [] },
+      ],
+      moduleAliases: [],
+      files: [{ id: 10, moduleKey: 'src/c' }],
+      references: [
+        {
+          sourceQualifiedName: 'src/c#C>foo',
+          edgeType: 'calls',
+          targetName: 'bar',
+          targetExportName: null,
+          targetModuleSpecifier: null,
+          receiver: 'this',
+          lineNumber: 2,
+        },
+      ],
+      currentModuleKey: 'src/c',
+    })
+    expect(resolved[0]).toMatchObject({ targetSymbolId: null, confidence: 'name_only' })
+  })
 })

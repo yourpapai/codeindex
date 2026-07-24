@@ -24,6 +24,7 @@ type ReferenceCandidate = {
   readonly targetName: string
   readonly targetExportName: string | null
   readonly targetModuleSpecifier: string | null
+  readonly receiver?: 'this'
   readonly lineNumber: number
 }
 
@@ -118,6 +119,24 @@ const findResolvedSymbol = (
   }
 }
 
+// this.m() → the enclosing class's method. The reference's source is the calling method/scope; its
+// enclosing class is any ancestor prefix of that qualified name. Match a symbol `<class>>m` whose
+// class prefix is an ancestor of the source, so only the enclosing class chain matches (deterministic,
+// near-zero FP). obj.m() never reaches here (no `this` receiver) and stays unresolved — deferred.
+const resolveThisMemberCall = (
+  symbols: readonly SymbolSummary[],
+  source: string,
+  methodName: string,
+): number | null => {
+  const suffix = `>${methodName}`
+  const match = symbols.find((symbol) => {
+    if (symbol.localName !== methodName || !symbol.qualifiedName.endsWith(suffix)) return false
+    const classPrefix = symbol.qualifiedName.slice(0, symbol.qualifiedName.length - suffix.length)
+    return source === classPrefix || source.startsWith(`${classPrefix}>`)
+  })
+  return match?.id ?? null
+}
+
 export const resolveReferenceCandidates = (
   input: Readonly<ResolveReferenceCandidatesInput>,
 ): readonly ResolvedReference[] => {
@@ -125,6 +144,17 @@ export const resolveReferenceCandidates = (
   const importMap = new Map<string, number>()
 
   return input.references.map((reference) => {
+    if (reference.receiver === 'this' && reference.sourceQualifiedName !== null) {
+      const targetSymbolId = resolveThisMemberCall(input.symbols, reference.sourceQualifiedName, reference.targetName)
+      return {
+        sourceSymbolId: sourceSymbols.get(reference.sourceQualifiedName) ?? null,
+        ...reference,
+        targetSymbolId,
+        targetFileId: null,
+        confidence: targetSymbolId === null ? 'name_only' : 'resolved',
+      }
+    }
+
     const matchedFileId = findMatchedFileId(input, reference.targetModuleSpecifier)
     const { targetSymbolId, confidence } = findResolvedSymbol(input, matchedFileId, reference, importMap)
 
