@@ -1,6 +1,15 @@
 import { z } from 'zod'
 
-export type Shape = 'call' | 'member' | 'namespace' | 'jsx' | 'heritage' | 'bare-value' | 'property-unknown' | 'other'
+export type Shape =
+  | 'call'
+  | 'construct'
+  | 'member'
+  | 'namespace'
+  | 'jsx'
+  | 'heritage'
+  | 'bare-value'
+  | 'property-unknown'
+  | 'other'
 
 export interface OracleSource {
   readonly name: string

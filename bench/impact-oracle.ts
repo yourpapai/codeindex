@@ -173,8 +173,11 @@ const classifyReceiver = (receiver: ts.Expression, checker: ts.TypeChecker): Sha
 // Classify a VALUE-position reference by its syntactic form — the reason code_impact does or
 // does not resolve it. Only called for refs classifyPosition labelled 'value'. Heritage is
 // checked first (a class's `extends` base sits under an ExpressionWithTypeArguments); then JSX
-// tag, property-access (member/namespace via the receiver), element-access, bare call, and
-// finally a bare value identifier.
+// tag, property-access (member/namespace via the receiver), element-access, bare call, `new X()`
+// (a NewExpression, distinct from a CallExpression — the shipped resolver doesn't emit an edge
+// for it either, but it's tracked as its own 'construct' shape rather than folded into 'call' or
+// left to fall through to 'bare-value', since a plain call is resolved and a constructor call is
+// not), and finally a bare value identifier.
 export const classifyShape = (sf: ts.SourceFile, pos: number, checker: ts.TypeChecker): Shape => {
   const node = nodeAtPosition(sf, pos)
   for (let a: ts.Node | undefined = node; a !== undefined && !ts.isSourceFile(a); a = a.parent) {
@@ -193,6 +196,7 @@ export const classifyShape = (sf: ts.SourceFile, pos: number, checker: ts.TypeCh
   }
   if (parent !== undefined && ts.isElementAccessExpression(parent)) return 'other'
   if (parent !== undefined && ts.isCallExpression(parent) && parent.expression === node) return 'call'
+  if (parent !== undefined && ts.isNewExpression(parent) && parent.expression === node) return 'construct'
   return 'bare-value'
 }
 

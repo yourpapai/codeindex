@@ -145,9 +145,10 @@ describe('classifyShape', () => {
       '  },',
       '}',
       'class WidgetX extends BaseCls {}',
+      'class NewOnly {}',
       'export function outer(): unknown {',
       '  const g = bareFn',
-      '  return [api.nsFn(), obj.omFn(), plainFn(), helperFn().ghostProp, bag[keyVar], g, new Holder(), <CompFn />, WidgetX]',
+      '  return [api.nsFn(), obj.omFn(), plainFn(), helperFn().ghostProp, bag[keyVar], g, new Holder(), <CompFn />, WidgetX, new NewOnly()]',
       '}',
     ].join('\n'),
   )
@@ -223,6 +224,8 @@ describe('classifyShape', () => {
     { needle: 'ghostProp', expected: 'property-unknown' },
     // bag[keyVar] — element access
     { needle: 'keyVar', expected: 'other' },
+    // new NewOnly() — constructor call, distinct from a plain call
+    { needle: 'NewOnly', expected: 'construct' },
   ]
   for (const c of cases) {
     test(`classifies ${c.needle} as ${c.expected}`, () => {

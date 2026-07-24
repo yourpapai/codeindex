@@ -405,30 +405,53 @@ plan for the three units + the memo. This is the terminal step of brainstorming.
 
 ---
 
-## Reassessment Gate: Slice 3 → 4 (recorded 2026-07-24)
+## Reassessment Gate: Slice 3 → 4 (recorded 2026-07-24; corrected 2026-07-24 post-review)
 
 Value-FN by reference shape (FN / true-refs), from `valueFalseNegativesByShape` over
 `valueTrueReferenceCountByShape`. Real-repo rows use the biased alphabetical-prefix sample
 (strided/seeded sampling deferred — the memo's primary caveat).
 
-| Repo | member (B2) | namespace (B5) | bare-value | jsx (B1) | heritage (B3) | call |
-|---|---|---|---|---|---|---|
-| impact-demo (fixture) | 1/1 | 1/1 | 1/1 | 0/1 | 0/1 | 0/1 |
-| codeindex | —/— | —/— | 8/8 | —/— | —/— | 31/72 |
-| papai (300, exported+member) | —/— | —/— | 131/131 | —/— | —/— | 11/63 |
+**Post-review correction:** the first recording of this memo classified `new X()` (a
+`ts.NewExpression`) as `'bare-value'`, because `classifyShape` fell through its `ts.isCallExpression`
+check (a `NewExpression` is not a `CallExpression`) straight to the `bare-value` default. That
+silently folded constructor-call misses into the "graph-unrecoverable" bucket below, which is wrong:
+`code_impact` doesn't resolve `new X()` today (no `new_expression` handling yet), but it is
+**recoverable** by extending the existing call-edge resolution to `new_expression` — a materially
+different, and likely cheaper, fix than genuine `bare-value` misses (untyped assignment/destructure
+origins, for which no planned edge type applies). `classifyShape` now emits a distinct `'construct'`
+shape for `new X()`, and the table below adds that column. The three repos' `bare-value` and `call`
+cells are **numerically unchanged** from the first recording — re-running all three memo commands
+after the fix shows `construct` is `—/—` (absent) on every sampled repo this run, i.e. none of the
+already-measured `bare-value` or `call` FNs were actually mislabeled constructor calls in this
+particular alphabetical-prefix sample. The relabeling is a **correction to the taxonomy and its
+prose**, not a change to any gated number (`valueFalseNegativeRate` deltas were `0.0000` on all three
+repos, confirmed below) or to the underlying `bare-value` counts.
+
+| Repo | member (B2) | namespace (B5) | bare-value | construct | jsx (B1) | heritage (B3) | call |
+|---|---|---|---|---|---|---|---|
+| impact-demo (fixture) | 1/1 | 1/1 | 1/1 | —/— | 0/1 | 0/1 | 0/1 |
+| codeindex | —/— | —/— | 8/8 | —/— | —/— | —/— | 31/72 |
+| papai (300, exported+member) | —/— | —/— | 131/131 | —/— | —/— | —/— | 11/63 |
 
 Convention: `—/—` means the shape is **absent** from both `valueFalseNegativesByShape` and
 `valueTrueReferenceCountByShape` on that repo — i.e. zero true references of that shape entered the
 sample at all — distinct from an `N/M` cell, where the shape is present and measured. Raw readings
 (`bun run bench:impact:fixture:check`, `bun run bench:impact:check`, `bun run bench:impact:papai`,
-each piped through `grep -E 'valueFalseNegativesByShape|valueFalseNegativeRate'`):
+each piped through `grep -E 'valueFalseNegativesByShape|valueFalseNegativeRate'`), captured after the
+`construct` fix:
 
-- fixture: `valueFalseNegativesByShape (diagnostic): {"member":1,"bare-value":1,"namespace":1} of
-  {"member":1,"bare-value":1,"heritage":1,"jsx":1,"namespace":1,"call":1}`, rate `0.5000`.
+- fixture: `valueFalseNegativesByShape (diagnostic): {"bare-value":1,"namespace":1,"member":1} of
+  {"bare-value":1,"heritage":1,"jsx":1,"namespace":1,"member":1,"call":1}`, rate `0.5000` (unchanged;
+  the fixture has no `new` expressions). No `construct` key present.
 - codeindex: `valueFalseNegativesByShape (diagnostic): {"call":31,"bare-value":8} of
-  {"call":72,"bare-value":8}`, rate `0.4875`.
+  {"call":72,"bare-value":8}`, rate `0.4875` (unchanged). No `construct` key present — codeindex has
+  0 exported classes, so no `new X()` on any scored target's incoming edges could exist.
 - papai: `valueFalseNegativesByShape (diagnostic): {"bare-value":131,"call":11} of
-  {"bare-value":131,"call":63}`, rate `0.7320`.
+  {"bare-value":131,"call":63}`, rate `0.7320` (unchanged). No `construct` key present — papai does
+  have exported classes reached via `new` (e.g. `client/shared/fetcher-helpers#FetchError`), but the
+  alphabetical `--max-targets 300` cutoff fills up inside `client/settings/*` and never reaches
+  `client/shared/*`, so none entered this sample either. This is the same sampling-composition gap
+  already noted for B2/B5 below, now also confirmed to hide `construct`.
 
 **Reading / ranking for Slice 4:**
 
@@ -452,18 +475,31 @@ each piped through `grep -E 'valueFalseNegativesByShape|valueFalseNegativeRate'`
   each, chosen so the demonstration test can assert both are lit and separated) — it proves the
   instrument *separates* B2 from B5, but it cannot and does not rank their real-code magnitude. That
   ranking needs targets that neither real-repo sample currently contains.
-- **Graph-unrecoverable residue:** `bare-value` FN is the one shape both real repos actually measure,
-  and it is 100% FN on each: codeindex `8/8`, papai `131/131`. Sized against each repo's total true
-  value refs, bare-value is 8 of 80 (10%) on codeindex but 131 of 194 (68%) on papai — and against
-  each repo's total FN mass, it's 8 of 39 (21%) of codeindex's FN but 131 of 142 (92%) of papai's FN.
-  No planned edge type recovers bare-value refs (untyped assignment/destructure origins), so this
-  bounds the achievable value-FN floor — on papai it is nearly the *entire* currently-measured floor,
-  precisely because member/namespace haven't entered the sample to contribute FN mass of their own.
+- **Residue, corrected — `bare-value` is not monolithically graph-unrecoverable:** `bare-value` FN is
+  the one shape both real repos actually measure, and it is 100% FN on each: codeindex `8/8`, papai
+  `131/131`. Sized against each repo's total true value refs, bare-value is 8 of 80 (10%) on codeindex
+  but 131 of 194 (68%) on papai — and against each repo's total FN mass, it's 8 of 39 (21%) of
+  codeindex's FN but 131 of 142 (92%) of papai's FN. The first recording of this memo characterized
+  all of that mass as "no planned edge type recovers" — that was too strong: it silently included any
+  `new X()` constructor calls, which are **not** graph-unrecoverable, they're recoverable by extending
+  the existing call-edge resolution to `new_expression`. Now that `classifyShape` splits those into
+  their own `construct` shape, the `8/8` and `131/131` counts above are confirmed to be *genuine*
+  bare-value misses (untyped assignment/destructure origins, no call/property/heritage/jsx/construct
+  form) — `construct` came back `—/—` on both real repos this run, meaning none of the currently
+  sampled bare-value mass was actually a mislabeled constructor call. That keeps codeindex `8/8` and
+  papai `131/131` as the honest, still-unrecovered floor for *this* sample, but the finding is now
+  scoped correctly: a future sample that does reach class-heavy directories (see the sampling caveat
+  below) could turn up `construct` misses, and those would be a cheap, distinct recovery target from
+  true bare-value — not more of the same unrecoverable residue.
 - **Opens Slice 4 with:** **representative (strided/seeded) sampling of papai is the concrete Slice 4
   prerequisite** — not a pre-drawn B2-vs-B5 winner. Current evidence cannot rank B2 against B5: B2 has
   zero real-code data points (0/300 papai, 0/103 codeindex) and B5 has zero real-code data points on
-  papai's current sample too. Until sampling reaches `client/shared/*` and codeindex-equivalent
-  class-bearing directories, this table's `member`/`namespace` columns stay `—/—` on real code and any
+  papai's current sample too. The same sampling gap hides `construct`: papai has at least one
+  exported, `new`-instantiated class (`client/shared/fetcher-helpers#FetchError`) that the current
+  alphabetical cutoff never reaches, so `construct`'s real-code magnitude — and whether extending
+  call-edge resolution to `new_expression` is worth prioritizing — is likewise unmeasured, not zero.
+  Until sampling reaches `client/shared/*` and codeindex-equivalent class-bearing directories, this
+  table's `member`/`namespace`/`construct` columns stay `—/—` on real code and any
   claimed ranking between them would be invented, not measured. Fix sampling first; re-run this memo's
   three commands to get the numbers that can actually rank B2 vs B5.
 

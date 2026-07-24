@@ -113,6 +113,29 @@ describe('scoreImpact', () => {
       db.close()
     }
   })
+
+  test('a single uncovered source with multiple shapes increments every shape bucket', async () => {
+    const { db } = await build()
+    try {
+      // A single OracleSource can legitimately carry more than one shape when the same
+      // enclosing symbol references the target through more than one syntactic form
+      // (e.g. both `x.member` and `ns.member` sites within one function). Every shape
+      // on that one source must land in the by-shape maps, not just the first.
+      const oracle: OracleTarget[] = [
+        {
+          target: 'synthetic#MultiShape',
+          trueSources: [{ name: 'synthetic#User', position: 'value', shapes: ['member', 'namespace'] }],
+        },
+      ]
+      const report = scoreImpact(db, oracle, 'fixture')
+      expect(report.valueFalseNegativesByShape['member']).toBe(1)
+      expect(report.valueFalseNegativesByShape['namespace']).toBe(1)
+      expect(report.valueTrueReferenceCountByShape['member']).toBe(1)
+      expect(report.valueTrueReferenceCountByShape['namespace']).toBe(1)
+    } finally {
+      db.close()
+    }
+  })
 })
 
 const reportWithTargetsScored = (targetsScored: number): ImpactBenchReport => ({
