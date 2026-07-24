@@ -379,6 +379,38 @@ describe('extractReferenceCandidates', () => {
     expect(callRef!.sourceQualifiedName).toBe('src/run#run')
   })
 
+  test('calls inside a bare named function-expression callback attribute to the nearest real symbol', async () => {
+    // A named function expression used as a bare callback (argument position, not a
+    // variable declarator) does NOT get its own symbol row (extract-symbols excludes
+    // function_expression), so it must NOT be a scope boundary here either — otherwise the
+    // reference is attributed to a phantom `outer>inner` source that no symbol ever backs.
+    const loader = await createParserLoader()
+    const parsed = await loader.createParserForExtension('.ts')
+    const source = [
+      'export function outer() {',
+      '  register(function inner() {',
+      '    return helper()',
+      '  })',
+      '}',
+      'function helper() { return 1 }',
+      'function register(cb: () => number) { return cb }',
+    ].join('\n')
+
+    const tree = parsed.parser.parse(source)
+    expect(tree).not.toBeNull()
+
+    const { references } = extractReferenceCandidates({
+      source,
+      tree: tree!,
+      relativeFilePath: 'src/mod.ts',
+      moduleKey: 'src/mod',
+    })
+
+    const callRef = references.filter((ref) => ref.targetName === 'helper').at(0)
+    expect(callRef).toBeDefined()
+    expect(callRef!.sourceQualifiedName).toBe('src/mod#outer')
+  })
+
   test('re-export without a matching import records a reference to the source module', async () => {
     const loader = await createParserLoader()
     const parsed = await loader.createParserForExtension('.ts')

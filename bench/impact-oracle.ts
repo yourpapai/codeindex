@@ -140,9 +140,10 @@ const nodeAtPosition = (sf: ts.SourceFile, pos: number): ts.Node => {
 // Mirror the indexer's isNamedScopeBoundary + nextEnclosingSymbol: nearest enclosing NAMED
 // function/class/method, or arrow/function-expression bound to a named variable declarator
 // (a plain `const x = f()` declarator and unnamed callbacks are transparent). Null = module scope.
-// (Known minor, errs safe: a NAMED function-expression bare callback, e.g. `setTimeout(function
-// foo(){}, 0)`, is a boundary in the indexer but skipped here, attributed to the boundary above;
-// vanishingly rare, deliberately deferred.)
+// A named function-expression bare callback (`register(function inner(){})`) is transparent on BOTH
+// sides: extract-symbols emits no symbol for it, so extract-references no longer treats it as a
+// boundary either — the reference belongs to the nearest real enclosing symbol, which is what this
+// finds. (The pinning test in tests/bench/impact-oracle.test.ts confirms that agreement.)
 const nearestNamedBoundary = (node: ts.Node): ts.Node | null => {
   for (let a: ts.Node | undefined = node.parent; a !== undefined && !ts.isSourceFile(a); a = a.parent) {
     if ((ts.isFunctionDeclaration(a) || ts.isClassDeclaration(a)) && a.name !== undefined) return a

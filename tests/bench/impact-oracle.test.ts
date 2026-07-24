@@ -449,10 +449,11 @@ describe('buildReferenceOracle — source attribution (Slice 4a)', () => {
     }
   })
 
-  // Plan-deferred gap (pinned, not fixed): the indexer treats a NAMED function expression used as a
-  // bare callback as a scope boundary, but nearestNamedBoundary does not — it is skipped here and the
-  // reference attributes to the next enclosing named boundary above it instead.
-  test('a named function-expression bare callback is skipped — attributes to the enclosing function above it', async () => {
+  // Indexer/oracle agreement: a NAMED function expression used as a bare callback owns no symbol
+  // row, so neither extract-references (isNamedScopeBoundary) nor nearestNamedBoundary treats it as a
+  // boundary — the reference attributes to the nearest REAL enclosing symbol on both sides. This
+  // pins that agreement (extract-references.test.ts pins the indexer half directly).
+  test('a named function-expression bare callback attributes to the enclosing real symbol (indexer/oracle agree)', async () => {
     const { db, dir } = await makeAttributionRepo(
       'export function outer(): void {\n  setTimeout(function handler(): void {\n    target()\n  }, 0)\n}',
     )

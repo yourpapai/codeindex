@@ -194,3 +194,24 @@ remaining 11 are `obj.m()`, deferred per the committed position above), overall 
 - **bare-value (302)** — genuinely graph-unrecoverable; no edge type applies.
 - **A representative population *estimate*** (vs the strided directional sample) — still deferred; the
   stride removes the prefix bias for ranking but is not a statistical population estimate.
+
+## Follow-up closed (2026-07-24): named-function-expression callback approximation
+
+The Slice-4 final review flagged (Important #2) that `nearestNamedBoundary` skipped a *named*
+function expression used as a bare callback (`register(function inner(){})`), while the shipped
+indexer's `isNamedScopeBoundary` treated it as a boundary — an approximate mirror that could
+double-count a reference as both FN and FP (the Slice-4a artifact pattern) whenever such a callback
+referenced a scored target. Root cause was a shipped-indexer **inconsistency**, not an oracle bug:
+`extract-symbols` never emits a symbol for a bare `function_expression`, yet `extract-references`
+attributed references inside it to a phantom `outer>inner` source that no symbol backs.
+
+**Resolution — align the shipped indexer (not the oracle).** Removed the `function_expression`
+clause from `isNamedScopeBoundary` in `extract-references.ts`, so a bare named callback is now
+transparent: references attribute to the nearest **real** enclosing symbol on both sides. The oracle
+was already correct and is unchanged; its caveat comment and the pinning test were reframed from
+"deferred gap" to "indexer/oracle agreement." Anonymous callbacks were already transparent (their
+name segment was empty), so their attribution is unchanged. Occurrence measured across all corpora:
+0 in the gated ones (codeindex-self, fixture), 1 in papai (`src/plugins/context.ts` factory return) —
+so **all three baselines re-measured byte-identical**. B4's papai numbers are now measured against an
+exact mirror. Covered by `tests/indexer/extract-references.test.ts` (indexer half) and the reframed
+pinning test in `tests/bench/impact-oracle.test.ts` (oracle half).

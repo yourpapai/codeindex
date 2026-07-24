@@ -38,9 +38,14 @@ const nextEnclosingSymbol = (moduleKey: string, node: SyntaxNode, enclosingSymbo
   return enclosingSymbol === null ? `${moduleKey}#${functionName}` : `${enclosingSymbol}>${functionName}`
 }
 
+// A boundary is a node that OWNS a symbol row (see extract-symbols' declarationTypes). A named
+// function expression used as a bare callback (`register(function inner(){})`) is deliberately NOT
+// included: extract-symbols emits no symbol for it, so treating it as a boundary here would attribute
+// references to a phantom `outer>inner` source that no symbol backs. Such references belong to the
+// nearest REAL enclosing symbol. Function/arrow expressions bound to a variable declarator ARE
+// boundaries — the declarator itself is the symbol row.
 const isNamedScopeBoundary = (node: SyntaxNode): boolean =>
   node.type === 'function_declaration' ||
-  (node.type === 'function_expression' && node.parent?.type !== 'variable_declarator') ||
   node.type === 'class_declaration' ||
   node.type === 'abstract_class_declaration' ||
   node.type === 'method_definition' ||
