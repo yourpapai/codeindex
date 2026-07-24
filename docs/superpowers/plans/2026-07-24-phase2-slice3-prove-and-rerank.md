@@ -509,13 +509,13 @@ Expected: clean / PASS (the fixtures in those tests are functional or class-base
 
 - [ ] **Step 3: Re-freeze the codeindex baseline — MUST be byte-identical**
 
-Run:
+Confirm the baseline is committed-clean first, regenerate, then diff:
 ```bash
-git stash --keep-index --include-untracked 2>/dev/null; git diff --exit-code bench/impact-baseline.json && echo "clean before"
+git diff --exit-code bench/impact-baseline.json && echo "clean before regen"
 bun run bench:impact:check --update-baseline
 git diff --stat bench/impact-baseline.json
 ```
-Expected: `git diff --stat` shows **no change** to `bench/impact-baseline.json` (codeindex has 0 member-tier symbols, so the scored set and every number are identical). If it changed, STOP — the broadening leaked something; investigate before continuing (do not commit a shifted codeindex baseline).
+Expected: `git diff --stat` shows **no change** to `bench/impact-baseline.json` (codeindex has 0 member-tier symbols, so the scored set and every number are identical). If it changed, STOP — the broadening leaked something; investigate before continuing (do not commit a shifted codeindex baseline). Do not use `git stash` here — it would disturb the untracked working tree.
 
 - [ ] **Step 4: Re-freeze the papai baseline (member bucket now populated)**
 
