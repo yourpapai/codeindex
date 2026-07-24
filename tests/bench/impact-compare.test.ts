@@ -28,6 +28,8 @@ const report = (valueFnRate: number): ImpactBenchReport => ({
   typeTrueReferenceCount: 50,
   typeFalseNegatives: 45,
   typeFalseNegativeRate: 0.9,
+  valueTrueReferenceCountByShape: {},
+  valueFalseNegativesByShape: {},
   perTarget: [],
 })
 

@@ -102,6 +102,13 @@ describe('scoreImpact', () => {
       // Total is the union of both buckets.
       expect(report.trueReferenceCount).toBe(3)
       expect(report.falseNegatives).toBe(3)
+      // Overlapping by-shape buckets: 'both'→member, 'value'→namespace, both uncovered → FN.
+      expect(report.valueFalseNegativesByShape['member']).toBe(1)
+      expect(report.valueFalseNegativesByShape['namespace']).toBe(1)
+      expect(report.valueTrueReferenceCountByShape['member']).toBe(1)
+      expect(report.valueTrueReferenceCountByShape['namespace']).toBe(1)
+      // The type-only source contributes no shape.
+      expect(report.valueFalseNegativesByShape['jsx']).toBeUndefined()
     } finally {
       db.close()
     }
@@ -124,6 +131,8 @@ const reportWithTargetsScored = (targetsScored: number): ImpactBenchReport => ({
   typeTrueReferenceCount: 0,
   typeFalseNegatives: 0,
   typeFalseNegativeRate: 0,
+  valueTrueReferenceCountByShape: {},
+  valueFalseNegativesByShape: {},
   perTarget: [],
 })
 

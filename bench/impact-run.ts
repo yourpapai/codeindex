@@ -59,6 +59,29 @@ const toBaseline = (r: ImpactBenchReport): ImpactBaseline => ({
   typeFalseNegativeRate: r.typeFalseNegativeRate,
 })
 
+// Prints the baseline comparison and diagnostics, and exits nonzero on regression.
+// Extracted purely to stay under max-lines-per-function in main.
+const compareAgainstBaseline = (report: ImpactBenchReport, baselinePath: string): void => {
+  const baseline = ImpactBaselineSchema.parse(JSON.parse(readFileSync(baselinePath, 'utf8')) as unknown)
+  const comparison = compareImpact(report, baseline, 1e-9)
+  console.error(
+    `valueFalseNegativeRate: ${baseline.valueFalseNegativeRate.toFixed(4)} -> ${report.valueFalseNegativeRate.toFixed(4)} (${comparison.delta >= 0 ? '+' : ''}${comparison.delta.toFixed(4)})`,
+  )
+  console.error(
+    `typeFalseNegativeRate (diagnostic, sizes B7): ${report.typeFalseNegativeRate.toFixed(4)} | totalFN ${report.falseNegativeRate.toFixed(4)}`,
+  )
+  console.error(
+    `valueFalseNegativesByShape (diagnostic): ${JSON.stringify(report.valueFalseNegativesByShape)} of ${JSON.stringify(report.valueTrueReferenceCountByShape)}`,
+  )
+  console.error(
+    `falsePositiveRate (diagnostic): ${report.falsePositiveRate.toFixed(4)} by confidence ${JSON.stringify(report.falsePositivesByConfidence)}`,
+  )
+  if (comparison.regressed) {
+    console.error('code_impact false-negative rate regressed against baseline.')
+    process.exit(1)
+  }
+}
+
 const main = async (): Promise<void> => {
   const args = parseArgs(process.argv.slice(2))
   const config = await loadCodeindexConfig({ configPath: path.join(args.repo, '.codeindex.json'), repoRoot: args.repo })
@@ -90,21 +113,7 @@ const main = async (): Promise<void> => {
     return
   }
   if (args.baseline !== null && existsSync(args.baseline)) {
-    const baseline = ImpactBaselineSchema.parse(JSON.parse(readFileSync(args.baseline, 'utf8')) as unknown)
-    const comparison = compareImpact(report, baseline, 1e-9)
-    console.error(
-      `valueFalseNegativeRate: ${baseline.valueFalseNegativeRate.toFixed(4)} -> ${report.valueFalseNegativeRate.toFixed(4)} (${comparison.delta >= 0 ? '+' : ''}${comparison.delta.toFixed(4)})`,
-    )
-    console.error(
-      `typeFalseNegativeRate (diagnostic, sizes B7): ${report.typeFalseNegativeRate.toFixed(4)} | totalFN ${report.falseNegativeRate.toFixed(4)}`,
-    )
-    console.error(
-      `falsePositiveRate (diagnostic): ${report.falsePositiveRate.toFixed(4)} by confidence ${JSON.stringify(report.falsePositivesByConfidence)}`,
-    )
-    if (comparison.regressed) {
-      console.error('code_impact false-negative rate regressed against baseline.')
-      process.exit(1)
-    }
+    compareAgainstBaseline(report, args.baseline)
   }
 }
 
