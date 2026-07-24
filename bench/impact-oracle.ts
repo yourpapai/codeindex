@@ -137,6 +137,22 @@ const nodeAtPosition = (sf: ts.SourceFile, pos: number): ts.Node => {
   return find(sf)
 }
 
+// Mirror the indexer's isNamedScopeBoundary + nextEnclosingSymbol: nearest enclosing NAMED
+// function/class/method, or arrow/function-expression bound to a named variable declarator
+// (a plain `const x = f()` declarator and unnamed callbacks are transparent). Null = module scope.
+const nearestNamedBoundary = (node: ts.Node): ts.Node | null => {
+  for (let a: ts.Node | undefined = node.parent; a !== undefined && !ts.isSourceFile(a); a = a.parent) {
+    if ((ts.isFunctionDeclaration(a) || ts.isClassDeclaration(a)) && a.name !== undefined) return a
+    if (ts.isMethodDeclaration(a)) return a
+    const isNamedVarBoundary =
+      (ts.isArrowFunction(a) || ts.isFunctionExpression(a)) &&
+      ts.isVariableDeclaration(a.parent) &&
+      ts.isIdentifier(a.parent.name)
+    if (isNamedVarBoundary) return a.parent
+  }
+  return null
+}
+
 // Classify a reference position as value or type. A HeritageClause ANYWHERE up the chain
 // decides first: `implements` (and an interface's `extends`) are type; a class's `extends`
 // is value — even though its base sits inside an ExpressionWithTypeArguments, which is
@@ -221,6 +237,21 @@ export const strideSample = <T>(items: readonly T[], maxTargets: number): readon
   return out
 }
 
+// The codeindex symbol at the nearest named boundary's start line (null: module-scope/self-ref).
+const attributeReferenceSource = (
+  db: Database,
+  sf: ts.SourceFile,
+  pos: number,
+  relPath: string,
+  selfQualifiedName: string,
+): string | null => {
+  const boundary = nearestNamedBoundary(nodeAtPosition(sf, pos))
+  if (boundary === null) return null
+  const boundaryLine = sf.getLineAndCharacterOfPosition(boundary.getStart(sf)).line + 1
+  const enclosing = enclosingQualifiedName(db, relPath, boundaryLine)
+  return enclosing === null || enclosing === selfQualifiedName ? null : enclosing
+}
+
 export const buildReferenceOracle = (
   db: Database,
   opts: Readonly<{ repoRoot: string; tsconfigPath: string; maxTargets?: number }>,
@@ -245,11 +276,10 @@ export const buildReferenceOracle = (
       const sf = program.getSourceFile(entry.fileName)
       if (sf === undefined) continue
       const pos = entry.textSpan.start
-      const line = sf.getLineAndCharacterOfPosition(pos).line + 1
       const relPath = path.relative(opts.repoRoot, entry.fileName)
-      const enclosing = enclosingQualifiedName(db, relPath, line)
-      // Exclude module-scope refs (unnameable by code_impact) and self-references.
-      if (enclosing === null || enclosing === symbol.qualifiedName) continue
+      // Nearest named scope boundary, not the innermost symbol (Slice 4a).
+      const enclosing = attributeReferenceSource(db, sf, pos, relPath, symbol.qualifiedName)
+      if (enclosing === null) continue
       const position = classifyPosition(sf, pos)
       const agg = byName.get(enclosing) ?? { value: false, type: false, shapes: new Set<Shape>() }
       if (position === 'value') {

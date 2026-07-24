@@ -383,3 +383,69 @@ describe('buildReferenceOracle', () => {
     }
   })
 })
+
+describe('buildReferenceOracle — source attribution (Slice 4a)', () => {
+  // Builds a two-file repo: src/a.ts declares `target`, src/b.ts references it inside `callerBody`.
+  const makeAttributionRepo = async (
+    callerBody: string,
+  ): Promise<{ db: ReturnType<typeof openDatabase>; dir: string }> => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'codeindex-oracle-attr-'))
+    dirs.push(dir)
+    mkdirSync(path.join(dir, 'src'), { recursive: true })
+    writeFileSync(path.join(dir, 'src/a.ts'), 'export function target(): number { return 1 }\n')
+    writeFileSync(path.join(dir, 'src/b.ts'), `import { target } from './a'\n${callerBody}\n`)
+    writeFileSync(
+      path.join(dir, 'tsconfig.json'),
+      JSON.stringify({
+        compilerOptions: { module: 'esnext', moduleResolution: 'bundler', strict: true },
+        include: ['src'],
+      }),
+    )
+    writeFileSync(path.join(dir, '.codeindex.json'), JSON.stringify({ roots: ['src'] }))
+    const config = await loadCodeindexConfig({ configPath: path.join(dir, '.codeindex.json'), repoRoot: dir })
+    await indexCodebase({ config, mode: 'full' })
+    return { db: openDatabase(config.dbPath), dir }
+  }
+
+  test('a plain `const x = f()` local is transparent — attributes to the enclosing function', async () => {
+    const { db, dir } = await makeAttributionRepo(
+      'export function caller(): number {\n  const x = target()\n  return x\n}',
+    )
+    try {
+      const oracle = buildReferenceOracle(db, { repoRoot: dir, tsconfigPath: path.join(dir, 'tsconfig.json') })
+      const sources = oracle.find((t) => t.target.endsWith('#target'))!.trueSources.map((s) => s.name)
+      expect(sources).toContain('src/b#caller')
+      expect(sources).not.toContain('src/b#caller>x')
+    } finally {
+      db.close()
+    }
+  })
+
+  test('an arrow-var-local boundary is retained — attributes to the arrow-var, not its parent', async () => {
+    const { db, dir } = await makeAttributionRepo(
+      'export function outer(): () => number {\n  const handler = (): number => target()\n  return handler\n}',
+    )
+    try {
+      const oracle = buildReferenceOracle(db, { repoRoot: dir, tsconfigPath: path.join(dir, 'tsconfig.json') })
+      const sources = oracle.find((t) => t.target.endsWith('#target'))!.trueSources.map((s) => s.name)
+      expect(sources).toContain('src/b#outer>handler')
+      expect(sources).not.toContain('src/b#outer')
+    } finally {
+      db.close()
+    }
+  })
+
+  test('a method boundary is attributed to the method, not an inner local', async () => {
+    const { db, dir } = await makeAttributionRepo(
+      'export class Widget {\n  run(): number {\n    const y = target()\n    return y\n  }\n}',
+    )
+    try {
+      const oracle = buildReferenceOracle(db, { repoRoot: dir, tsconfigPath: path.join(dir, 'tsconfig.json') })
+      const sources = oracle.find((t) => t.target.endsWith('#target'))!.trueSources.map((s) => s.name)
+      expect(sources).toContain('src/b#Widget>run')
+      expect(sources).not.toContain('src/b#Widget>run>y')
+    } finally {
+      db.close()
+    }
+  })
+})
