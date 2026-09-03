@@ -35,6 +35,11 @@ const sanitizeFtsQuery = (query: string): string => {
   return tokens.join(' OR ')
 }
 
+// Single-token queries gain a prefix alternative so partial identifiers
+// ('getuser' → 'getUserById') still match; the prefix='2 3' index serves these.
+// Multi-token queries keep today's OR-joined behavior untouched.
+const buildFtsMatch = (safe: string): string => (safe.includes(' ') ? safe : `${safe} OR ${safe}*`)
+
 const loadFtsResults = (db: Database, query: string, limit: number): readonly SearchResult[] => {
   const safe = sanitizeFtsQuery(query)
   if (safe.length === 0) return []
@@ -65,7 +70,7 @@ const loadFtsResults = (db: Database, query: string, limit: number): readonly Se
      ORDER BY bm25_score
      LIMIT ?`,
     )
-    .all(safe, limit)
+    .all(buildFtsMatch(safe), limit)
     .map((row) => ({
       symbolKey: row.symbol_key,
       qualifiedName: row.qualified_name,

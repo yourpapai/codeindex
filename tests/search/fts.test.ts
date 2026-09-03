@@ -160,3 +160,59 @@ describe('runFtsSearch snippet', () => {
     expect(results[0]!.snippet.replaceAll('[', '').replaceAll(']', '')).toContain('export function helper')
   })
 })
+
+describe('runFtsSearch prefix matching', () => {
+  test('partial identifier matches via token prefix', () => {
+    const db = new Database(':memory:')
+    ensureSchema(db)
+    insertFile(db, 1, 'src/user.ts', 'src/user')
+    insertSymbol(db, {
+      id: 1,
+      fileId: 1,
+      filePath: 'src/user.ts',
+      moduleKey: 'src/user',
+      symbolKey: 'src/user.ts#1-2',
+      localName: 'getUserById',
+      qualifiedName: 'src/user#getUserById',
+      kind: 'function_declaration',
+      scopeTier: 'exported',
+      exportNames: '["getUserById"]',
+      signatureText: 'export function getUserById()',
+      docText: '',
+      bodyText: 'x',
+      identifierTerms: 'get user by id',
+      startLine: 1,
+      endLine: 2,
+    })
+
+    const results = runFtsSearch(db, 'getuser', 10, {})
+    expect(results).toHaveLength(1)
+  })
+
+  test('multi-token queries are not prefix-expanded', () => {
+    const db = new Database(':memory:')
+    ensureSchema(db)
+    insertFile(db, 1, 'src/user.ts', 'src/user')
+    insertSymbol(db, {
+      id: 1,
+      fileId: 1,
+      filePath: 'src/user.ts',
+      moduleKey: 'src/user',
+      symbolKey: 'src/user.ts#1-2',
+      localName: 'getUserById',
+      qualifiedName: 'src/user#getUserById',
+      kind: 'function_declaration',
+      scopeTier: 'exported',
+      exportNames: '["getUserById"]',
+      signatureText: '',
+      docText: '',
+      bodyText: '',
+      identifierTerms: 'get user by id',
+      startLine: 1,
+      endLine: 2,
+    })
+
+    const results = runFtsSearch(db, 'get user', 10, {})
+    expect(results).toHaveLength(1)
+  })
+})
