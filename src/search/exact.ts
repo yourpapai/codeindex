@@ -32,6 +32,8 @@ const parseExportNames = (value: string): readonly string[] => {
 
 const eqNoCase = (left: string, right: string): boolean => left.toLowerCase() === right.toLowerCase()
 
+const escapeLikePattern = (value: string): string => value.replace(/[\\%_]/g, (ch) => `\\${ch}`)
+
 const buildSnippet = (bodyText: string, signatureText: string, qualifiedName: string): string => {
   if (bodyText !== '') {
     return bodyText.split('\n').slice(0, 3).join('\n')
@@ -108,10 +110,10 @@ const loadExactResults = (db: Database, query: string, limit: number): readonly 
      WHERE symbols.local_name = ?
         OR symbols.qualified_name = ?
         OR module_exports.export_name = ?
-        OR symbols.file_path LIKE ?
+        OR symbols.file_path LIKE ? ESCAPE '\\'
      LIMIT ?`,
     )
-    .all(query, query, query, query, `${query}%`, limit)
+    .all(query, query, query, query, `${escapeLikePattern(query)}%`, limit)
     .map((row) => mapExactRow(row, query))
 
 export const runExactSearch = (

@@ -172,3 +172,48 @@ describe('runExactSearch case-insensitive matching', () => {
     expect(results[0]!.confidence).toBe('exact')
   })
 })
+
+describe('runExactSearch LIKE escaping', () => {
+  const seed = (db: Database): void => {
+    ensureSchema(db)
+    insertFile(db, 1, 'src/foo_bar.ts', 'src/foo_bar')
+    insertSymbol(db, {
+      id: 1,
+      fileId: 1,
+      filePath: 'src/foo_bar.ts',
+      moduleKey: 'src/foo_bar',
+      symbolKey: 'src/foo_bar.ts#1-2',
+      localName: 'widget',
+      qualifiedName: 'src/foo_bar#widget',
+      kind: 'function_declaration',
+      scopeTier: 'exported',
+      exportNames: '["widget"]',
+      signatureText: 'export function widget()',
+      docText: '',
+      bodyText: 'x',
+      identifierTerms: 'widget',
+      startLine: 1,
+      endLine: 2,
+    })
+  }
+
+  test('underscore in query matches literally, not as wildcard', () => {
+    const db = new Database(':memory:')
+    seed(db)
+    expect(runExactSearch(db, 'fooXbar', 10, {})).toHaveLength(0)
+  })
+
+  test('percent wildcard in query matches literally, not as wildcard', () => {
+    const db = new Database(':memory:')
+    seed(db)
+    expect(runExactSearch(db, 'src/foo%', 10, {})).toHaveLength(0)
+  })
+
+  test('literal underscore query still matches the file path', () => {
+    const db = new Database(':memory:')
+    seed(db)
+    const results = runExactSearch(db, 'src/foo_bar', 10, {})
+    expect(results).toHaveLength(1)
+    expect(results[0]!.matchReason).toBe('exact file_path')
+  })
+})
