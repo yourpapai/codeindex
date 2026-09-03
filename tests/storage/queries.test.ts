@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test'
 
 import type { ExtractedSymbol } from '../../src/indexer/extract-symbols.js'
 import {
+  backfillSymbolInDegree,
   findDependentsOfDeletedFiles,
   markParseFailure,
   persistSymbols,
@@ -189,5 +190,37 @@ describe('pruneDeletedFiles', () => {
     expect(pruned).toBe(2)
     const remaining = db.query<{ file_path: string }, []>('SELECT file_path FROM files').all()
     expect(remaining).toHaveLength(0)
+  })
+})
+
+describe('backfillSymbolInDegree', () => {
+  test('counts incoming references per symbol', () => {
+    const db = new Database(':memory:')
+    db.run('PRAGMA foreign_keys = ON')
+    ensureSchema(db)
+    seedFiles(db, ['src/a.ts'])
+    const fileId = db.query<{ id: number }, []>('SELECT id FROM files').get()!.id
+
+    const insertSymbol = db.query(
+      `INSERT INTO symbols (id, file_id, file_path, module_key, symbol_key, local_name, qualified_name, kind, scope_tier, parent_symbol_id, export_names, signature_text, doc_text, body_text, identifier_terms, start_line, end_line)
+       VALUES (?, ?, 'src/a.ts', 'src/a', ?, ?, ?, 'function_declaration', 'exported', NULL, '[]', '', '', '', 'x', 1, 2)`,
+    )
+    for (const id of [1, 2, 3]) {
+      insertSymbol.run(id, fileId, `src/a.ts#${id}-2`, `s${id}`, `src/a#s${id}`)
+    }
+    const insertRef = db.query(
+      `INSERT INTO symbol_references (id, source_symbol_id, source_file_id, target_symbol_id, target_file_id, target_name, target_export_name, target_module_specifier, edge_type, confidence, line_number)
+       VALUES (?, ?, ?, ?, NULL, 'x', NULL, NULL, 'calls', 'resolved', 5)`,
+    )
+    insertRef.run(1, 2, fileId, 1)
+    insertRef.run(2, 3, fileId, 1)
+    insertRef.run(3, 3, fileId, 2)
+
+    backfillSymbolInDegree(db)
+
+    const degrees = db
+      .query<{ id: number; in_degree: number }, []>('SELECT id, in_degree FROM symbols ORDER BY id')
+      .all()
+    expect(degrees.map((d) => d.in_degree)).toEqual([2, 1, 0])
   })
 })

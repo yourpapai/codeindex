@@ -11,6 +11,7 @@ import {
 } from '../resolver/tsconfig-paths.js'
 import { openDatabase } from '../storage/db.js'
 import {
+  backfillSymbolInDegree,
   clearFileRows,
   insertFile,
   markParseFailure,
@@ -260,6 +261,7 @@ const runIndexPhases = async (db: Database, input: Readonly<IndexCodebaseInput>)
 
   mark = Date.now()
   const { referencesIndexed, referencesUnresolved } = persistResolvedReferences(db, parsedFiles)
+  backfillSymbolInDegree(db)
   emitPhase(input.onPhase, 'resolve', mark)
 
   mark = Date.now()

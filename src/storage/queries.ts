@@ -103,6 +103,12 @@ export const markParseFailure = (db: Database, file: Readonly<{ relativePath: st
   ).run(file.relativePath, file.relativePath.replace(/\.[^.]+$/, ''), 'ts', message)
 }
 
+export const backfillSymbolInDegree = (db: Database): void => {
+  db.run(
+    'UPDATE symbols SET in_degree = (SELECT COUNT(*) FROM symbol_references WHERE symbol_references.target_symbol_id = symbols.id)',
+  )
+}
+
 export const persistAliases = (db: Database, fileId: number, aliases: readonly ModuleAlias[]): void => {
   for (const alias of aliases) {
     db.query('INSERT INTO module_aliases (file_id, alias_key, alias_kind, precedence) VALUES (?, ?, ?, ?)').run(
