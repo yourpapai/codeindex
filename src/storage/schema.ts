@@ -24,8 +24,8 @@ const schemaStatements = [
     file_path TEXT NOT NULL,
     module_key TEXT NOT NULL,
     symbol_key TEXT NOT NULL UNIQUE,
-    local_name TEXT NOT NULL,
-    qualified_name TEXT NOT NULL,
+    local_name TEXT NOT NULL COLLATE NOCASE,
+    qualified_name TEXT NOT NULL COLLATE NOCASE,
     kind TEXT NOT NULL,
     scope_tier TEXT NOT NULL,
     parent_symbol_id INTEGER REFERENCES symbols(id) ON DELETE CASCADE,
@@ -35,12 +35,13 @@ const schemaStatements = [
     body_text TEXT NOT NULL,
     identifier_terms TEXT NOT NULL,
     start_line INTEGER NOT NULL,
-    end_line INTEGER NOT NULL
+    end_line INTEGER NOT NULL,
+    in_degree INTEGER NOT NULL DEFAULT 0
   )`,
   `CREATE TABLE IF NOT EXISTS module_exports (
     id INTEGER PRIMARY KEY,
     file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-    export_name TEXT NOT NULL,
+    export_name TEXT NOT NULL COLLATE NOCASE,
     export_kind TEXT NOT NULL,
     symbol_id INTEGER REFERENCES symbols(id) ON DELETE SET NULL,
     target_module_specifier TEXT
@@ -117,7 +118,7 @@ const ftsStatements = [
 ]
 
 // Bump when any table/column/index definition changes; ensureSchema will wipe and rebuild.
-const SCHEMA_VERSION = 3
+const SCHEMA_VERSION = 4
 
 const DROP_ORDER = [
   'index_meta',
