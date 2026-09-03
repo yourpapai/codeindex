@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
-import { extractSymbolsFromSource } from '../src/extract-symbols.js'
+import { extractSymbolsFromSource, normalizeIdentifierTerms } from '../src/extract-symbols.js'
 import { createParserLoader } from '../src/indexer/parser.js'
 
 describe('extractSymbolsFromSource', () => {
@@ -128,5 +128,20 @@ describe('extractSymbolsFromSource', () => {
     expect(max).toBeDefined()
     expect(max?.scopeTier).toBe('exported')
     expect(max?.exportNames).toEqual(['MAX'])
+  })
+})
+
+describe('normalizeIdentifierTerms acronym runs', () => {
+  test('splits acronym boundaries into separate terms', () => {
+    expect(normalizeIdentifierTerms('XMLParser')).toBe('xml parser')
+    expect(normalizeIdentifierTerms('HTTPClient')).toBe('http client')
+    expect(normalizeIdentifierTerms('getXMLHttpRequest')).toBe('get xml http request')
+  })
+
+  test('existing normalizations are byte-identical', () => {
+    expect(normalizeIdentifierTerms('helper')).toBe('helper')
+    expect(normalizeIdentifierTerms('foo_bar')).toBe('foo bar')
+    expect(normalizeIdentifierTerms('foo-bar')).toBe('foo bar')
+    expect(normalizeIdentifierTerms('getDrizzleDb')).toBe('get drizzle db')
   })
 })

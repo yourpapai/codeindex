@@ -50,8 +50,9 @@ const declarationTypes = new Set([
 
 const memberTypes = new Set(['method_definition', 'public_field_definition'])
 
-const normalizeIdentifierTerms = (name: string): string =>
+export const normalizeIdentifierTerms = (name: string): string =>
   name
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .replace(/[_-]+/g, ' ')
     .toLowerCase()
