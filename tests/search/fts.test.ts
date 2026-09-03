@@ -81,3 +81,82 @@ describe('runFtsSearch', () => {
     expect(results[0]!.relevance!).toBeGreaterThanOrEqual(0)
   })
 })
+
+const insertFile = (db: Database, id: number, filePath: string, moduleKey: string): void => {
+  db.query(
+    `INSERT INTO files (id, file_path, module_key, language, file_hash, parse_status, parse_error, indexed_at) VALUES (?, ?, ?, 'ts', 'x', 'indexed', NULL, datetime('now'))`,
+  ).run(id, filePath, moduleKey)
+}
+
+const insertSymbol = (
+  db: Database,
+  opts: {
+    id: number
+    fileId: number
+    filePath: string
+    moduleKey: string
+    symbolKey: string
+    localName: string
+    qualifiedName: string
+    kind: string
+    scopeTier: string
+    exportNames: string
+    signatureText: string
+    docText: string
+    bodyText: string
+    identifierTerms: string
+    startLine: number
+    endLine: number
+  },
+): void => {
+  db.query(
+    `INSERT INTO symbols (id, file_id, file_path, module_key, symbol_key, local_name, qualified_name, kind, scope_tier, parent_symbol_id, export_names, signature_text, doc_text, body_text, identifier_terms, start_line, end_line) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    opts.id,
+    opts.fileId,
+    opts.filePath,
+    opts.moduleKey,
+    opts.symbolKey,
+    opts.localName,
+    opts.qualifiedName,
+    opts.kind,
+    opts.scopeTier,
+    opts.exportNames,
+    opts.signatureText,
+    opts.docText,
+    opts.bodyText,
+    opts.identifierTerms,
+    opts.startLine,
+    opts.endLine,
+  )
+}
+
+describe('runFtsSearch snippet', () => {
+  test('snippets signature_text when doc_text is empty', () => {
+    const db = new Database(':memory:')
+    ensureSchema(db)
+    insertFile(db, 1, 'src/helper.ts', 'src/helper')
+    insertSymbol(db, {
+      id: 1,
+      fileId: 1,
+      filePath: 'src/helper.ts',
+      moduleKey: 'src/helper',
+      symbolKey: 'src/helper.ts#1-2',
+      localName: 'helper',
+      qualifiedName: 'src/helper#helper',
+      kind: 'function_declaration',
+      scopeTier: 'exported',
+      exportNames: '["helper"]',
+      signatureText: 'export function helper()',
+      docText: '',
+      bodyText: 'function helper() {\n  return 1\n}',
+      identifierTerms: 'helper',
+      startLine: 1,
+      endLine: 2,
+    })
+
+    const results = runFtsSearch(db, 'helper', 10, {})
+    expect(results).toHaveLength(1)
+    expect(results[0]!.snippet.replaceAll('[', '').replaceAll(']', '')).toContain('export function helper')
+  })
+})
