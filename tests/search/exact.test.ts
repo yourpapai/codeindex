@@ -141,3 +141,34 @@ describe('runExactSearch snippet preview', () => {
     expect(first.snippet).toBe('src/helper#helper')
   })
 })
+
+describe('runExactSearch case-insensitive matching', () => {
+  test('case-mismatched query still hits the exact tier', () => {
+    const db = new Database(':memory:')
+    ensureSchema(db)
+    insertFile(db, 1, 'src/user.ts', 'src/user')
+    insertSymbol(db, {
+      id: 1,
+      fileId: 1,
+      filePath: 'src/user.ts',
+      moduleKey: 'src/user',
+      symbolKey: 'src/user.ts#1-2',
+      localName: 'getUserById',
+      qualifiedName: 'src/user#getUserById',
+      kind: 'function_declaration',
+      scopeTier: 'exported',
+      exportNames: '["getUserById"]',
+      signatureText: 'export function getUserById()',
+      docText: '',
+      bodyText: 'x',
+      identifierTerms: 'get user by id',
+      startLine: 1,
+      endLine: 2,
+    })
+
+    const results = runExactSearch(db, 'getuserbyid', 10, {})
+    expect(results).toHaveLength(1)
+    expect(results[0]!.matchReason).toBe('exact local_name')
+    expect(results[0]!.confidence).toBe('exact')
+  })
+})
