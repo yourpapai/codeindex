@@ -36,7 +36,7 @@ const relevanceScore = (result: Readonly<SearchResult>, max: number): number =>
 // In-degree is blended like BM25: bounded and normalized across the current result set, so a
 // popular symbol reorders *within* its tier without overtaking exact-name matches. log1p
 // dampens hubs; IN_DEGREE_WEIGHT is calibrated once against the IR gate (Slice 6).
-const IN_DEGREE_WEIGHT = 30
+const IN_DEGREE_WEIGHT = 15
 
 const maxInDegree = (results: readonly SearchResult[]): number =>
   results.reduce((max, r) => (r.inDegree !== undefined && r.inDegree > max ? r.inDegree : max), 0)
