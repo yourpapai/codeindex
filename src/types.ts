@@ -22,6 +22,7 @@ export interface SearchResult {
   readonly confidence: ReferenceConfidence | 'exact'
   readonly snippet: string
   readonly relevance?: number
+  readonly inDegree?: number
 }
 
 export interface RankedSearchResult extends SearchResult {

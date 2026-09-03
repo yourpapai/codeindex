@@ -58,6 +58,7 @@ const mapExactRow = (
     matched_export_name: string | null
     signature_text: string
     body_text: string
+    in_degree: number
   },
   query: string,
 ): SearchResult => ({
@@ -80,6 +81,7 @@ const mapExactRow = (
           : 'exact file_path',
   confidence: 'exact',
   snippet: buildSnippet(row.body_text, row.signature_text, row.qualified_name),
+  inDegree: row.in_degree,
 })
 
 const loadExactResults = (db: Database, query: string, limit: number): readonly SearchResult[] =>
@@ -98,11 +100,13 @@ const loadExactResults = (db: Database, query: string, limit: number): readonly 
         matched_export_name: string | null
         signature_text: string
         body_text: string
+        in_degree: number
       },
       [string, string, string, string, string, number]
     >(
       `SELECT symbols.symbol_key, symbols.qualified_name, symbols.local_name, symbols.kind, symbols.scope_tier,
             symbols.file_path, symbols.start_line, symbols.end_line, symbols.export_names,
+            symbols.in_degree AS in_degree,
             symbols.signature_text, symbols.body_text,
             module_exports.export_name AS matched_export_name
      FROM symbols

@@ -217,3 +217,33 @@ describe('runExactSearch LIKE escaping', () => {
     expect(results[0]!.matchReason).toBe('exact file_path')
   })
 })
+
+describe('runExactSearch in_degree', () => {
+  test('exact results carry in_degree from storage', () => {
+    const db = new Database(':memory:')
+    ensureSchema(db)
+    insertFile(db, 1, 'src/hot.ts', 'src/hot')
+    insertSymbol(db, {
+      id: 1,
+      fileId: 1,
+      filePath: 'src/hot.ts',
+      moduleKey: 'src/hot',
+      symbolKey: 'src/hot.ts#1-2',
+      localName: 'hot',
+      qualifiedName: 'src/hot#hot',
+      kind: 'function_declaration',
+      scopeTier: 'exported',
+      exportNames: '["hot"]',
+      signatureText: '',
+      docText: '',
+      bodyText: '',
+      identifierTerms: 'hot',
+      startLine: 1,
+      endLine: 2,
+    })
+    db.query('UPDATE symbols SET in_degree = 7 WHERE id = 1').run()
+
+    const results = runExactSearch(db, 'hot', 10, {})
+    expect(results[0]!.inDegree).toBe(7)
+  })
+})

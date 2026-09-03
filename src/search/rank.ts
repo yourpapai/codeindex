@@ -33,12 +33,27 @@ const maxRelevance = (results: readonly SearchResult[]): number =>
 const relevanceScore = (result: Readonly<SearchResult>, max: number): number =>
   result.relevance === undefined || max <= 0 ? 0 : (result.relevance / max) * RELEVANCE_WEIGHT
 
+// In-degree is blended like BM25: bounded and normalized across the current result set, so a
+// popular symbol reorders *within* its tier without overtaking exact-name matches. log1p
+// dampens hubs; IN_DEGREE_WEIGHT is calibrated once against the IR gate (Slice 6).
+const IN_DEGREE_WEIGHT = 30
+
+const maxInDegree = (results: readonly SearchResult[]): number =>
+  results.reduce((max, r) => (r.inDegree !== undefined && r.inDegree > max ? r.inDegree : max), 0)
+
+const inDegreeScore = (result: Readonly<SearchResult>, max: number): number =>
+  result.inDegree === undefined || max <= 0 ? 0 : (Math.log1p(result.inDegree) / Math.log1p(max)) * IN_DEGREE_WEIGHT
+
 export const scoreSearchResult = (result: Readonly<SearchResult>): number =>
   scopeScore(result.scopeTier) + matchScore(result.matchReason)
 
 export const rerankSearchResults = (results: readonly SearchResult[]): readonly RankedSearchResult[] => {
   const maxRel = maxRelevance(results)
+  const maxDeg = maxInDegree(results)
   return [...results]
-    .map((result) => ({ ...result, rankScore: scoreSearchResult(result) + relevanceScore(result, maxRel) }))
+    .map((result) => ({
+      ...result,
+      rankScore: scoreSearchResult(result) + relevanceScore(result, maxRel) + inDegreeScore(result, maxDeg),
+    }))
     .sort((left, right) => right.rankScore - left.rankScore)
 }

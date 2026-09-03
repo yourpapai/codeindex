@@ -57,11 +57,13 @@ const loadFtsResults = (db: Database, query: string, limit: number): readonly Se
         export_names: string
         snippet: string
         bm25_score: number
+        in_degree: number
       },
       [string, number]
     >(
       `SELECT symbols.symbol_key, symbols.qualified_name, symbols.local_name, symbols.kind, symbols.scope_tier,
             symbols.file_path, symbols.start_line, symbols.end_line, symbols.export_names,
+            symbols.in_degree AS in_degree,
             snippet(symbol_fts, 4, '[', ']', '...', 12) AS snippet,
             bm25(symbol_fts, 10.0, 9.0, 8.0, 7.0, 6.0, 5.0, 2.0, 1.0) AS bm25_score
      FROM symbol_fts
@@ -85,6 +87,7 @@ const loadFtsResults = (db: Database, query: string, limit: number): readonly Se
       confidence: 'resolved',
       snippet: row.snippet,
       relevance: -row.bm25_score,
+      inDegree: row.in_degree,
     }))
 }
 

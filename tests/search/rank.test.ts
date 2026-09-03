@@ -115,3 +115,32 @@ test('an exact match still outranks a strong FTS hit', () => {
   const ranked = rerankSearchResults([fts, exact])
   expect(ranked[0]!.symbolKey).toBe('exact')
 })
+
+describe('in-degree blending', () => {
+  const ftsBase = {
+    symbolKey: 'k',
+    qualifiedName: 'm#a',
+    localName: 'a',
+    kind: 'function',
+    scopeTier: 'exported' as const,
+    filePath: 'm.ts',
+    startLine: 1,
+    endLine: 2,
+    exportNames: [] as readonly string[],
+    matchReason: 'fts identifier_terms/doc_text/body_text',
+    confidence: 'resolved' as const,
+    snippet: '',
+  }
+
+  test('within a tier, the more-referenced symbol ranks higher', () => {
+    const low = { ...ftsBase, symbolKey: 'low', relevance: 0, inDegree: 0 }
+    const high = { ...ftsBase, symbolKey: 'high', relevance: 0, inDegree: 25 }
+    const ranked = rerankSearchResults([low, high])
+    expect(ranked[0]!.symbolKey).toBe('high')
+  })
+
+  test('missing inDegree contributes nothing (scores unchanged)', () => {
+    const ranked = rerankSearchResults([{ ...ftsBase, symbolKey: 'only' }])
+    expect(ranked[0]!.rankScore).toBe(400)
+  })
+})
