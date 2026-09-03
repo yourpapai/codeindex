@@ -41,6 +41,64 @@ filed as a follow-up.
 **Scope rule.** This unit is a read-out, not a gate. It does **not** reshape the other units; a
 real type-tier gap spawns a follow-up spec, it does not expand Slice 6.
 
+### Findings (amended 2026-09-03, Unit 0 implementation)
+
+Run: `bun run bench/impact-run.ts --repo ../papai --max-targets 300` (strided 300, no baseline
+compare). The committed gate number reproduces exactly — `typeFalseNegativeRate 0.9949` (197/198).
+The new report fields read `typeFalseNegativesByShape: {"bare-value":197}` of
+`typeTrueReferenceCountByShape: {"bare-value":198}` — the whole type tier lands on ONE bench
+shape, because `classifyShape`'s value-form checks (call/construct/member/jsx/namespace) never
+match inside a type node and every non-heritage type reference falls through to the `bare-value`
+label. Only heritage (`implements` / interface `extends`) would report `heritage`; papai's sample
+contains no type-heritage sources. (Cross-file type uses land type-only, not `both`: the import
+occurrence attributes to module scope and the oracle's null-boundary skip drops it.)
+
+A memo-only re-walk of the same oracle with a finer type-position classifier breaks that
+`bare-value` label down:
+
+| category | FN / true | share of type FNs | verdict |
+|---|---|---|---|
+| named-type-ref (`: T` annotation, `Promise<T>` return/param type) | 197/198 | 100% | **real gap** |
+| heritage (`implements` / interface `extends`) | 0/0 | — | absent from sample |
+| typeof-query / as-cast / indexed-access / other | 0/0 | — | absent from sample |
+
+40 of the 197 are same-file references, 157 cross-file. The mass concentrates on a handful of
+domain-type targets — `chat/types#CommandHandler` 23, `deferred-prompts/types#AlertPrompt` 14,
+`chat/context-types#ContextSection` 12, `instances/types#TaskInstance` 11,
+`providers/domain-types#Task` 11, `utils/scheduler.helpers#Task` 10,
+`chat/telegram/file-helpers#ExtractFilesInput` 9, `chat/mattermost/schema#MattermostThreadPost` 8
+— the classic `types.ts`-module clusters, so a working edge pays out densely.
+
+Cross-check against the papai DB (`symbol_references WHERE target_name IN (<top 8 type-FN target
+names>) GROUP BY edge_type, confidence`): `imports/resolved 38 · imports/file_resolved 3 ·
+reexports/resolved 2` — **zero** `calls`/`references` rows. Type positions emit no edges at all,
+so these sources are structurally uncoverable at the function granularity both the oracle and
+code_impact share (module-level import rows cannot be credited to function-level sources).
+
+The single covered type ref (1/198) is an accident, not coverage: `factory: typeof
+makeMattermostApiFetch` (`src/chat/mattermost/link-resolver.ts:107`) is caught by Slice 5c's
+bare-value edge because tree-sitter's grammar hands a `typeof X` operand over as a value-position
+identifier.
+
+**Verdict / recommendation.** The type tier is a **real gap**, not an oracle artifact: the sites
+are genuine dependency-bearing type usages, the Slice 5a precision fixes (declaration-name skip,
+constructor boundary) already apply, and code_impact has no type-position extraction to miss with.
+Candidate edge-type for a follow-up spec: a `type-ref` edge (identifier used as a named type
+reference) resolved through the existing import map (157 cross-file cases, import-backed =
+high-precision, same mechanism as B4/B6) plus same-module name resolution (40 same-file cases).
+Bench-labeling caveat (cosmetic, not a counting artifact): type-position fall-throughs report as
+`bare-value`; if the tier is ever worked, the label should become `named-type` (diagnostic-only
+relabel, no gate impact).
+
+### Follow-up #1 (type-tier sizing): CLOSED
+
+The follow-up asked for the unsized `typeFalseNegativeRate 0.9949` population to be categorized
+before anyone designed against it — per the scope rule, a real gap spawns a follow-up spec and
+does not expand Slice 6. Sized above: one category (named type references, 197/198 — 100% of the
+type FNs), a real gap with no oracle artifact behind it, concentrated on domain-type modules.
+The gate number is now honest and attributable; the follow-up closes with the recommendation
+recorded (`type-ref` edge, follow-up spec) and no Slice 6 scope change.
+
 ---
 
 ## Unit 1 — Lexical fixes (1b)

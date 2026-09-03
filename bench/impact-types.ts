@@ -48,6 +48,8 @@ export interface ImpactBenchReport {
   readonly typeFalseNegativeRate: number
   readonly valueTrueReferenceCountByShape: Readonly<Record<string, number>>
   readonly valueFalseNegativesByShape: Readonly<Record<string, number>>
+  readonly typeTrueReferenceCountByShape: Readonly<Record<string, number>>
+  readonly typeFalseNegativesByShape: Readonly<Record<string, number>>
   readonly perTarget: readonly ImpactTargetScore[]
 }
 

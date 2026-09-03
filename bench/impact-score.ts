@@ -1,7 +1,7 @@
 import type { Database } from 'bun:sqlite'
 
 import { findIncomingReferences } from '../src/search/index.js'
-import type { ImpactBenchReport, ImpactTargetScore, OracleTarget } from './impact-types.js'
+import type { ImpactBenchReport, ImpactTargetScore, OracleTarget, Shape } from './impact-types.js'
 
 const IMPACT_LIMIT = 100000
 
@@ -50,7 +50,38 @@ interface TargetTally {
   readonly typeFalseNegatives: number
   readonly valueTrueByShape: Readonly<Record<string, number>>
   readonly valueFalseNegativesByShape: Readonly<Record<string, number>>
+  readonly typeTrueByShape: Readonly<Record<string, number>>
+  readonly typeFalseNegativesByShape: Readonly<Record<string, number>>
   readonly fpByConfidence: Readonly<Record<string, number>>
+}
+
+// Counts every shape a source uses into `trueByShape`, and again into
+// `falseNegativesByShape` when code_impact does not cover the source. Value and type
+// tiers share the loop; extracted purely to keep scoreTarget under max-lines-per-function.
+const addShapeCounts = (
+  shapes: readonly Shape[],
+  covered: boolean,
+  trueByShape: Record<string, number>,
+  falseNegativesByShape: Record<string, number>,
+): void => {
+  for (const shape of shapes) {
+    trueByShape[shape] = (trueByShape[shape] ?? 0) + 1
+    if (!covered) falseNegativesByShape[shape] = (falseNegativesByShape[shape] ?? 0) + 1
+  }
+}
+
+// Tallies false positives (reported sources that are not true sources) by confidence.
+// Extracted purely to keep scoreTarget under max-lines-per-function.
+const fpCountsByConfidence = (
+  reported: readonly ImpactSource[],
+  truthNames: ReadonlySet<string>,
+): Record<string, number> => {
+  const counts: Record<string, number> = {}
+  for (const fp of reported) {
+    if (truthNames.has(fp.name)) continue
+    counts[fp.confidence] = (counts[fp.confidence] ?? 0) + 1
+  }
+  return counts
 }
 
 const scoreTarget = (db: Database, entry: OracleTarget): TargetTally => {
@@ -65,25 +96,24 @@ const scoreTarget = (db: Database, entry: OracleTarget): TargetTally => {
   let typeFalseNegatives = 0
   const valueTrueByShape: Record<string, number> = {}
   const valueFalseNegativesByShape: Record<string, number> = {}
+  const typeTrueByShape: Record<string, number> = {}
+  const typeFalseNegativesByShape: Record<string, number> = {}
   for (const source of entry.trueSources) {
     const covered = reportedNames.has(source.name)
     if (!covered) fn += 1
     if (source.position === 'value' || source.position === 'both') {
       valueTrue += 1
       if (!covered) valueFalseNegatives += 1
-      for (const shape of source.shapes) {
-        valueTrueByShape[shape] = (valueTrueByShape[shape] ?? 0) + 1
-        if (!covered) valueFalseNegativesByShape[shape] = (valueFalseNegativesByShape[shape] ?? 0) + 1
-      }
+      addShapeCounts(source.shapes, covered, valueTrueByShape, valueFalseNegativesByShape)
     } else {
       typeTrue += 1
       if (!covered) typeFalseNegatives += 1
+      addShapeCounts(source.shapes, covered, typeTrueByShape, typeFalseNegativesByShape)
     }
   }
 
   const fpRows = reported.filter((r) => !truthNames.has(r.name))
-  const fpByConfidence: Record<string, number> = {}
-  for (const fp of fpRows) fpByConfidence[fp.confidence] = (fpByConfidence[fp.confidence] ?? 0) + 1
+  const fpByConfidence = fpCountsByConfidence(reported, truthNames)
 
   return {
     score: {
@@ -99,6 +129,8 @@ const scoreTarget = (db: Database, entry: OracleTarget): TargetTally => {
     typeFalseNegatives,
     valueTrueByShape,
     valueFalseNegativesByShape,
+    typeTrueByShape,
+    typeFalseNegativesByShape,
     fpByConfidence,
   }
 }
@@ -121,10 +153,14 @@ export const scoreImpact = (db: Database, oracle: readonly OracleTarget[], repo:
   const fpByConfidence: Record<string, number> = {}
   const valueTrueReferenceCountByShape: Record<string, number> = {}
   const valueFalseNegativesByShape: Record<string, number> = {}
+  const typeTrueReferenceCountByShape: Record<string, number> = {}
+  const typeFalseNegativesByShape: Record<string, number> = {}
   for (const tally of tallies) {
     addCounts(fpByConfidence, tally.fpByConfidence)
     addCounts(valueTrueReferenceCountByShape, tally.valueTrueByShape)
     addCounts(valueFalseNegativesByShape, tally.valueFalseNegativesByShape)
+    addCounts(typeTrueReferenceCountByShape, tally.typeTrueByShape)
+    addCounts(typeFalseNegativesByShape, tally.typeFalseNegativesByShape)
   }
 
   const trueReferenceCount = sumBy(oracle, (entry) => entry.trueSources.length)
@@ -154,6 +190,8 @@ export const scoreImpact = (db: Database, oracle: readonly OracleTarget[], repo:
     typeFalseNegativeRate: typeTrueReferenceCount === 0 ? 0 : typeFalseNegatives / typeTrueReferenceCount,
     valueTrueReferenceCountByShape,
     valueFalseNegativesByShape,
+    typeTrueReferenceCountByShape,
+    typeFalseNegativesByShape,
     perTarget,
   }
 }

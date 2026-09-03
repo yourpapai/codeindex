@@ -136,6 +136,26 @@ describe('scoreImpact', () => {
       db.close()
     }
   })
+  test('type-tier false negatives break down by shape', async () => {
+    const { db } = await build()
+    try {
+      // Same synthetic-oracle pattern as the value-shape tests: a target with no incoming
+      // DB edges, so its one true source is necessarily a false negative — here a
+      // type-position source (e.g. an `extends` heritage reference code_impact never
+      // covers) whose shape must land in the type-tier by-shape buckets.
+      const oracleWithTypeOnlySource: OracleTarget[] = [
+        {
+          target: 'synthetic#TypeOnly',
+          trueSources: [{ name: 'synthetic#User', position: 'type', shapes: ['heritage'] }],
+        },
+      ]
+      const report = scoreImpact(db, oracleWithTypeOnlySource, 'fixture')
+      expect(report.typeFalseNegativesByShape).toEqual({ heritage: 1 })
+      expect(report.typeTrueReferenceCountByShape).toEqual({ heritage: 1 })
+    } finally {
+      db.close()
+    }
+  })
 })
 
 const reportWithTargetsScored = (targetsScored: number): ImpactBenchReport => ({
@@ -156,6 +176,8 @@ const reportWithTargetsScored = (targetsScored: number): ImpactBenchReport => ({
   typeFalseNegativeRate: 0,
   valueTrueReferenceCountByShape: {},
   valueFalseNegativesByShape: {},
+  typeTrueReferenceCountByShape: {},
+  typeFalseNegativesByShape: {},
   perTarget: [],
 })
 

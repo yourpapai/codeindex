@@ -259,10 +259,10 @@ export const buildReferenceOracle = (
       const agg = byName.get(enclosing) ?? { value: false, type: false, shapes: new Set<Shape>() }
       if (position === 'value') {
         agg.value = true
-        agg.shapes.add(classifyShape(sf, pos, checker))
       } else {
         agg.type = true
       }
+      agg.shapes.add(classifyShape(sf, pos, checker))
       byName.set(enclosing, agg)
     }
     const trueSources: readonly OracleSource[] = [...byName].map(([name, agg]) => ({
