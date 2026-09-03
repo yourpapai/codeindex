@@ -109,24 +109,23 @@ const findMatchedFileId = (
   )
 }
 
-// Last-resort resolution: a symbol whose local name matches, scoped to the matched module (or, with
-// no matched file, the current module for a bare reference / any module for a specified-but-unmatched
-// import). Confidence reflects whether the import specifier at least resolved to a file.
+// Last-resort resolution: a symbol whose local name matches, scoped to the matched module (or, for
+// a bare reference with no module specifier, the current module). A specified-but-unmatched import
+// (bare npm specifier, out-of-root path, typo'd relative) resolves to NOTHING here: the old
+// codebase-wide fallback bound `import { eq } from 'drizzle-orm'` to an unrelated local
+// `const eq` — measured at 157 false papai edges before C2 suppression (Slice 7). Confidence
+// reflects whether the import specifier at least resolved to a file.
 const resolveByLocalName = (
   input: Readonly<ResolveReferenceCandidatesInput>,
   matchedFileId: number | null,
   matchedModuleKey: string | null,
   reference: Readonly<ReferenceCandidate>,
 ): Readonly<{ targetSymbolId: number | null; confidence: ResolvedReference['confidence'] }> => {
-  const resolvedByName = input.symbols.find(
-    (symbol) =>
-      symbol.localName === reference.targetName &&
-      (matchedModuleKey === null
-        ? reference.targetModuleSpecifier === null
-          ? symbol.moduleKey === input.currentModuleKey
-          : true
-        : symbol.moduleKey === matchedModuleKey),
-  )
+  const scopeModuleKey = matchedModuleKey ?? (reference.targetModuleSpecifier === null ? input.currentModuleKey : null)
+  const resolvedByName =
+    scopeModuleKey === null
+      ? undefined
+      : input.symbols.find((symbol) => symbol.localName === reference.targetName && symbol.moduleKey === scopeModuleKey)
   return {
     targetSymbolId: resolvedByName?.id ?? null,
     confidence: matchedFileId === null ? 'name_only' : 'file_resolved',

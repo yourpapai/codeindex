@@ -205,4 +205,44 @@ describe('resolveReferenceCandidates', () => {
     })
     expect(resolved[0]).toMatchObject({ targetSymbolId: null, confidence: 'name_only' })
   })
+
+  test('specified-but-unmatched import resolves to no symbol (C2 suppression)', () => {
+    const resolved = resolveReferenceCandidates({
+      symbols: [{ id: 1, qualifiedName: 'src/a#eq', localName: 'eq', moduleKey: 'src/a', exportNames: [] }],
+      moduleAliases: [],
+      files: [{ id: 10, moduleKey: 'src/a' }],
+      references: [
+        {
+          sourceQualifiedName: null,
+          edgeType: 'imports',
+          targetName: 'eq',
+          targetExportName: 'eq',
+          targetModuleSpecifier: 'drizzle-orm',
+          lineNumber: 1,
+        },
+      ],
+      currentModuleKey: 'src/b',
+    })
+    expect(resolved[0]).toMatchObject({ targetSymbolId: null, confidence: 'name_only', targetFileId: null })
+  })
+
+  test('B6 guard and C2 suppression compose: value reference with unmatched specifier binds nothing', () => {
+    const resolved = resolveReferenceCandidates({
+      symbols: [{ id: 1, qualifiedName: 'src/a#target', localName: 'target', moduleKey: 'src/a', exportNames: [] }],
+      moduleAliases: [],
+      files: [{ id: 10, moduleKey: 'src/a' }],
+      references: [
+        {
+          sourceQualifiedName: 'src/b#caller',
+          edgeType: 'references',
+          targetName: 'target',
+          targetExportName: null,
+          targetModuleSpecifier: 'phantom-pkg',
+          lineNumber: 2,
+        },
+      ],
+      currentModuleKey: 'src/b',
+    })
+    expect(resolved[0]).toMatchObject({ targetSymbolId: null, confidence: 'name_only' })
+  })
 })
