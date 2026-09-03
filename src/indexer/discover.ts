@@ -86,17 +86,27 @@ export const discoverSourceFiles = async (input: Readonly<DiscoverSourceFilesInp
     .filter((entry) => !matcher.ignores(entry.relativePath))
     .sort((left, right) => left.relativePath.localeCompare(right.relativePath))
 
+  // A stat can fail when a file vanishes between walk and stat (TOCTOU). Catch per entry and drop
+  // it — a vanished file is equivalent to an excluded file — instead of letting one failure reject
+  // the whole pass, mirroring the parse phase's per-file failure contract.
   const sized = await Promise.all(
-    candidates.map(async (entry) => ({ entry, size: (await stat(entry.absolutePath)).size })),
+    candidates.map(async (entry) => {
+      try {
+        return { entry, size: (await stat(entry.absolutePath)).size }
+      } catch {
+        return null
+      }
+    }),
   )
   const kept: DiscoveredFile[] = []
   const skippedFiles: string[] = []
-  for (const { entry, size } of sized) {
-    if (size > input.maxFileSizeBytes) {
-      skippedFiles.push(entry.relativePath)
+  for (const sizedEntry of sized) {
+    if (sizedEntry === null) continue
+    if (sizedEntry.size > input.maxFileSizeBytes) {
+      skippedFiles.push(sizedEntry.entry.relativePath)
       continue
     }
-    kept.push(entry)
+    kept.push(sizedEntry.entry)
   }
   return { files: kept, skippedFiles }
 }

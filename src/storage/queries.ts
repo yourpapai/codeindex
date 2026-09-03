@@ -104,8 +104,12 @@ export const markParseFailure = (db: Database, file: Readonly<{ relativePath: st
 }
 
 export const backfillSymbolInDegree = (db: Database): void => {
+  // The WHERE guard skips rows whose in_degree already matches, because SQLite fires UPDATE
+  // triggers on every matched row even when the value is unchanged. Without it, a full-table
+  // UPDATE would churn the symbols_au FTS sync trigger (a delete+reinsert per symbol) on every
+  // run — including incremental runs, whose purpose is to avoid exactly that.
   db.run(
-    'UPDATE symbols SET in_degree = (SELECT COUNT(*) FROM symbol_references WHERE symbol_references.target_symbol_id = symbols.id)',
+    'UPDATE symbols SET in_degree = (SELECT COUNT(*) FROM symbol_references WHERE symbol_references.target_symbol_id = symbols.id) WHERE in_degree <> (SELECT COUNT(*) FROM symbol_references WHERE symbol_references.target_symbol_id = symbols.id)',
   )
 }
 
