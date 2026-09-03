@@ -36,6 +36,7 @@ export interface IndexSummary {
   readonly filesIndexed: number
   readonly filesFailed: number
   readonly filesPruned: number
+  readonly skippedFiles: readonly string[]
   readonly symbolsIndexed: number
   readonly referencesIndexed: number
   readonly referencesUnresolved: number
@@ -233,6 +234,7 @@ interface IndexPhasesResult {
   readonly filesIndexed: number
   readonly filesFailed: number
   readonly filesPruned: number
+  readonly skippedFiles: readonly string[]
   readonly symbolsIndexed: number
   readonly referencesIndexed: number
   readonly referencesUnresolved: number
@@ -246,7 +248,7 @@ const runIndexPhases = async (db: Database, input: Readonly<IndexCodebaseInput>)
   emitPhase(input.onPhase, 'init', mark)
 
   mark = Date.now()
-  const { filesToProcess, filesPruned } = await resolveFilesToProcess(db, input.config, input.mode)
+  const { filesToProcess, filesPruned, filesSkipped } = await resolveFilesToProcess(db, input.config, input.mode)
   emitPhase(input.onPhase, 'discover', mark)
 
   mark = Date.now()
@@ -272,6 +274,7 @@ const runIndexPhases = async (db: Database, input: Readonly<IndexCodebaseInput>)
     filesIndexed,
     filesFailed,
     filesPruned,
+    skippedFiles: filesSkipped,
     symbolsIndexed,
     referencesIndexed,
     referencesUnresolved,

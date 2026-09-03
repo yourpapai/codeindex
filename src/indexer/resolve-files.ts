@@ -47,12 +47,15 @@ export const resolveFilesToProcess = async (
   db: Database,
   config: CodeindexConfig,
   mode: 'full' | 'incremental',
-): Promise<Readonly<{ filesToProcess: readonly DiscoveredFile[]; filesPruned: number }>> => {
-  const discoveredFiles = await discoverSourceFiles({
+): Promise<
+  Readonly<{ filesToProcess: readonly DiscoveredFile[]; filesPruned: number; filesSkipped: readonly string[] }>
+> => {
+  const { files: discoveredFiles, skippedFiles } = await discoverSourceFiles({
     repoRoot: config.repoRoot,
     roots: config.roots,
     exclude: config.exclude,
     languages: config.languages,
+    maxFileSizeBytes: config.maxFileSizeBytes,
   })
   const discoveredPathSet = new Set(discoveredFiles.map((f) => f.relativePath))
   const deletedFileDependents = mode === 'incremental' ? findDependentsOfDeletedFiles(db, discoveredPathSet) : null
@@ -64,5 +67,5 @@ export const resolveFilesToProcess = async (
       : baseIncrementalSet
   const filesToProcess =
     incrementalSet === null ? discoveredFiles : discoveredFiles.filter((file) => incrementalSet.has(file.relativePath))
-  return { filesToProcess, filesPruned }
+  return { filesToProcess, filesPruned, filesSkipped: skippedFiles }
 }

@@ -43,4 +43,15 @@ describe('loadCodeindexConfig', () => {
     expect(config.languages).toEqual(['ts', 'tsx', 'js', 'jsx'])
     expect(config.tsconfigPaths).toEqual([path.join(repoRoot, 'tsconfig.json')])
   })
+
+  test('maxFileSizeBytes defaults to 1,000,000', async () => {
+    const repoRoot = makeTempDir()
+    const configPath = path.join(repoRoot, '.codeindex.json')
+
+    writeFileSync(configPath, JSON.stringify({ roots: ['src'] }))
+
+    const config = await loadCodeindexConfig({ configPath, repoRoot })
+
+    expect(config.maxFileSizeBytes).toBe(1_000_000)
+  })
 })

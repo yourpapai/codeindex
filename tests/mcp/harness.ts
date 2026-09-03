@@ -19,6 +19,7 @@ const emptySummary: IndexSummary = {
   filesIndexed: 0,
   filesFailed: 0,
   filesPruned: 0,
+  skippedFiles: [],
   symbolsIndexed: 0,
   referencesIndexed: 0,
   referencesUnresolved: 0,

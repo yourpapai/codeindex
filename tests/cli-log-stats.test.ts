@@ -18,6 +18,7 @@ const configIn = (dir: string): CodeindexConfig => ({
   indexVariables: true,
   includeDocComments: true,
   maxStoredBodyLines: 120,
+  maxFileSizeBytes: 1_000_000,
   tsconfigPaths: [path.join(dir, 'tsconfig.json')],
   repoRoot: dir,
   configPath: path.join(dir, '.codeindex.json'),

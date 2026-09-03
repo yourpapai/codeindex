@@ -25,13 +25,14 @@ describe('discoverSourceFiles', () => {
     mkdirSync(path.join(repoRoot, 'src'), { recursive: true })
     writeFileSync(path.join(repoRoot, 'src', 'main.ts'), 'export const main = 1\n')
 
-    const files = await discoverSourceFiles({
+    const result = await discoverSourceFiles({
       repoRoot,
       roots: [path.join(repoRoot, 'src'), path.join(repoRoot, 'client')],
       exclude: [],
       languages: ['ts', 'tsx', 'js', 'jsx'],
+      maxFileSizeBytes: 1_000_000,
     })
 
-    expect(files.map((entry) => path.relative(repoRoot, entry.absolutePath))).toEqual(['src/main.ts'])
+    expect(result.files.map((entry) => path.relative(repoRoot, entry.absolutePath))).toEqual(['src/main.ts'])
   })
 })

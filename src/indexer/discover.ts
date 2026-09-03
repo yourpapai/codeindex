@@ -1,4 +1,4 @@
-import { readdir, readFile } from 'node:fs/promises'
+import { readdir, readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 
 import ignore from 'ignore'
@@ -10,6 +10,12 @@ export interface DiscoverSourceFilesInput {
   readonly roots: readonly string[]
   readonly exclude: readonly string[]
   readonly languages: readonly SupportedLanguage[]
+  readonly maxFileSizeBytes: number
+}
+
+export interface DiscoverResult {
+  readonly files: readonly DiscoveredFile[]
+  readonly skippedFiles: readonly string[]
 }
 
 export interface DiscoveredFile {
@@ -59,16 +65,14 @@ const walk = async (dir: string, repoRoot: string, matcher: ReturnType<typeof ig
   return discovered.flat()
 }
 
-export const discoverSourceFiles = async (
-  input: Readonly<DiscoverSourceFilesInput>,
-): Promise<readonly DiscoveredFile[]> => {
+export const discoverSourceFiles = async (input: Readonly<DiscoverSourceFilesInput>): Promise<DiscoverResult> => {
   const matcher = ignore()
     .add(await readGitignore(input.repoRoot))
     .add([...input.exclude])
   const supportedExtensions = supportedExtensionsFor(input.languages)
   const files = await Promise.all(input.roots.map((root) => walk(root, input.repoRoot, matcher)))
 
-  return files
+  const candidates = files
     .flat()
     .map((absolutePath) => {
       const relativePath = path.relative(input.repoRoot, absolutePath)
@@ -81,4 +85,18 @@ export const discoverSourceFiles = async (
     .filter((entry) => supportedExtensions.has(entry.extension))
     .filter((entry) => !matcher.ignores(entry.relativePath))
     .sort((left, right) => left.relativePath.localeCompare(right.relativePath))
+
+  const sized = await Promise.all(
+    candidates.map(async (entry) => ({ entry, size: (await stat(entry.absolutePath)).size })),
+  )
+  const kept: DiscoveredFile[] = []
+  const skippedFiles: string[] = []
+  for (const { entry, size } of sized) {
+    if (size > input.maxFileSizeBytes) {
+      skippedFiles.push(entry.relativePath)
+      continue
+    }
+    kept.push(entry)
+  }
+  return { files: kept, skippedFiles }
 }

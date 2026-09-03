@@ -98,6 +98,7 @@ export const CodeIndexOutputSchema = z.object({
   filesIndexed: z.number(),
   filesFailed: z.number(),
   filesPruned: z.number(),
+  skippedFiles: z.array(z.string()),
   symbolsIndexed: z.number(),
   referencesIndexed: z.number(),
   referencesUnresolved: z.number(),

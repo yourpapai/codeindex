@@ -30,13 +30,32 @@ describe('discoverSourceFiles', () => {
     writeFileSync(path.join(repoRoot, 'coverage', 'skip.ts'), 'export const skip = 1\n')
     writeFileSync(path.join(repoRoot, 'src', 'skip.test.ts'), 'export const testOnly = 1\n')
 
-    const files = await discoverSourceFiles({
+    const result = await discoverSourceFiles({
       repoRoot,
       roots: [path.join(repoRoot, 'src')],
       exclude: ['coverage', '**/*.test.*'],
       languages: ['ts', 'tsx', 'js', 'jsx'],
+      maxFileSizeBytes: 1_000_000,
     })
 
-    expect(files.map((entry) => path.relative(repoRoot, entry.absolutePath))).toEqual(['src/kept.ts'])
+    expect(result.files.map((entry) => path.relative(repoRoot, entry.absolutePath))).toEqual(['src/kept.ts'])
+  })
+
+  test('skips files over maxFileSizeBytes and reports them', async () => {
+    const repoRoot = makeTempRepo()
+    mkdirSync(path.join(repoRoot, 'src'), { recursive: true })
+    writeFileSync(path.join(repoRoot, 'src', 'small.ts'), 'export const small = 1\n')
+    writeFileSync(path.join(repoRoot, 'src', 'huge.ts'), 'x'.repeat(64))
+
+    const result = await discoverSourceFiles({
+      repoRoot,
+      roots: [path.join(repoRoot, 'src')],
+      exclude: [],
+      languages: ['ts'],
+      maxFileSizeBytes: 32,
+    })
+
+    expect(result.files.map((entry) => entry.relativePath)).toEqual(['src/small.ts'])
+    expect(result.skippedFiles).toEqual(['src/huge.ts'])
   })
 })

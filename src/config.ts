@@ -17,6 +17,7 @@ const CodeindexConfigSchema = z.object({
   indexVariables: z.boolean().default(true),
   includeDocComments: z.boolean().default(true),
   maxStoredBodyLines: z.number().int().positive().default(120),
+  maxFileSizeBytes: z.number().int().positive().default(1_000_000),
   tsconfigPaths: z.array(z.string().min(1)).default(['tsconfig.json']),
 })
 
@@ -43,6 +44,7 @@ export const computeConfigIdentity = (config: CodeindexConfig): string => {
     indexVariables: config.indexVariables,
     includeDocComments: config.includeDocComments,
     maxStoredBodyLines: config.maxStoredBodyLines,
+    maxFileSizeBytes: config.maxFileSizeBytes,
     tsconfigPaths: config.tsconfigPaths.map((entry) => path.relative(config.repoRoot, entry)),
   }
   return createHash('sha256').update(JSON.stringify(identity)).digest('hex')
