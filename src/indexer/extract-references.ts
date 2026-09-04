@@ -6,6 +6,7 @@ import {
   type ModuleExportCandidate,
   type ReferenceCandidate,
 } from './collect-export-candidates.js'
+import { isNamedScopeBoundary, nextEnclosingSymbol, pendingSegmentsFor } from './scope-path.js'
 
 export type { ModuleExportCandidate, ReferenceCandidate }
 
@@ -24,34 +25,14 @@ export interface ExtractReferenceCandidatesResult {
 const visitChildren = (
   node: SyntaxNode,
   enclosingSymbol: string | null,
-  visit: (child: SyntaxNode, childEnclosingSymbol: string | null) => void,
+  pending: readonly string[],
+  visit: (child: SyntaxNode, childEnclosingSymbol: string | null, childPending: readonly string[]) => void,
 ): void => {
   for (let index = 0; index < node.namedChildCount; index += 1) {
     const child = node.namedChild(index)
-    if (child !== null) visit(child, enclosingSymbol)
+    if (child !== null) visit(child, enclosingSymbol, pending)
   }
 }
-
-const nextEnclosingSymbol = (moduleKey: string, node: SyntaxNode, enclosingSymbol: string | null): string | null => {
-  const functionName = node.childForFieldName('name')?.text
-  if (functionName === undefined) return enclosingSymbol
-  return enclosingSymbol === null ? `${moduleKey}#${functionName}` : `${enclosingSymbol}>${functionName}`
-}
-
-// A boundary is a node that OWNS a symbol row (see extract-symbols' declarationTypes). A named
-// function expression used as a bare callback (`register(function inner(){})`) is deliberately NOT
-// included: extract-symbols emits no symbol for it, so treating it as a boundary here would attribute
-// references to a phantom `outer>inner` source that no symbol backs. Such references belong to the
-// nearest REAL enclosing symbol. Function/arrow expressions bound to a variable declarator ARE
-// boundaries — the declarator itself is the symbol row.
-const isNamedScopeBoundary = (node: SyntaxNode): boolean =>
-  node.type === 'function_declaration' ||
-  node.type === 'class_declaration' ||
-  node.type === 'abstract_class_declaration' ||
-  node.type === 'method_definition' ||
-  (node.type === 'variable_declarator' &&
-    (node.childForFieldName('value')?.type === 'arrow_function' ||
-      node.childForFieldName('value')?.type === 'function_expression'))
 
 const collectImportReference = (node: SyntaxNode, references: ReferenceCandidate[]): void => {
   const exportedName = node.childForFieldName('name')?.text ?? node.text
@@ -256,7 +237,7 @@ export const extractReferenceCandidates = (
 ): ExtractReferenceCandidatesResult => {
   const rawModuleExports: ModuleExportCandidate[] = []
   const references: ReferenceCandidate[] = []
-  const visit = (node: SyntaxNode, enclosingSymbol: string | null): void => {
+  const visit = (node: SyntaxNode, enclosingSymbol: string | null, pending: readonly string[] = []): void => {
     if (node.type === 'export_statement') {
       collectExportCandidates(node, enclosingSymbol, input.moduleKey, rawModuleExports, references, visit)
       return
@@ -274,7 +255,7 @@ export const extractReferenceCandidates = (
       })
     }
     if (isNamedScopeBoundary(node)) {
-      visitChildren(node, nextEnclosingSymbol(input.moduleKey, node, enclosingSymbol), visit)
+      visitChildren(node, nextEnclosingSymbol(input.moduleKey, node, enclosingSymbol, pending), [], visit)
       return
     }
     if (node.type === 'call_expression') collectCallReference(node, enclosingSymbol, references)
@@ -285,7 +266,7 @@ export const extractReferenceCandidates = (
     if (node.type === 'extends_clause' || node.type === 'implements_clause') {
       collectHeritageReferences(node, enclosingSymbol, references)
     }
-    visitChildren(node, enclosingSymbol, visit)
+    visitChildren(node, enclosingSymbol, pendingSegmentsFor(node, pending), visit)
   }
 
   visit(input.tree.rootNode, null)

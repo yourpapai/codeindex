@@ -603,4 +603,81 @@ describe('extractReferenceCandidates', () => {
 
     expect(moduleExports[0]!.targetModuleSpecifier).toBe('./linked.js')
   })
+
+  test('calls inside object-literal methods of a non-boundary const attribute through the declarator segment', async () => {
+    const loader = await createParserLoader()
+    const parsed = await loader.createParserForExtension('.ts')
+    const source = [
+      'export function handleEvents(): unknown {',
+      '  const stream = new ReadableStream({',
+      '    start() { return startCalled() },',
+      '    cancel() { return cancelCalled() },',
+      '  })',
+      '  return stream',
+      '}',
+      'function startCalled(): number { return 1 }',
+      'function cancelCalled(): number { return 1 }',
+    ].join('\n')
+    const tree = parsed.parser.parse(source)
+    expect(tree).not.toBeNull()
+
+    const { references } = extractReferenceCandidates({
+      source,
+      tree: tree!,
+      relativeFilePath: 'src/mod.ts',
+      moduleKey: 'src/mod',
+    })
+
+    const startCall = references.find((ref) => ref.targetName === 'startCalled')
+    expect(startCall!.sourceQualifiedName).toBe('src/mod#handleEvents>stream>start')
+    const cancelCall = references.find((ref) => ref.targetName === 'cancelCalled')
+    expect(cancelCall!.sourceQualifiedName).toBe('src/mod#handleEvents>stream>cancel')
+  })
+
+  test('module-level non-boundary const with a nested boundary composes the full path', async () => {
+    const loader = await createParserLoader()
+    const parsed = await loader.createParserForExtension('.ts')
+    const source = [
+      'const stream = new ReadableStream({',
+      '  start() { return startCalled() },',
+      '})',
+      'function startCalled(): number { return 1 }',
+    ].join('\n')
+    const tree = parsed.parser.parse(source)
+    expect(tree).not.toBeNull()
+
+    const { references } = extractReferenceCandidates({
+      source,
+      tree: tree!,
+      relativeFilePath: 'src/mod.ts',
+      moduleKey: 'src/mod',
+    })
+
+    const call = references.find((ref) => ref.targetName === 'startCalled')
+    expect(call!.sourceQualifiedName).toBe('src/mod#stream>start')
+  })
+
+  test('plain const initializer references stay attributed to the enclosing symbol (4a agreement pin)', async () => {
+    const loader = await createParserLoader()
+    const parsed = await loader.createParserForExtension('.ts')
+    const source = [
+      'export function outer(): unknown {',
+      '  const body = readBody()',
+      '  return body',
+      '}',
+      'function readBody(): number { return 1 }',
+    ].join('\n')
+    const tree = parsed.parser.parse(source)
+    expect(tree).not.toBeNull()
+
+    const { references } = extractReferenceCandidates({
+      source,
+      tree: tree!,
+      relativeFilePath: 'src/mod.ts',
+      moduleKey: 'src/mod',
+    })
+
+    const call = references.find((ref) => ref.targetName === 'readBody')
+    expect(call!.sourceQualifiedName).toBe('src/mod#outer')
+  })
 })
