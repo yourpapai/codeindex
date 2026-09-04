@@ -75,3 +75,11 @@ export const classifyShape = (sf: ts.SourceFile, pos: number, checker: ts.TypeCh
   if (parent !== undefined && ts.isNewExpression(parent) && parent.expression === node) return 'construct'
   return 'bare-value'
 }
+
+// B7 relabel: type-position refs used to fall through classifyShape's value-form checks to
+// 'bare-value' (the Slice 6 Unit 0 memo's labeling caveat). With the type-ref edge landed, the
+// type tier reports as 'named-type'. Heritage keeps its own label (classifyShape returns it for
+// any HeritageClause ancestor, including type-position implements / interface extends).
+// Diagnostic-only — shape maps size coverage; no gate reads them.
+export const shapeLabelForPosition = (position: 'value' | 'type', shape: Shape): Shape =>
+  position === 'type' && shape !== 'heritage' ? 'named-type' : shape

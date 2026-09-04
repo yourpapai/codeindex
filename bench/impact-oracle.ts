@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import ts from 'typescript'
 
-import { classifyPosition, classifyShape, nodeAtPosition } from './impact-ast.js'
+import { classifyPosition, classifyShape, nodeAtPosition, shapeLabelForPosition } from './impact-ast.js'
 import type { OracleSource, OracleTarget, Shape } from './impact-types.js'
 
 // Re-exported so the focused classifier tests (tests/bench/impact-oracle.test.ts) keep importing
@@ -262,7 +262,7 @@ export const buildReferenceOracle = (
       } else {
         agg.type = true
       }
-      agg.shapes.add(classifyShape(sf, pos, checker))
+      agg.shapes.add(shapeLabelForPosition(position, classifyShape(sf, pos, checker)))
       byName.set(enclosing, agg)
     }
     const trueSources: readonly OracleSource[] = [...byName].map(([name, agg]) => ({

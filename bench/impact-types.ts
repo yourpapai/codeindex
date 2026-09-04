@@ -7,6 +7,7 @@ export type Shape =
   | 'namespace'
   | 'jsx'
   | 'heritage'
+  | 'named-type'
   | 'bare-value'
   | 'property-unknown'
   | 'other'
