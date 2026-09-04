@@ -2,7 +2,7 @@ export type SupportedLanguage = 'ts' | 'tsx' | 'js' | 'jsx'
 
 export type ScopeTier = 'exported' | 'module' | 'member' | 'local'
 
-export type ExportKind = 'named' | 'default' | 'namespace' | 'reexport'
+export type ExportKind = 'named' | 'default' | 'namespace' | 'reexport' | 'star'
 
 export type ReferenceEdgeType = 'imports' | 'reexports' | 'calls' | 'extends' | 'implements' | 'references'
 

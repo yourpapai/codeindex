@@ -21,6 +21,8 @@ type FileSummary = {
 type ModuleExportSummary = {
   readonly moduleKey: string
   readonly exportName: string
+  // Optional: pre-existing callers/tests may omit it; only read for 'star' (B5).
+  readonly exportKind?: 'named' | 'default' | 'namespace' | 'reexport' | 'star'
   readonly symbolId: number | null
   readonly targetModuleSpecifier: string | null
 }
@@ -72,13 +74,22 @@ const normalizeRelativeModule = (fromModuleKey: string, specifier: string): stri
 // and a forwarding specifier) until a module exports the name with a real symbol id. Relative
 // specifiers are normalized against the module doing the re-export. Depth-capped against import
 // cycles. Returns null when the chain dead-ends — a bare `export { x }` re-export of a non-local
-// binding, or an `export *` star, records no forwarding symbol; B4 covers the direct
+// binding records no forwarding symbol. A module's `export *` star rows (B5) are followed per-name
+// when the module has no named row for the export (first hit wins). B4 covers the direct
 // `export { x } from './y'` form (5 of papai's 6 barrel misses).
 const buildReexportResolver = (
   moduleExports: readonly ModuleExportSummary[],
 ): ((moduleKey: string, exportName: string) => number | null) => {
   const byModule = new Map<string, Map<string, ModuleExportSummary>>()
+  const starSourcesByModule = new Map<string, string[]>()
   for (const moduleExport of moduleExports) {
+    if (moduleExport.exportKind === 'star') {
+      if (moduleExport.targetModuleSpecifier === null) continue
+      const sources = starSourcesByModule.get(moduleExport.moduleKey) ?? []
+      sources.push(moduleExport.targetModuleSpecifier)
+      starSourcesByModule.set(moduleExport.moduleKey, sources)
+      continue
+    }
     const forModule = byModule.get(moduleExport.moduleKey) ?? new Map<string, ModuleExportSummary>()
     forModule.set(moduleExport.exportName, moduleExport)
     byModule.set(moduleExport.moduleKey, forModule)
@@ -86,10 +97,17 @@ const buildReexportResolver = (
   const resolve = (moduleKey: string, exportName: string, depth: number): number | null => {
     if (depth > 8) return null
     const entry = byModule.get(moduleKey)?.get(exportName)
-    if (entry === undefined) return null
-    if (entry.symbolId !== null) return entry.symbolId
-    if (entry.targetModuleSpecifier === null) return null
-    return resolve(normalizeRelativeModule(moduleKey, entry.targetModuleSpecifier), exportName, depth + 1)
+    if (entry !== undefined) {
+      if (entry.symbolId !== null) return entry.symbolId
+      if (entry.targetModuleSpecifier === null) return null
+      return resolve(normalizeRelativeModule(moduleKey, entry.targetModuleSpecifier), exportName, depth + 1)
+    }
+    // B5: no named row — try the module's star sources (`export * from './y'`), first hit wins.
+    for (const specifier of starSourcesByModule.get(moduleKey) ?? []) {
+      const bridged = resolve(normalizeRelativeModule(moduleKey, specifier), exportName, depth + 1)
+      if (bridged !== null) return bridged
+    }
+    return null
   }
   return (moduleKey, exportName) => resolve(moduleKey, exportName, 0)
 }
@@ -142,6 +160,12 @@ const findResolvedSymbol = (
   const resolvedFromImport = matchedFileId === null ? importMap.get(reference.targetName) : undefined
   if (resolvedFromImport !== undefined) {
     return { targetSymbolId: resolvedFromImport, confidence: 'resolved' }
+  }
+
+  // B5: a namespace import (`import * as ns`) resolves to its module file only — never to a
+  // symbol. A target module declaring a local named `ns` must not capture the import.
+  if (reference.targetExportName === '*') {
+    return { targetSymbolId: null, confidence: matchedFileId === null ? 'name_only' : 'file_resolved' }
   }
 
   const matchedModuleKeyForFile =

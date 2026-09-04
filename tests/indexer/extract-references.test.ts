@@ -680,4 +680,45 @@ describe('extractReferenceCandidates', () => {
     const call = references.find((ref) => ref.targetName === 'readBody')
     expect(call!.sourceQualifiedName).toBe('src/mod#outer')
   })
+
+  test('export * from records a star forwarding export row (B5)', async () => {
+    const loader = await createParserLoader()
+    const parsed = await loader.createParserForExtension('.ts')
+    const tree = parsed.parser.parse("export * from './star-target.js'")
+    expect(tree).not.toBeNull()
+
+    const { moduleExports } = extractReferenceCandidates({
+      source: "export * from './star-target.js'",
+      tree: tree!,
+      relativeFilePath: 'src/star-index.ts',
+      moduleKey: 'src/star-index',
+    })
+
+    expect(moduleExports).toEqual([
+      { exportName: '*', exportKind: 'star', localName: null, targetModuleSpecifier: './star-target.js' },
+    ])
+  })
+
+  test('import * as ns records a module-level import edge marked with targetExportName *', async () => {
+    const loader = await createParserLoader()
+    const parsed = await loader.createParserForExtension('.ts')
+    const source = ["import * as schema from './schema.js'", 'export function run() { return schema.table() }'].join(
+      '\n',
+    )
+    const tree = parsed.parser.parse(source)
+    expect(tree).not.toBeNull()
+
+    const { references } = extractReferenceCandidates({
+      source,
+      tree: tree!,
+      relativeFilePath: 'src/run.ts',
+      moduleKey: 'src/run',
+    })
+
+    const nsImport = references.find((ref) => ref.edgeType === 'imports')
+    expect(nsImport).toBeDefined()
+    expect(nsImport!.targetName).toBe('schema')
+    expect(nsImport!.targetExportName).toBe('*')
+    expect(nsImport!.targetModuleSpecifier).toBe('./schema.js')
+  })
 })

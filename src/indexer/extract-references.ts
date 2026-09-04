@@ -2,6 +2,7 @@ import type { Node as SyntaxNode, Tree } from 'web-tree-sitter'
 
 import {
   collectExportCandidates,
+  collectNamespaceImportReference,
   normalizeSpecifier,
   type ModuleExportCandidate,
   type ReferenceCandidate,
@@ -243,6 +244,7 @@ export const extractReferenceCandidates = (
       return
     }
     if (node.type === 'import_specifier') collectImportReference(node, references)
+    if (node.type === 'namespace_import') collectNamespaceImportReference(node, references)
     if (node.type === 'identifier' && node.parent?.type === 'import_clause') {
       const importStatement = node.parent.parent
       references.push({

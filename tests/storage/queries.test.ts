@@ -8,6 +8,7 @@ import {
   markParseFailure,
   persistSymbols,
   pruneDeletedFiles,
+  selectAllModuleExports,
 } from '../../src/storage/queries.js'
 import { ensureSchema } from '../../src/storage/schema.js'
 
@@ -266,5 +267,28 @@ describe('backfillSymbolInDegree', () => {
       .query<{ id: number; in_degree: number }, []>('SELECT id, in_degree FROM symbols ORDER BY id')
       .all()
     expect(degreesAfterRerun.map((d) => d.in_degree)).toEqual([2, 1, 0])
+  })
+})
+
+describe('selectAllModuleExports', () => {
+  test('returns export_kind alongside the other columns', () => {
+    const db = new Database(':memory:')
+    ensureSchema(db)
+    db.query(
+      `INSERT INTO files (id, file_path, module_key, language, file_hash, parse_status, parse_error, indexed_at) VALUES (1, 'src/star-index.ts', 'src/star-index', 'ts', 'x', 'indexed', NULL, datetime('now'))`,
+    ).run()
+    db.query(
+      `INSERT INTO module_exports (id, file_id, export_name, export_kind, symbol_id, target_module_specifier) VALUES (1, 1, '*', 'star', NULL, './star-target')`,
+    ).run()
+
+    const rows = selectAllModuleExports(db)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({
+      moduleKey: 'src/star-index',
+      exportName: '*',
+      exportKind: 'star',
+      symbolId: null,
+      targetModuleSpecifier: './star-target',
+    })
   })
 })

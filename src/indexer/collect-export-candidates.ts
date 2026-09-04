@@ -60,6 +60,13 @@ const hasDefaultKeyword = (node: SyntaxNode): boolean => {
   return false
 }
 
+const hasStarToken = (node: SyntaxNode): boolean => {
+  for (let index = 0; index < node.childCount; index += 1) {
+    if (node.child(index)?.type === '*') return true
+  }
+  return false
+}
+
 const pushNamedExportCandidate = (
   exportStatement: SyntaxNode,
   declarationNode: SyntaxNode,
@@ -130,6 +137,24 @@ const collectExportClauseSpecifiers = (
 }
 
 const NAMED_TYPE_EXPORT_KINDS = new Set(['interface_declaration', 'type_alias_declaration', 'enum_declaration'])
+
+// B5: `export * from './y'` forwards every name — recorded as ONE star row the resolver's chain
+// follows per-name. `export * as ns` (namespace re-export) is out of scope (no measured mass).
+const pushStarExportRow = (
+  node: SyntaxNode,
+  sourceSpecifier: string,
+  moduleExports: ModuleExportCandidate[],
+): boolean => {
+  if (!hasStarToken(node)) return false
+  moduleExports.push({
+    exportName: '*',
+    exportKind: 'star',
+    localName: null,
+    targetModuleSpecifier: sourceSpecifier,
+  })
+  return true
+}
+
 export const collectExportCandidates = (
   node: SyntaxNode,
   enclosingSymbol: string | null,
@@ -139,6 +164,7 @@ export const collectExportCandidates = (
   visit: (child: SyntaxNode, childEnclosingSymbol: string | null) => void,
 ): void => {
   const sourceSpecifier = normalizeSpecifier(node.childForFieldName('source'))
+  if (sourceSpecifier !== null && pushStarExportRow(node, sourceSpecifier, moduleExports)) return
   for (let index = 0; index < node.namedChildCount; index += 1) {
     const child = node.namedChild(index)
     if (child === null) continue
@@ -170,4 +196,26 @@ export const collectExportCandidates = (
     }
     visit(child, enclosingSymbol)
   }
+}
+
+// `import * as ns from './m'` (B5): the namespace object itself gets a module-level import edge.
+// targetExportName '*' marks the namespace form; the alias is an unnamed identifier child of
+// namespace_import (verified against the grammar — no name/alias field). Member access ns.m() is
+// obj.m()-adjacent and stays deferred.
+export const collectNamespaceImportReference = (node: SyntaxNode, references: ReferenceCandidate[]): void => {
+  let localName: string | undefined
+  for (let index = 0; index < node.namedChildCount; index += 1) {
+    const child = node.namedChild(index)
+    if (child?.type === 'identifier') localName = child.text
+  }
+  if (localName === undefined) return
+  const importStatement = node.parent?.parent
+  references.push({
+    sourceQualifiedName: null,
+    edgeType: 'imports',
+    targetName: localName,
+    targetExportName: '*',
+    targetModuleSpecifier: normalizeSpecifier(importStatement?.childForFieldName('source')),
+    lineNumber: node.startPosition.row + 1,
+  })
 }

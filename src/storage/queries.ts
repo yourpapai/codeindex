@@ -3,6 +3,7 @@ import type { Database } from 'bun:sqlite'
 import type { ExtractReferenceCandidatesResult } from '../indexer/extract-references.js'
 import type { ExtractedSymbol } from '../indexer/extract-symbols.js'
 import type { ModuleAlias } from '../resolver/module-specifiers.js'
+import type { ExportKind } from '../types.js'
 
 export const parseStringArray = (value: string): readonly string[] => {
   const parsed: unknown = JSON.parse(value)
@@ -263,16 +264,23 @@ export const selectAllModuleExports = (
 ): readonly {
   moduleKey: string
   exportName: string
+  exportKind: ExportKind
   symbolId: number | null
   targetModuleSpecifier: string | null
 }[] =>
   db
     .query<
-      { module_key: string; export_name: string; symbol_id: number | null; target_module_specifier: string | null },
+      {
+        module_key: string
+        export_name: string
+        export_kind: ExportKind
+        symbol_id: number | null
+        target_module_specifier: string | null
+      },
       []
     >(
-      `SELECT f.module_key AS module_key, me.export_name AS export_name, me.symbol_id AS symbol_id,
-              me.target_module_specifier AS target_module_specifier
+      `SELECT f.module_key AS module_key, me.export_name AS export_name, me.export_kind AS export_kind,
+              me.symbol_id AS symbol_id, me.target_module_specifier AS target_module_specifier
        FROM module_exports me JOIN files f ON f.id = me.file_id
        WHERE f.parse_status = 'indexed'`,
     )
@@ -280,6 +288,7 @@ export const selectAllModuleExports = (
     .map((row) => ({
       moduleKey: row.module_key,
       exportName: row.export_name,
+      exportKind: row.export_kind,
       symbolId: row.symbol_id,
       targetModuleSpecifier: row.target_module_specifier,
     }))

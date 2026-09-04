@@ -245,4 +245,72 @@ describe('resolveReferenceCandidates', () => {
     })
     expect(resolved[0]).toMatchObject({ targetSymbolId: null, confidence: 'name_only' })
   })
+
+  test('star barrel: caller resolves a star-forwarded name through the chain (B5)', () => {
+    const resolved = resolveReferenceCandidates({
+      symbols: [
+        {
+          id: 1,
+          qualifiedName: 'src/star-target#starCalled',
+          localName: 'starCalled',
+          moduleKey: 'src/star-target',
+          exportNames: ['starCalled'],
+        },
+      ],
+      moduleAliases: [],
+      files: [
+        { id: 10, moduleKey: 'src/star-index' },
+        { id: 11, moduleKey: 'src/star-target' },
+      ],
+      moduleExports: [
+        {
+          moduleKey: 'src/star-index',
+          exportName: '*',
+          exportKind: 'star',
+          symbolId: null,
+          targetModuleSpecifier: './star-target',
+        },
+        {
+          moduleKey: 'src/star-target',
+          exportName: 'starCalled',
+          exportKind: 'named',
+          symbolId: 1,
+          targetModuleSpecifier: null,
+        },
+      ],
+      references: [
+        {
+          sourceQualifiedName: null,
+          edgeType: 'imports',
+          targetName: 'starCalled',
+          targetExportName: 'starCalled',
+          targetModuleSpecifier: './star-index',
+          lineNumber: 1,
+        },
+      ],
+      currentModuleKey: 'src/caller',
+    })
+    expect(resolved[0]).toMatchObject({ targetSymbolId: 1, confidence: 'resolved' })
+  })
+
+  test('namespace import resolves to the file only and never name-matches a same-named local (B5)', () => {
+    const resolved = resolveReferenceCandidates({
+      symbols: [{ id: 1, qualifiedName: 'src/ns#ns', localName: 'ns', moduleKey: 'src/ns', exportNames: [] }],
+      moduleAliases: [],
+      files: [{ id: 10, moduleKey: 'src/ns' }],
+      moduleExports: [],
+      references: [
+        {
+          sourceQualifiedName: null,
+          edgeType: 'imports',
+          targetName: 'ns',
+          targetExportName: '*',
+          targetModuleSpecifier: './ns',
+          lineNumber: 1,
+        },
+      ],
+      currentModuleKey: 'src/caller',
+    })
+    expect(resolved[0]).toMatchObject({ targetSymbolId: null, confidence: 'file_resolved', targetFileId: 10 })
+  })
 })
