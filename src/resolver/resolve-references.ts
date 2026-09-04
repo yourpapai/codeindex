@@ -1,11 +1,16 @@
 import path from 'node:path'
 
+import { resolveTypeReference } from './resolve-type-refs.js'
+
 type SymbolSummary = {
   readonly id: number
   readonly qualifiedName: string
   readonly localName: string
   readonly moduleKey: string
   readonly exportNames: readonly string[]
+  // Optional: pre-existing test fixtures omit it; production selectAllSymbols always supplies it.
+  // Only read for the 'type_refs' kind filter — undefined refuses to bind (safe default).
+  readonly kind?: string
 }
 
 type ModuleAliasSummary = {
@@ -188,6 +193,13 @@ const findResolvedSymbol = (
   if (matchedModuleKeyForFile !== null) {
     const bridged = resolveReexport(matchedModuleKeyForFile, reference.targetExportName ?? reference.targetName)
     if (bridged !== null) return { targetSymbolId: bridged, confidence: 'resolved' }
+  }
+
+  // B7: a bare type reference binds only through the import map (checked above) or to a
+  // type-shaped symbol in the current module. Type refs carry no specifier, so the matched-file
+  // and reexport arms above are inert for them.
+  if (reference.edgeType === 'type_refs') {
+    return resolveTypeReference(input, reference)
   }
 
   return resolveByLocalName(input, matchedFileId, matchedModuleKeyForFile, reference)

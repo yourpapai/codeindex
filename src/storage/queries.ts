@@ -221,6 +221,15 @@ export const persistModuleExports = (
   }
 }
 
+type SymbolRow = {
+  id: number
+  qualifiedName: string
+  localName: string
+  moduleKey: string
+  exportNames: string
+  kind: string
+}
+
 export const selectAllSymbols = (
   db: Database,
 ): readonly {
@@ -229,19 +238,14 @@ export const selectAllSymbols = (
   localName: string
   moduleKey: string
   exportNames: readonly string[]
+  kind: string
 }[] =>
   db
-    .query<{ id: number; qualified_name: string; local_name: string; module_key: string; export_names: string }, []>(
-      'SELECT id, qualified_name, local_name, module_key, export_names FROM symbols',
+    .query<SymbolRow, []>(
+      'SELECT id, qualified_name AS qualifiedName, local_name AS localName, module_key AS moduleKey, export_names AS exportNames, kind FROM symbols',
     )
     .all()
-    .map((row) => ({
-      id: row.id,
-      qualifiedName: row.qualified_name,
-      localName: row.local_name,
-      moduleKey: row.module_key,
-      exportNames: parseStringArray(row.export_names),
-    }))
+    .map((row) => ({ ...row, exportNames: parseStringArray(row.exportNames) }))
 
 export const selectAllFiles = (db: Database): readonly { id: number; moduleKey: string }[] =>
   db

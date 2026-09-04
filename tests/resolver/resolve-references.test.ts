@@ -313,4 +313,134 @@ describe('resolveReferenceCandidates', () => {
     })
     expect(resolved[0]).toMatchObject({ targetSymbolId: null, confidence: 'file_resolved', targetFileId: 10 })
   })
+
+  test('import-backed type reference resolves through the import map (B7)', () => {
+    const resolved = resolveReferenceCandidates({
+      symbols: [
+        {
+          id: 1,
+          qualifiedName: 'src/task-types#Task',
+          localName: 'Task',
+          moduleKey: 'src/task-types',
+          exportNames: ['Task'],
+          kind: 'interface_declaration',
+        },
+      ],
+      moduleAliases: [],
+      files: [{ id: 10, moduleKey: 'src/task-types' }],
+      references: [
+        {
+          sourceQualifiedName: null,
+          edgeType: 'imports',
+          targetName: 'Task',
+          targetExportName: 'Task',
+          targetModuleSpecifier: './task-types',
+          lineNumber: 1,
+        },
+        {
+          sourceQualifiedName: 'src/task-user#process',
+          edgeType: 'type_refs',
+          targetName: 'Task',
+          targetExportName: null,
+          targetModuleSpecifier: null,
+          lineNumber: 3,
+        },
+      ],
+      currentModuleKey: 'src/task-user',
+    })
+    expect(resolved[1]).toMatchObject({
+      targetSymbolId: 1,
+      confidence: 'resolved',
+      edgeType: 'type_refs',
+      targetFileId: null,
+    })
+  })
+
+  test('same-module type reference binds to a type-shaped symbol (B7 kind filter)', () => {
+    const resolved = resolveReferenceCandidates({
+      symbols: [
+        {
+          id: 1,
+          qualifiedName: 'src/mod#Task',
+          localName: 'Task',
+          moduleKey: 'src/mod',
+          exportNames: [],
+          kind: 'interface_declaration',
+        },
+      ],
+      moduleAliases: [],
+      files: [],
+      references: [
+        {
+          sourceQualifiedName: 'src/mod#process',
+          edgeType: 'type_refs',
+          targetName: 'Task',
+          targetExportName: null,
+          targetModuleSpecifier: null,
+          lineNumber: 2,
+        },
+      ],
+      currentModuleKey: 'src/mod',
+    })
+    expect(resolved[0]).toMatchObject({ targetSymbolId: 1, confidence: 'name_only' })
+  })
+
+  test('same-module type reference refuses non-type-shaped and kind-less symbols (B7 kind filter)', () => {
+    const resolved = resolveReferenceCandidates({
+      symbols: [
+        {
+          id: 1,
+          qualifiedName: 'src/mod#Task',
+          localName: 'Task',
+          moduleKey: 'src/mod',
+          exportNames: [],
+          kind: 'function_declaration',
+        },
+        { id: 2, qualifiedName: 'src/mod#Task', localName: 'Task', moduleKey: 'src/mod', exportNames: [] },
+      ],
+      moduleAliases: [],
+      files: [],
+      references: [
+        {
+          sourceQualifiedName: 'src/mod#process',
+          edgeType: 'type_refs',
+          targetName: 'Task',
+          targetExportName: null,
+          targetModuleSpecifier: null,
+          lineNumber: 2,
+        },
+      ],
+      currentModuleKey: 'src/mod',
+    })
+    expect(resolved[0]).toMatchObject({ targetSymbolId: null, confidence: 'name_only' })
+  })
+
+  test('C2 composes with type refs: an unmatched specifier binds nothing (B7)', () => {
+    const resolved = resolveReferenceCandidates({
+      symbols: [
+        {
+          id: 1,
+          qualifiedName: 'src/mod#Task',
+          localName: 'Task',
+          moduleKey: 'src/mod',
+          exportNames: [],
+          kind: 'interface_declaration',
+        },
+      ],
+      moduleAliases: [],
+      files: [],
+      references: [
+        {
+          sourceQualifiedName: 'src/mod#process',
+          edgeType: 'type_refs',
+          targetName: 'Task',
+          targetExportName: null,
+          targetModuleSpecifier: 'phantom-pkg',
+          lineNumber: 2,
+        },
+      ],
+      currentModuleKey: 'src/mod',
+    })
+    expect(resolved[0]).toMatchObject({ targetSymbolId: null, confidence: 'name_only', targetFileId: null })
+  })
 })
