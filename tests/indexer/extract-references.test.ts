@@ -567,4 +567,40 @@ describe('extractReferenceCandidates', () => {
     expect(objCall!.targetName).toBe('obj.baz')
     expect(objCall!.receiver).toBeUndefined()
   })
+
+  test('import-then-export links the export row to the import specifier (residue #7)', async () => {
+    const loader = await createParserLoader()
+    const parsed = await loader.createParserForExtension('.ts')
+    const source = ["import { linked } from './linked.js'", 'export { linked }'].join('\n')
+    const tree = parsed.parser.parse(source)
+    expect(tree).not.toBeNull()
+
+    const { moduleExports } = extractReferenceCandidates({
+      source,
+      tree: tree!,
+      relativeFilePath: 'src/re-export.ts',
+      moduleKey: 'src/re-export',
+    })
+
+    expect(moduleExports).toEqual([
+      { exportName: 'linked', exportKind: 'named', localName: 'linked', targetModuleSpecifier: './linked.js' },
+    ])
+  })
+
+  test('import-then-export links regardless of statement order', async () => {
+    const loader = await createParserLoader()
+    const parsed = await loader.createParserForExtension('.ts')
+    const source = ['export { linked }', "import { linked } from './linked.js'"].join('\n')
+    const tree = parsed.parser.parse(source)
+    expect(tree).not.toBeNull()
+
+    const { moduleExports } = extractReferenceCandidates({
+      source,
+      tree: tree!,
+      relativeFilePath: 'src/re-export.ts',
+      moduleKey: 'src/re-export',
+    })
+
+    expect(moduleExports[0]!.targetModuleSpecifier).toBe('./linked.js')
+  })
 })

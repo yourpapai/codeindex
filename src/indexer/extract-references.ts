@@ -228,14 +228,37 @@ const collectHeritageReferences = (
   }
 }
 
+// Residue #7: a no-from `export { x }` re-exports an imported binding — x has no local symbol
+// row, so the row lands with a null symbol AND null specifier and the B4 chain dead-ends. Link
+// it to the module x was imported from (order-independent: applied after the whole walk).
+const linkImportedSpecifiers = (
+  rawModuleExports: readonly ModuleExportCandidate[],
+  references: readonly ReferenceCandidate[],
+): ModuleExportCandidate[] => {
+  const specifierByImportedName = new Map<string, string>()
+  for (const ref of references) {
+    if (ref.edgeType === 'imports' && ref.targetModuleSpecifier !== null) {
+      specifierByImportedName.set(ref.targetName, ref.targetModuleSpecifier)
+    }
+  }
+  return rawModuleExports.map((moduleExport) =>
+    moduleExport.exportKind === 'named' &&
+    moduleExport.targetModuleSpecifier === null &&
+    moduleExport.localName !== null &&
+    specifierByImportedName.has(moduleExport.localName)
+      ? { ...moduleExport, targetModuleSpecifier: specifierByImportedName.get(moduleExport.localName) ?? null }
+      : moduleExport,
+  )
+}
+
 export const extractReferenceCandidates = (
   input: Readonly<ExtractReferenceCandidatesInput>,
 ): ExtractReferenceCandidatesResult => {
-  const moduleExports: ModuleExportCandidate[] = []
+  const rawModuleExports: ModuleExportCandidate[] = []
   const references: ReferenceCandidate[] = []
   const visit = (node: SyntaxNode, enclosingSymbol: string | null): void => {
     if (node.type === 'export_statement') {
-      collectExportCandidates(node, enclosingSymbol, input.moduleKey, moduleExports, references, visit)
+      collectExportCandidates(node, enclosingSymbol, input.moduleKey, rawModuleExports, references, visit)
       return
     }
     if (node.type === 'import_specifier') collectImportReference(node, references)
@@ -266,5 +289,7 @@ export const extractReferenceCandidates = (
   }
 
   visit(input.tree.rootNode, null)
+
+  const moduleExports = linkImportedSpecifiers(rawModuleExports, references)
   return { moduleExports, references }
 }
