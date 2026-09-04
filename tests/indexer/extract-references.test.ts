@@ -827,4 +827,40 @@ describe('extractReferenceCandidates', () => {
     const typeRefs = references.filter((ref) => ref.edgeType === 'type_refs')
     expect(typeRefs.map((ref) => ref.targetName)).toEqual(['Task'])
   })
+
+  test('generic head of an annotated Map emits type_refs alongside its argument (Slice 8 fix)', async () => {
+    const loader = await createParserLoader()
+    const parsed = await loader.createParserForExtension('.ts')
+    const source = 'const m: Map<string, Entry> = new Map()'
+    const tree = parsed.parser.parse(source)
+    expect(tree).not.toBeNull()
+
+    const { references } = extractReferenceCandidates({
+      source,
+      tree: tree!,
+      relativeFilePath: 'src/mod.ts',
+      moduleKey: 'src/mod',
+    })
+
+    const typeRefs = references.filter((ref) => ref.edgeType === 'type_refs')
+    expect(typeRefs.map((ref) => ref.targetName)).toEqual(['Map', 'Entry'])
+  })
+
+  test('Promise head emits type_refs alongside its type argument (Slice 8 fix)', async () => {
+    const loader = await createParserLoader()
+    const parsed = await loader.createParserForExtension('.ts')
+    const source = 'const p: Promise<Task> = load()'
+    const tree = parsed.parser.parse(source)
+    expect(tree).not.toBeNull()
+
+    const { references } = extractReferenceCandidates({
+      source,
+      tree: tree!,
+      relativeFilePath: 'src/mod.ts',
+      moduleKey: 'src/mod',
+    })
+
+    const typeRefs = references.filter((ref) => ref.edgeType === 'type_refs')
+    expect(typeRefs.map((ref) => ref.targetName)).toEqual(['Promise', 'Task'])
+  })
 })
