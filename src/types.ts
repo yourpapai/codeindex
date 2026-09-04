@@ -4,7 +4,14 @@ export type ScopeTier = 'exported' | 'module' | 'member' | 'local'
 
 export type ExportKind = 'named' | 'default' | 'namespace' | 'reexport' | 'star'
 
-export type ReferenceEdgeType = 'imports' | 'reexports' | 'calls' | 'extends' | 'implements' | 'references'
+export type ReferenceEdgeType =
+  | 'imports'
+  | 'reexports'
+  | 'calls'
+  | 'extends'
+  | 'implements'
+  | 'references'
+  | 'type_refs'
 
 export type ReferenceConfidence = 'resolved' | 'file_resolved' | 'name_only'
 

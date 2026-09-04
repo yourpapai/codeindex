@@ -721,4 +721,110 @@ describe('extractReferenceCandidates', () => {
     expect(nsImport!.targetExportName).toBe('*')
     expect(nsImport!.targetModuleSpecifier).toBe('./schema.js')
   })
+
+  test('type annotations emit type_refs candidates attributed to the enclosing symbol (B7)', async () => {
+    const loader = await createParserLoader()
+    const parsed = await loader.createParserForExtension('.ts')
+    const source = ['export function process(task: Task): Task {', '  return task', '}'].join('\n')
+    const tree = parsed.parser.parse(source)
+    expect(tree).not.toBeNull()
+
+    const { references } = extractReferenceCandidates({
+      source,
+      tree: tree!,
+      relativeFilePath: 'src/task-user.ts',
+      moduleKey: 'src/task-user',
+    })
+
+    const typeRefs = references.filter((ref) => ref.edgeType === 'type_refs')
+    expect(typeRefs).toHaveLength(2)
+    expect(typeRefs[0]).toMatchObject({
+      sourceQualifiedName: 'src/task-user#process',
+      targetName: 'Task',
+      targetExportName: null,
+      targetModuleSpecifier: null,
+    })
+  })
+
+  test('generic type arguments emit type_refs; builtin types stay out by node type (B7)', async () => {
+    const loader = await createParserLoader()
+    const parsed = await loader.createParserForExtension('.ts')
+    const source = 'const cache = new Map<string, Task>()'
+    const tree = parsed.parser.parse(source)
+    expect(tree).not.toBeNull()
+
+    const { references } = extractReferenceCandidates({
+      source,
+      tree: tree!,
+      relativeFilePath: 'src/mod.ts',
+      moduleKey: 'src/mod',
+    })
+
+    const typeRefs = references.filter((ref) => ref.edgeType === 'type_refs')
+    // Grammar 0.23.2: `Map` in `new Map<...>()` is a value-position `identifier` (constructor),
+    // not a `type_identifier` — only the type argument emits as type_refs.
+    expect(typeRefs.map((ref) => ref.targetName)).toEqual(['Task'])
+  })
+
+  test('heritage-clause children do not double-emit; interface extends_type_clause emits type_refs (B7)', async () => {
+    const loader = await createParserLoader()
+    const parsed = await loader.createParserForExtension('.ts')
+    const source = ['class Widget implements Shape {}', 'interface Base {}', 'interface Derived extends Base {}'].join(
+      '\n',
+    )
+    const tree = parsed.parser.parse(source)
+    expect(tree).not.toBeNull()
+
+    const { references } = extractReferenceCandidates({
+      source,
+      tree: tree!,
+      relativeFilePath: 'src/mod.ts',
+      moduleKey: 'src/mod',
+    })
+
+    const typeRefs = references.filter((ref) => ref.edgeType === 'type_refs')
+    expect(typeRefs.map((ref) => ref.targetName)).toEqual(['Base'])
+    const implementsRefs = references.filter((ref) => ref.edgeType === 'implements')
+    expect(implementsRefs.map((ref) => ref.targetName)).toEqual(['Shape'])
+  })
+
+  test('qualified types and typeof operands stay out of type_refs (B7)', async () => {
+    const loader = await createParserLoader()
+    const parsed = await loader.createParserForExtension('.ts')
+    const source = [
+      'import { makeApi } from "./api"',
+      'let config: ns.Settings',
+      'const factory: typeof makeApi = makeApi',
+    ].join('\n')
+    const tree = parsed.parser.parse(source)
+    expect(tree).not.toBeNull()
+
+    const { references } = extractReferenceCandidates({
+      source,
+      tree: tree!,
+      relativeFilePath: 'src/mod.ts',
+      moduleKey: 'src/mod',
+    })
+
+    const typeRefs = references.filter((ref) => ref.edgeType === 'type_refs')
+    expect(typeRefs).toEqual([])
+  })
+
+  test('as-cast types emit type_refs (B7)', async () => {
+    const loader = await createParserLoader()
+    const parsed = await loader.createParserForExtension('.ts')
+    const source = 'const y = input as Task'
+    const tree = parsed.parser.parse(source)
+    expect(tree).not.toBeNull()
+
+    const { references } = extractReferenceCandidates({
+      source,
+      tree: tree!,
+      relativeFilePath: 'src/mod.ts',
+      moduleKey: 'src/mod',
+    })
+
+    const typeRefs = references.filter((ref) => ref.edgeType === 'type_refs')
+    expect(typeRefs.map((ref) => ref.targetName)).toEqual(['Task'])
+  })
 })

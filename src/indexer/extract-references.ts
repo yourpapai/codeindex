@@ -171,9 +171,8 @@ const collectHeritageReferences = (
   references: ReferenceCandidate[],
 ): void => {
   // Only class heritage reaches here: a class's `extends` is an `extends_clause`, its
-  // `implements` an `implements_clause`. An interface's `extends` is a separate
-  // `extends_type_clause` node (type position) that this slice does NOT handle — those
-  // type-position edges are deferred (they show up as typeFN in the bench, the B7 gap).
+  // `implements` an `implements_clause`. An interface's `extends` is an `extends_type_clause`
+  // (type position) — its bare type identifiers emit as `type_refs` via collectTypeReference (B7).
   if (node.type === 'extends_clause') {
     // Class `extends` — value position. `value` is the base identifier; type arguments
     // (`extends Base<T>`) hang off a sibling `type_arguments` node, so the base is still
@@ -208,6 +207,28 @@ const collectHeritageReferences = (
       })
     }
   }
+}
+
+// B7: a bare `type_identifier` in type position is a named type reference (`: Task`, generics, as-casts,
+// call/new type args, interface `extends_type_clause`); builtins (`predefined_type`), qualified `ns.Task`
+// (`nested_type_identifier`), and `name`-field binders stay out; heritage DIRECT children are excluded
+// (collectHeritageReferences emits them — B3 takes bare children only, so nested clause type args still emit).
+const collectTypeReference = (
+  node: SyntaxNode,
+  enclosingSymbol: string | null,
+  references: ReferenceCandidate[],
+): void => {
+  const parent = node.parent
+  if (parent !== null && (parent.type === 'implements_clause' || parent.type === 'extends_clause')) return
+  if (parent !== null && occupiesNameField(parent, node)) return
+  references.push({
+    sourceQualifiedName: enclosingSymbol,
+    edgeType: 'type_refs',
+    targetName: node.text,
+    targetExportName: null,
+    targetModuleSpecifier: null,
+    lineNumber: node.startPosition.row + 1,
+  })
 }
 
 // Residue #7: a no-from `export { x }` re-exports an imported binding — x has no local symbol
@@ -268,6 +289,7 @@ export const extractReferenceCandidates = (
     if (node.type === 'extends_clause' || node.type === 'implements_clause') {
       collectHeritageReferences(node, enclosingSymbol, references)
     }
+    if (node.type === 'type_identifier') collectTypeReference(node, enclosingSymbol, references)
     visitChildren(node, enclosingSymbol, pendingSegmentsFor(node, pending), visit)
   }
 

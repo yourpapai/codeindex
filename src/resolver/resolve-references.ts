@@ -29,7 +29,7 @@ type ModuleExportSummary = {
 
 type ReferenceCandidate = {
   readonly sourceQualifiedName: string | null
-  readonly edgeType: 'imports' | 'reexports' | 'calls' | 'extends' | 'implements' | 'references'
+  readonly edgeType: 'imports' | 'reexports' | 'calls' | 'extends' | 'implements' | 'references' | 'type_refs'
   readonly targetName: string
   readonly targetExportName: string | null
   readonly targetModuleSpecifier: string | null
