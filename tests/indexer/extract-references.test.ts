@@ -863,4 +863,40 @@ describe('extractReferenceCandidates', () => {
     const typeRefs = references.filter((ref) => ref.edgeType === 'type_refs')
     expect(typeRefs.map((ref) => ref.targetName)).toEqual(['Promise', 'Task'])
   })
+
+  test('type-alias RHS type identifier emits type_refs; the alias name stays out (Slice 8, B7 fix)', async () => {
+    const loader = await createParserLoader()
+    const parsed = await loader.createParserForExtension('.ts')
+    const source = ['interface Shape { area: number }', 'type T = Q'].join('\n')
+    const tree = parsed.parser.parse(source)
+    expect(tree).not.toBeNull()
+
+    const { references } = extractReferenceCandidates({
+      source,
+      tree: tree!,
+      relativeFilePath: 'src/mod.ts',
+      moduleKey: 'src/mod',
+    })
+
+    const typeRefs = references.filter((ref) => ref.edgeType === 'type_refs')
+    expect(typeRefs.map((ref) => ref.targetName)).toEqual(['Q'])
+  })
+
+  test('named class-expression name stays out of type_refs (Slice 8, B7 fix)', async () => {
+    const loader = await createParserLoader()
+    const parsed = await loader.createParserForExtension('.ts')
+    const source = 'const A = class Foo {}'
+    const tree = parsed.parser.parse(source)
+    expect(tree).not.toBeNull()
+
+    const { references } = extractReferenceCandidates({
+      source,
+      tree: tree!,
+      relativeFilePath: 'src/mod.ts',
+      moduleKey: 'src/mod',
+    })
+
+    const typeRefs = references.filter((ref) => ref.edgeType === 'type_refs')
+    expect(typeRefs).toEqual([])
+  })
 })
