@@ -141,13 +141,13 @@ only by boundary-attribution (accessor vs class), verified flat-or-better like-f
 | 4 | `buildReexportResolver` star-precedence rationale comment missing (S7) | fix — comment |
 | 5 | Multi-star-source first-hit-wins order untested (S7) | fix — pin test |
 | 6 | `namespace_import` parent-level path untested (S7, cosmetic) | fix — cheap test |
-| 7 | `eqNoCase` lowercases both sides per row (src/search/exact.ts:33) (S6) | fix — lowercase the query once, compare against stored lower-case columns where the schema already provides them; only where a column is case-preserving, hoist the per-row `toLowerCase` off the hot path |
+| 7 | `eqNoCase` lowercases both sides per row (src/search/exact.ts:33) (S6) | fix — hoist the query-side `toLowerCase` out of the per-row loop (one allocation per query, not two per row); the row-side lowercase stays (columns are NOCASE-collated but case-preserving; a stored normalized column would be a schema change, out of scope per §3) |
 | 8 | 1–2 char queries hit the prefix arm unguarded (S6) | fix — length guard + tests |
 | 9 | `matchReason` doesn't mention `signature_text` even when it matched (src/search/fts.ts:86) (S6) | fix — reason string reflects the actual matched field |
 | 10 | `'_'`/`'\'`-distinguishing LIKE behavior untested (S6) | fix — pin tests |
 | 11 | Oracle type-shape (`classifyShape`) direct unit test missing (S6) | fix — table test |
 | 12 | Pluralized acronym splitting in identifier_terms (S6) | fix — tokenize test + minimal tokenizer adjustment |
-| 13 | `discover.ts` silently swallows non-ENOENT readdir errors (EACCES) (S6, discover.ts:42-45) | fix — stderr diagnostic on skip, count surfaced in the index summary |
+| 13 | `readGitignore` silently treats an unreadable `.gitignore` (e.g. EACCES) as no rules (S6, discover.ts:30-36) | fix — stderr diagnostic when the file exists but can't be read (a missing file stays silent — that's the normal case); readdir's non-ENOENT path already throws and is correct |
 | 14 | Exact-tier NOCASE JOIN row multiplication (S6; pre-existing class, "slightly widened") | investigate — timebox; fix only if contained (audit row counts on a fixture with mixed-case names); otherwise document the class in the ledger |
 | 15 | S8 final-review LEAVEs (typeRefs[1] assertion, test-2 name, queries.ts camelCase aliases) | stay left — recorded here so the pool's disposition is explicit |
 
