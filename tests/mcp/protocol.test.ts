@@ -3,9 +3,17 @@ import { afterEach, describe, expect, test } from 'bun:test'
 
 import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import type { TextContent } from '@modelcontextprotocol/sdk/types.js'
+import type { z } from 'zod'
 
+import type { IndexSummary } from '../../src/indexer/index-codebase.js'
 import { createCodeindexServer } from '../../src/mcp/server.js'
-import { CodeImpactOutputSchema, CodeSearchOutputSchema, CodeSymbolOutputSchema } from '../../src/mcp/tools.js'
+import {
+  CodeImpactOutputSchema,
+  CodeIndexOutputSchema,
+  CodeSearchOutputSchema,
+  CodeSymbolOutputSchema,
+  type CodeindexToolDeps,
+} from '../../src/mcp/tools.js'
 import { ensureSchema } from '../../src/storage/schema.js'
 import { connectClient, makeInMemoryDeps, seedFile, seedSymbol } from './harness.js'
 
@@ -105,5 +113,68 @@ describe('MCP protocol boundary', () => {
     const client = await connectClient(createCodeindexServer(makeInMemoryDeps(buildSeededDb())))
     const result = await client.callTool({ name: 'code_search', arguments: {} })
     expect(result.isError).toBe(true)
+  })
+})
+
+describe('code_index payload honesty', () => {
+  const depsWithIndexSummary = (summary: IndexSummary): CodeindexToolDeps => ({
+    codeSearch: (): ReturnType<CodeindexToolDeps['codeSearch']> => Promise.resolve([]),
+    codeSymbol: (): ReturnType<CodeindexToolDeps['codeSymbol']> => Promise.resolve([]),
+    codeImpact: (): ReturnType<CodeindexToolDeps['codeImpact']> => Promise.resolve([]),
+    codeIndex: (): ReturnType<CodeindexToolDeps['codeIndex']> => Promise.resolve(summary),
+  })
+
+  interface CodeIndexToolResult {
+    readonly structuredContent: z.output<typeof CodeIndexOutputSchema>
+    readonly content: readonly { readonly type: string; readonly text: string }[]
+  }
+
+  const callCodeIndexTool = async (
+    deps: CodeindexToolDeps,
+    args: { mode: 'full' | 'incremental' },
+  ): Promise<CodeIndexToolResult> => {
+    const client = await connectClient(createCodeindexServer(deps))
+    const result = CallToolResultSchema.parse(await client.callTool({ name: 'code_index', arguments: args }))
+    const block = result.content.find((entry): entry is TextContent => entry.type === 'text')
+    return {
+      structuredContent: CodeIndexOutputSchema.parse(result.structuredContent),
+      content: [{ type: 'text', text: block?.text ?? '' }],
+    }
+  }
+
+  test('code_index caps skippedFiles in the payload and reports the total', async () => {
+    const skipped = Array.from({ length: 25 }, (_, i) => `src/skip-${i}.ts`)
+    const summary: IndexSummary = {
+      filesIndexed: 1,
+      filesFailed: 0,
+      filesPruned: 0,
+      skippedFiles: skipped,
+      skippedFilesTotal: 25,
+      symbolsIndexed: 1,
+      referencesIndexed: 0,
+      referencesUnresolved: 0,
+      elapsedMs: 1,
+    }
+    const result = await callCodeIndexTool(depsWithIndexSummary(summary), { mode: 'incremental' })
+    expect(result.structuredContent).toMatchObject({ skippedFilesTotal: 25 })
+    expect(result.structuredContent.skippedFiles).toHaveLength(20)
+    expect(result.content[0]!.type).toBe('text')
+    expect(result.content[0]!.text).toContain(', 25 skipped')
+  })
+
+  test('code_index summaryText omits the skipped suffix when nothing is skipped', async () => {
+    const summary: IndexSummary = {
+      filesIndexed: 3,
+      filesFailed: 0,
+      filesPruned: 0,
+      skippedFiles: [],
+      skippedFilesTotal: 0,
+      symbolsIndexed: 10,
+      referencesIndexed: 5,
+      referencesUnresolved: 0,
+      elapsedMs: 1,
+    }
+    const result = await callCodeIndexTool(depsWithIndexSummary(summary), { mode: 'incremental' })
+    expect(result.content[0]!.text).toBe('Indexed 3 files, 10 symbols, 5 references')
   })
 })

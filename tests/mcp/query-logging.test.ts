@@ -40,6 +40,7 @@ const stubDeps = (): CodeindexToolDeps => ({
       filesFailed: 0,
       filesPruned: 0,
       skippedFiles: [],
+      skippedFilesTotal: 0,
       symbolsIndexed: 0,
       referencesIndexed: 0,
       referencesUnresolved: 0,

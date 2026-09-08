@@ -93,8 +93,10 @@ const registerIndexTool = (server: McpServer, deps: Readonly<CodeindexToolDeps>)
     },
     async ({ mode }: CodeIndexInput) => {
       const summary = await deps.codeIndex({ mode })
-      const summaryText = `Indexed ${summary.filesIndexed} files, ${summary.symbolsIndexed} symbols, ${summary.referencesIndexed} references`
-      return buildStructuredToolResult(CodeIndexOutputSchema, summary, summaryText)
+      const skippedSuffix = summary.skippedFilesTotal > 0 ? `, ${summary.skippedFilesTotal} skipped` : ''
+      const summaryText = `Indexed ${summary.filesIndexed} files, ${summary.symbolsIndexed} symbols, ${summary.referencesIndexed} references${skippedSuffix}`
+      const payload = { ...summary, skippedFiles: summary.skippedFiles.slice(0, 20) }
+      return buildStructuredToolResult(CodeIndexOutputSchema, payload, summaryText)
     },
   )
 }

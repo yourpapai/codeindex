@@ -90,6 +90,7 @@ describe('output schemas', () => {
       filesFailed: 0,
       filesPruned: 0,
       skippedFiles: [],
+      skippedFilesTotal: 0,
       symbolsIndexed: 50,
       referencesIndexed: 100,
       referencesUnresolved: 2,
