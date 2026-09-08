@@ -422,6 +422,37 @@ describe('buildReferenceOracle', () => {
     }
   })
 
+  test('a call inside a getter attributes to Class>getter, not the class (Slice 9)', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'codeindex-oracle-getter-'))
+    dirs.push(dir)
+    mkdirSync(path.join(dir, 'src'), { recursive: true })
+    writeFileSync(path.join(dir, 'src/dep.ts'), 'export function makeThing(): number {\n  return 1\n}\n')
+    writeFileSync(
+      path.join(dir, 'src/widget.ts'),
+      "import { makeThing } from './dep'\nexport class Widget {\n  private thing = 0\n  get value(): number {\n    return this.thing + makeThing()\n  }\n}\n",
+    )
+    writeFileSync(
+      path.join(dir, 'tsconfig.json'),
+      JSON.stringify({
+        compilerOptions: { module: 'esnext', moduleResolution: 'bundler', strict: true },
+        include: ['src'],
+      }),
+    )
+    writeFileSync(path.join(dir, '.codeindex.json'), JSON.stringify({ roots: ['src'] }))
+    const config = await loadCodeindexConfig({ configPath: path.join(dir, '.codeindex.json'), repoRoot: dir })
+    await indexCodebase({ config, mode: 'full' })
+    const db = openDatabase(config.dbPath)
+    try {
+      const oracle = buildReferenceOracle(db, { repoRoot: dir, tsconfigPath: path.join(dir, 'tsconfig.json') })
+      const makeThing = oracle.find((t) => t.target.endsWith('#makeThing'))
+      const sources = makeThing!.trueSources.map((s) => s.name)
+      expect(sources).toContain('src/widget#Widget>value')
+      expect(sources).not.toContain('src/widget#Widget')
+    } finally {
+      db.close()
+    }
+  })
+
   test('classifies class extends as value and implements as type', async () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'codeindex-oracle-heritage-'))
     dirs.push(dir)

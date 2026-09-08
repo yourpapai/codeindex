@@ -181,6 +181,9 @@ const nearestNamedBoundary = (node: ts.Node): ts.Node | null => {
     // oracle attributes a `new Foo()` / `this.x = f()` call in a constructor to `Foo` while
     // code_impact reports `Foo>constructor` — a spurious value/`call` false negative (Slice 5a).
     if (ts.isConstructorDeclaration(a)) return a
+    // An accessor body is its own symbol row (`Class>getter`) on the indexer side, same rule as
+    // constructors: a reference inside `get x()` belongs to the accessor, not the class.
+    if (ts.isGetAccessorDeclaration(a) || ts.isSetAccessorDeclaration(a)) return a
     const isNamedVarBoundary =
       (ts.isArrowFunction(a) || ts.isFunctionExpression(a)) &&
       ts.isVariableDeclaration(a.parent) &&
