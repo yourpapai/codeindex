@@ -45,4 +45,5 @@ export interface BaselineMetrics {
   readonly meanPrecisionAtK: number
   readonly meanRecallAtK: number
   readonly mrr: number
+  readonly repoHead?: string | null
 }

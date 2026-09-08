@@ -4,6 +4,7 @@ import path from 'node:path'
 import { z } from 'zod'
 
 import { loadCodeindexConfig } from '../src/config.js'
+import { readRepoHead, warnOnCorpusDrift } from './git-stamp.js'
 import { compareIndexCounts } from './index-bench-compare.js'
 import type { IndexBaselineCounts, IndexBenchReport } from './index-bench-types.js'
 import { runIndexBench } from './index-bench.js'
@@ -13,6 +14,7 @@ const IndexBaselineCountsSchema = z.object({
   symbolsIndexed: z.number(),
   referencesIndexed: z.number(),
   referencesUnresolved: z.number(),
+  repoHead: z.string().nullable().optional(),
 })
 
 interface IndexBenchArgs {
@@ -48,15 +50,17 @@ const parseArgs = (argv: readonly string[]): IndexBenchArgs => {
 
 // The count baseline is a snapshot of the target repo's indexed counts at a point in time;
 // regenerate it (--update-baseline) in the same change that legitimately alters those counts.
-const toBaselineCounts = (report: IndexBenchReport): IndexBaselineCounts => ({
+const toBaselineCounts = (report: IndexBenchReport, repoHead: string | null): IndexBaselineCounts => ({
   filesIndexed: report.filesIndexed,
   symbolsIndexed: report.symbolsIndexed,
   referencesIndexed: report.referencesIndexed,
   referencesUnresolved: report.referencesUnresolved,
+  repoHead,
 })
 
 const main = async (): Promise<void> => {
   const args = parseArgs(process.argv.slice(2))
+  const repoHead = readRepoHead(args.repo)
   const config = await loadCodeindexConfig({
     configPath: path.join(args.repo, '.codeindex.json'),
     repoRoot: args.repo,
@@ -69,13 +73,14 @@ const main = async (): Promise<void> => {
   }
 
   if (args.updateBaseline && args.baseline !== null) {
-    writeFileSync(args.baseline, `${JSON.stringify(toBaselineCounts(report), null, 2)}\n`)
+    writeFileSync(args.baseline, `${JSON.stringify(toBaselineCounts(report, repoHead), null, 2)}\n`)
     console.error(`Index baseline written to ${args.baseline}`)
     return
   }
 
   if (args.baseline !== null && existsSync(args.baseline)) {
     const baseline = IndexBaselineCountsSchema.parse(JSON.parse(readFileSync(args.baseline, 'utf8')) as unknown)
+    warnOnCorpusDrift(baseline.repoHead, repoHead, 'index_counts')
     const comparison = compareIndexCounts(report, baseline, 0)
     for (const entry of comparison.deltas) {
       const sign = entry.delta >= 0 ? '+' : ''

@@ -4,6 +4,7 @@ import path from 'node:path'
 import { loadCodeindexConfig } from '../src/config.js'
 import { indexCodebase } from '../src/indexer/index-codebase.js'
 import { openDatabase } from '../src/storage/db.js'
+import { readRepoHead, warnOnCorpusDrift } from './git-stamp.js'
 import { compareImpact } from './impact-compare.js'
 import { buildReferenceOracle } from './impact-oracle.js'
 import { assertScored, scoreImpact } from './impact-score.js'
@@ -49,7 +50,7 @@ const parseArgs = (argv: readonly string[]): Args => {
   return { repo, tsconfig: tsconfig ?? path.join(repo, 'tsconfig.json'), baseline, updateBaseline, maxTargets }
 }
 
-const toBaseline = (r: ImpactBenchReport): ImpactBaseline => ({
+const toBaseline = (r: ImpactBenchReport, repoHead: string | null): ImpactBaseline => ({
   targetsScored: r.targetsScored,
   trueReferenceCount: r.trueReferenceCount,
   falseNegatives: r.falseNegatives,
@@ -57,12 +58,14 @@ const toBaseline = (r: ImpactBenchReport): ImpactBaseline => ({
   falsePositiveRate: r.falsePositiveRate,
   valueFalseNegativeRate: r.valueFalseNegativeRate,
   typeFalseNegativeRate: r.typeFalseNegativeRate,
+  repoHead,
 })
 
 // Prints the baseline comparison and diagnostics, and exits nonzero on regression.
 // Extracted purely to stay under max-lines-per-function in main.
-const compareAgainstBaseline = (report: ImpactBenchReport, baselinePath: string): void => {
+const compareAgainstBaseline = (report: ImpactBenchReport, baselinePath: string, repoHead: string | null): void => {
   const baseline = ImpactBaselineSchema.parse(JSON.parse(readFileSync(baselinePath, 'utf8')) as unknown)
+  warnOnCorpusDrift(baseline.repoHead, repoHead, 'code_impact')
   const comparison = compareImpact(report, baseline, 1e-9)
   console.error(
     `valueFalseNegativeRate: ${baseline.valueFalseNegativeRate.toFixed(4)} -> ${report.valueFalseNegativeRate.toFixed(4)} (${comparison.delta >= 0 ? '+' : ''}${comparison.delta.toFixed(4)})`,
@@ -84,6 +87,7 @@ const compareAgainstBaseline = (report: ImpactBenchReport, baselinePath: string)
 
 const main = async (): Promise<void> => {
   const args = parseArgs(process.argv.slice(2))
+  const repoHead = readRepoHead(args.repo)
   const config = await loadCodeindexConfig({ configPath: path.join(args.repo, '.codeindex.json'), repoRoot: args.repo })
   await indexCodebase({ config, mode: 'full' })
   const db = openDatabase(config.dbPath)
@@ -108,12 +112,12 @@ const main = async (): Promise<void> => {
     console.error('--update-baseline requires --baseline <path>; no baseline written.')
   }
   if (args.updateBaseline && args.baseline !== null) {
-    writeFileSync(args.baseline, `${JSON.stringify(toBaseline(report), null, 2)}\n`)
+    writeFileSync(args.baseline, `${JSON.stringify(toBaseline(report, repoHead), null, 2)}\n`)
     console.error(`Impact baseline written to ${args.baseline}`)
     return
   }
   if (args.baseline !== null && existsSync(args.baseline)) {
-    compareAgainstBaseline(report, args.baseline)
+    compareAgainstBaseline(report, args.baseline, repoHead)
   }
 }
 

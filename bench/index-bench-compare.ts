@@ -1,7 +1,9 @@
 import type { IndexBaselineCounts, IndexBenchReport } from './index-bench-types.js'
 
+export type IndexCountMetric = Exclude<keyof IndexBaselineCounts, 'repoHead'>
+
 export interface IndexCountDelta {
-  readonly metric: keyof IndexBaselineCounts
+  readonly metric: IndexCountMetric
   readonly baseline: number
   readonly current: number
   readonly delta: number
@@ -17,7 +19,7 @@ export const compareIndexCounts = (
   baseline: IndexBaselineCounts,
   tolerance: number,
 ): IndexCountComparison => {
-  const metrics: readonly (keyof IndexBaselineCounts)[] = [
+  const metrics: readonly IndexCountMetric[] = [
     'filesIndexed',
     'symbolsIndexed',
     'referencesIndexed',
@@ -31,7 +33,7 @@ export const compareIndexCounts = (
   }))
   // Only the "more is expected" counts gate on a decrease. referencesUnresolved dropping is an improvement,
   // so it is reported but never flags a regression.
-  const gated: readonly (keyof IndexBaselineCounts)[] = ['filesIndexed', 'symbolsIndexed', 'referencesIndexed']
+  const gated: readonly IndexCountMetric[] = ['filesIndexed', 'symbolsIndexed', 'referencesIndexed']
   const regressed = deltas.some((entry) => gated.includes(entry.metric) && entry.delta < -tolerance)
   return { regressed, deltas }
 }

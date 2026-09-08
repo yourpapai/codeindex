@@ -8,6 +8,7 @@ import { indexCodebase } from '../src/indexer/index-codebase.js'
 import { openDatabase } from '../src/storage/db.js'
 import { compareToBaseline } from './baseline-compare.js'
 import { loadCorpus } from './corpus.js'
+import { readRepoHead, warnOnCorpusDrift } from './git-stamp.js'
 import { scoreCorpus } from './harness.js'
 import type { BaselineMetrics, CorpusReport } from './types.js'
 
@@ -16,6 +17,7 @@ const BaselineMetricsSchema = z.object({
   meanPrecisionAtK: z.number(),
   meanRecallAtK: z.number(),
   mrr: z.number(),
+  repoHead: z.string().nullable().optional(),
 })
 
 interface BenchArgs {
@@ -54,15 +56,17 @@ const parseArgs = (argv: readonly string[]): BenchArgs => {
   return { repo, corpus, k, baseline, updateBaseline }
 }
 
-const toBaselineMetrics = (report: CorpusReport): BaselineMetrics => ({
+const toBaselineMetrics = (report: CorpusReport, repoHead: string | null): BaselineMetrics => ({
   k: report.k,
   meanPrecisionAtK: report.meanPrecisionAtK,
   meanRecallAtK: report.meanRecallAtK,
   mrr: report.mrr,
+  repoHead,
 })
 
 const main = async (): Promise<void> => {
   const args = parseArgs(process.argv.slice(2))
+  const repoHead = readRepoHead(args.repo)
   const config = await loadCodeindexConfig({
     configPath: path.join(args.repo, '.codeindex.json'),
     repoRoot: args.repo,
@@ -80,7 +84,7 @@ const main = async (): Promise<void> => {
   console.log(JSON.stringify(report, null, 2))
 
   if (args.updateBaseline && args.baseline !== null) {
-    writeFileSync(args.baseline, `${JSON.stringify(toBaselineMetrics(report), null, 2)}\n`)
+    writeFileSync(args.baseline, `${JSON.stringify(toBaselineMetrics(report, repoHead), null, 2)}\n`)
     console.error(`Baseline written to ${args.baseline}`)
     return
   }
@@ -89,6 +93,7 @@ const main = async (): Promise<void> => {
     const baseline: BaselineMetrics = BaselineMetricsSchema.parse(
       JSON.parse(readFileSync(args.baseline, 'utf8')) as unknown,
     )
+    warnOnCorpusDrift(baseline.repoHead, repoHead, 'IR search')
     const comparison = compareToBaseline(report, baseline, 1e-9)
     for (const entry of comparison.deltas) {
       const sign = entry.delta >= 0 ? '+' : ''

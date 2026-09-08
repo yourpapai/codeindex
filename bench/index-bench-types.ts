@@ -26,4 +26,5 @@ export interface IndexBaselineCounts {
   readonly symbolsIndexed: number
   readonly referencesIndexed: number
   readonly referencesUnresolved: number
+  readonly repoHead?: string | null
 }

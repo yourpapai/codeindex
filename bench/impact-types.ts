@@ -62,6 +62,7 @@ export interface ImpactBaseline {
   readonly falsePositiveRate: number
   readonly valueFalseNegativeRate: number
   readonly typeFalseNegativeRate: number
+  readonly repoHead?: string | null
 }
 
 export const ImpactBaselineSchema = z.object({
@@ -72,4 +73,5 @@ export const ImpactBaselineSchema = z.object({
   falsePositiveRate: z.number(),
   valueFalseNegativeRate: z.number(),
   typeFalseNegativeRate: z.number(),
+  repoHead: z.string().nullable().optional(),
 })
