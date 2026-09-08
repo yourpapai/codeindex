@@ -2,5 +2,6 @@
   "k": 10,
   "meanPrecisionAtK": 0.11428571428571428,
   "meanRecallAtK": 1,
-  "mrr": 0.9047619047619048
+  "mrr": 0.9047619047619048,
+  "repoHead": "3d5428b4e7caa2e805389c022e2603be0eb21a9b"
 }

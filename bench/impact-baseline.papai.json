@@ -1,9 +1,10 @@
 {
   "targetsScored": 300,
-  "trueReferenceCount": 611,
-  "falseNegatives": 47,
-  "falseNegativeRate": 0.07692307692307693,
-  "falsePositiveRate": 0.008787346221441126,
-  "valueFalseNegativeRate": 0.11547911547911548,
-  "typeFalseNegativeRate": 0
+  "trueReferenceCount": 687,
+  "falseNegatives": 17,
+  "falseNegativeRate": 0.024745269286754003,
+  "falsePositiveRate": 0.005934718100890208,
+  "valueFalseNegativeRate": 0.050955414012738856,
+  "typeFalseNegativeRate": 0.002680965147453083,
+  "repoHead": "7e9ff7c2dab8ef1a2cacefd405bbc0c078acbb99"
 }
