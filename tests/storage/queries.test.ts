@@ -7,7 +7,7 @@ import {
   findDependentsOfDeletedFiles,
   markParseFailure,
   persistSymbols,
-  pruneDeletedFiles,
+  pruneFilePaths,
   selectAllModuleExports,
 } from '../../src/storage/queries.js'
 import { ensureSchema } from '../../src/storage/schema.js'
@@ -102,7 +102,7 @@ describe('findDependentsOfDeletedFiles', () => {
        VALUES (?, NULL, ?, 'myFunc', 'imports', 'file_resolved', 1)`,
     ).run(mainId, helperId)
 
-    const dependents = findDependentsOfDeletedFiles(db, new Set(['src/main.ts']))
+    const dependents = findDependentsOfDeletedFiles(db, ['src/helper.ts'])
 
     expect(dependents).toContain('src/main.ts')
   })
@@ -152,14 +152,14 @@ describe('markParseFailure', () => {
   })
 })
 
-describe('pruneDeletedFiles', () => {
-  test('removes rows whose paths are absent from the discovered set', () => {
+describe('pruneFilePaths', () => {
+  test('removes rows for the given paths', () => {
     const db = new Database(':memory:')
     db.run('PRAGMA foreign_keys = ON')
     ensureSchema(db)
     seedFiles(db, ['src/a.ts', 'src/b.ts', 'src/c.ts'])
 
-    const pruned = pruneDeletedFiles(db, new Set(['src/a.ts', 'src/c.ts']))
+    const pruned = pruneFilePaths(db, ['src/b.ts'])
 
     expect(pruned).toBe(1)
     const remaining = db
@@ -169,24 +169,26 @@ describe('pruneDeletedFiles', () => {
     expect(remaining).toEqual(['src/a.ts', 'src/c.ts'])
   })
 
-  test('returns 0 when all stored files are still present', () => {
+  test('returns 0 when there is nothing to prune', () => {
     const db = new Database(':memory:')
     db.run('PRAGMA foreign_keys = ON')
     ensureSchema(db)
     seedFiles(db, ['src/a.ts'])
 
-    const pruned = pruneDeletedFiles(db, new Set(['src/a.ts']))
+    const pruned = pruneFilePaths(db, [])
 
     expect(pruned).toBe(0)
+    const remaining = db.query<{ file_path: string }, []>('SELECT file_path FROM files').all()
+    expect(remaining).toHaveLength(1)
   })
 
-  test('removes all rows when discovered set is empty', () => {
+  test('removes all given rows', () => {
     const db = new Database(':memory:')
     db.run('PRAGMA foreign_keys = ON')
     ensureSchema(db)
     seedFiles(db, ['src/a.ts', 'src/b.ts'])
 
-    const pruned = pruneDeletedFiles(db, new Set())
+    const pruned = pruneFilePaths(db, ['src/a.ts', 'src/b.ts'])
 
     expect(pruned).toBe(2)
     const remaining = db.query<{ file_path: string }, []>('SELECT file_path FROM files').all()

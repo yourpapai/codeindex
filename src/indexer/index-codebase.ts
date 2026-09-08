@@ -3,7 +3,6 @@ import { readFile } from 'node:fs/promises'
 
 import type { CodeindexConfig } from '../config.js'
 import { buildModuleIdentity, type ModuleAlias } from '../resolver/module-specifiers.js'
-import { resolveReferenceCandidates } from '../resolver/resolve-references.js'
 import {
   expandTsconfigAliasesForFile,
   loadTsconfigPathAliases,
@@ -18,10 +17,7 @@ import {
   persistAliases,
   persistModuleExports,
   persistSymbols,
-  selectAllFiles,
-  selectAllModuleAliases,
-  selectAllModuleExports,
-  selectAllSymbols,
+  pruneFilePaths,
   selectStoredSymbols,
 } from '../storage/queries.js'
 import { ensureSchema } from '../storage/schema.js'
@@ -29,6 +25,7 @@ import type { DiscoveredFile } from './discover.js'
 import { extractReferenceCandidates, type ExtractReferenceCandidatesResult } from './extract-references.js'
 import { extractSymbolsFromSource, type ExtractedSymbol } from './extract-symbols.js'
 import { createParserLoader, type ParserLoader } from './parser.js'
+import { persistResolvedReferences, type ParsedFileWorkItem } from './persist-resolved-references.js'
 import { resolveFilesToProcess, sha256 } from './resolve-files.js'
 import { stampIndexProvenance } from './stamp-provenance.js'
 
@@ -49,12 +46,6 @@ export interface IndexCodebaseInput {
   readonly config: CodeindexConfig
   readonly mode: 'full' | 'incremental'
   readonly onPhase?: (phase: IndexPhase, ms: number) => void
-}
-
-interface ParsedFileWorkItem {
-  readonly fileId: number
-  readonly moduleKey: string
-  readonly referenceCandidates: ExtractReferenceCandidatesResult
 }
 
 interface ProcessedFileSuccess {
@@ -174,52 +165,6 @@ const applyProcessedFiles = (
   return { filesIndexed, filesFailed, symbolsIndexed, parsedFiles }
 }
 
-const persistResolvedReferences = (
-  db: Database,
-  parsedFiles: readonly ParsedFileWorkItem[],
-): Readonly<{ referencesIndexed: number; referencesUnresolved: number }> => {
-  const allSymbols = selectAllSymbols(db)
-  const allFiles = selectAllFiles(db)
-  const allModuleAliases = selectAllModuleAliases(db)
-  const allModuleExports = selectAllModuleExports(db)
-  let referencesIndexed = 0
-  let referencesUnresolved = 0
-
-  for (const parsedFile of parsedFiles) {
-    const resolvedReferences = resolveReferenceCandidates({
-      symbols: allSymbols,
-      moduleAliases: allModuleAliases,
-      files: allFiles,
-      references: parsedFile.referenceCandidates.references,
-      currentModuleKey: parsedFile.moduleKey,
-      moduleExports: allModuleExports,
-    })
-
-    for (const reference of resolvedReferences) {
-      db.query(
-        'INSERT INTO symbol_references (source_symbol_id, source_file_id, target_symbol_id, target_file_id, target_name, target_export_name, target_module_specifier, edge_type, confidence, line_number) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      ).run(
-        reference.sourceSymbolId,
-        parsedFile.fileId,
-        reference.targetSymbolId,
-        reference.targetFileId,
-        reference.targetName,
-        reference.targetExportName,
-        reference.targetModuleSpecifier,
-        reference.edgeType,
-        reference.confidence,
-        reference.lineNumber,
-      )
-      referencesIndexed += 1
-      if (reference.targetSymbolId === null) {
-        referencesUnresolved += 1
-      }
-    }
-  }
-
-  return { referencesIndexed, referencesUnresolved }
-}
-
 const emitPhase = (
   onPhase: ((phase: IndexPhase, ms: number) => void) | undefined,
   phase: IndexPhase,
@@ -248,7 +193,7 @@ const runIndexPhases = async (db: Database, input: Readonly<IndexCodebaseInput>)
   emitPhase(input.onPhase, 'init', mark)
 
   mark = Date.now()
-  const { filesToProcess, filesPruned, filesSkipped } = await resolveFilesToProcess(db, input.config, input.mode)
+  const { filesToProcess, prunablePaths, filesSkipped } = await resolveFilesToProcess(db, input.config, input.mode)
   emitPhase(input.onPhase, 'discover', mark)
 
   mark = Date.now()
@@ -258,26 +203,34 @@ const runIndexPhases = async (db: Database, input: Readonly<IndexCodebaseInput>)
   emitPhase(input.onPhase, 'parse', mark)
 
   mark = Date.now()
-  const { filesIndexed, filesFailed, symbolsIndexed, parsedFiles } = applyProcessedFiles(db, processedFiles)
-  emitPhase(input.onPhase, 'persist', mark)
+  db.run('BEGIN')
+  try {
+    const { filesIndexed, filesFailed, symbolsIndexed, parsedFiles } = applyProcessedFiles(db, processedFiles)
+    emitPhase(input.onPhase, 'persist', mark)
 
-  mark = Date.now()
-  const { referencesIndexed, referencesUnresolved } = persistResolvedReferences(db, parsedFiles)
-  backfillSymbolInDegree(db)
-  emitPhase(input.onPhase, 'resolve', mark)
+    mark = Date.now()
+    const { referencesIndexed, referencesUnresolved } = persistResolvedReferences(db, parsedFiles)
+    backfillSymbolInDegree(db)
+    emitPhase(input.onPhase, 'resolve', mark)
 
-  mark = Date.now()
-  stampIndexProvenance(db, input.config)
-  emitPhase(input.onPhase, 'provenance', mark)
+    mark = Date.now()
+    const filesPruned = pruneFilePaths(db, prunablePaths)
+    stampIndexProvenance(db, input.config)
+    emitPhase(input.onPhase, 'provenance', mark)
 
-  return {
-    filesIndexed,
-    filesFailed,
-    filesPruned,
-    skippedFiles: filesSkipped,
-    symbolsIndexed,
-    referencesIndexed,
-    referencesUnresolved,
+    db.run('COMMIT')
+    return {
+      filesIndexed,
+      filesFailed,
+      filesPruned,
+      skippedFiles: filesSkipped,
+      symbolsIndexed,
+      referencesIndexed,
+      referencesUnresolved,
+    }
+  } catch (error) {
+    db.run('ROLLBACK')
+    throw error
   }
 }
 

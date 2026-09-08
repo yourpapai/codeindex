@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 
 import type { CodeindexConfig } from '../config.js'
-import { findDependentsOfDeletedFiles, pruneDeletedFiles } from '../storage/queries.js'
+import { findDependentsOfDeletedFiles } from '../storage/queries.js'
 import { discoverSourceFiles, type DiscoveredFile } from './discover.js'
 
 export const sha256 = (text: string): string => createHash('sha256').update(text).digest('hex')
@@ -48,7 +48,11 @@ export const resolveFilesToProcess = async (
   config: CodeindexConfig,
   mode: 'full' | 'incremental',
 ): Promise<
-  Readonly<{ filesToProcess: readonly DiscoveredFile[]; filesPruned: number; filesSkipped: readonly string[] }>
+  Readonly<{
+    filesToProcess: readonly DiscoveredFile[]
+    prunablePaths: readonly string[]
+    filesSkipped: readonly string[]
+  }>
 > => {
   const { files: discoveredFiles, skippedFiles } = await discoverSourceFiles({
     repoRoot: config.repoRoot,
@@ -58,8 +62,12 @@ export const resolveFilesToProcess = async (
     maxFileSizeBytes: config.maxFileSizeBytes,
   })
   const discoveredPathSet = new Set(discoveredFiles.map((f) => f.relativePath))
-  const deletedFileDependents = mode === 'incremental' ? findDependentsOfDeletedFiles(db, discoveredPathSet) : null
-  const filesPruned = pruneDeletedFiles(db, discoveredPathSet)
+  const storedPaths = db
+    .query<{ file_path: string }, []>('SELECT file_path FROM files')
+    .all()
+    .map((row) => row.file_path)
+  const prunablePaths = storedPaths.filter((filePath) => !discoveredPathSet.has(filePath))
+  const deletedFileDependents = mode === 'incremental' ? findDependentsOfDeletedFiles(db, prunablePaths) : null
   const baseIncrementalSet = mode === 'incremental' ? await findIncrementalFileSet(db, discoveredFiles) : null
   const incrementalSet =
     baseIncrementalSet !== null && deletedFileDependents !== null
@@ -67,5 +75,5 @@ export const resolveFilesToProcess = async (
       : baseIncrementalSet
   const filesToProcess =
     incrementalSet === null ? discoveredFiles : discoveredFiles.filter((file) => incrementalSet.has(file.relativePath))
-  return { filesToProcess, filesPruned, filesSkipped: skippedFiles }
+  return { filesToProcess, prunablePaths, filesSkipped: skippedFiles }
 }

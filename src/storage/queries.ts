@@ -17,36 +17,19 @@ export const clearFileRows = (db: Database, fileId: number): void => {
   db.query('DELETE FROM symbols WHERE file_id = ?').run(fileId)
 }
 
-export const pruneDeletedFiles = (db: Database, discoveredPaths: ReadonlySet<string>): number => {
-  const storedPaths = db
-    .query<{ file_path: string }, []>('SELECT file_path FROM files')
-    .all()
-    .map((row) => row.file_path)
-
+export const pruneFilePaths = (db: Database, filePaths: readonly string[]): number => {
   let pruned = 0
-  for (const filePath of storedPaths) {
-    if (!discoveredPaths.has(filePath)) {
-      db.query('DELETE FROM files WHERE file_path = ?').run(filePath)
-      pruned += 1
-    }
+  for (const filePath of filePaths) {
+    db.query('DELETE FROM files WHERE file_path = ?').run(filePath)
+    pruned += 1
   }
   return pruned
 }
 
-export const findDependentsOfDeletedFiles = (
-  db: Database,
-  discoveredPaths: ReadonlySet<string>,
-): ReadonlySet<string> => {
-  const storedPaths = db
-    .query<{ file_path: string }, []>('SELECT file_path FROM files')
-    .all()
-    .map((row) => row.file_path)
-
+export const findDependentsOfDeletedFiles = (db: Database, prunablePaths: readonly string[]): ReadonlySet<string> => {
   const dependents = new Set<string>()
 
-  for (const filePath of storedPaths) {
-    if (discoveredPaths.has(filePath)) continue
-
+  for (const filePath of prunablePaths) {
     const rows = db
       .query<{ file_path: string }, [string]>(
         `SELECT DISTINCT source_files.file_path
@@ -60,9 +43,7 @@ export const findDependentsOfDeletedFiles = (
       .all(filePath)
 
     for (const row of rows) {
-      if (discoveredPaths.has(row.file_path)) {
-        dependents.add(row.file_path)
-      }
+      dependents.add(row.file_path)
     }
   }
 
@@ -115,13 +96,9 @@ export const backfillSymbolInDegree = (db: Database): void => {
 }
 
 export const persistAliases = (db: Database, fileId: number, aliases: readonly ModuleAlias[]): void => {
+  const stmt = db.query('INSERT INTO module_aliases (file_id, alias_key, alias_kind, precedence) VALUES (?, ?, ?, ?)')
   for (const alias of aliases) {
-    db.query('INSERT INTO module_aliases (file_id, alias_key, alias_kind, precedence) VALUES (?, ?, ?, ?)').run(
-      fileId,
-      alias.aliasKey,
-      alias.aliasKind,
-      alias.precedence,
-    )
+    stmt.run(fileId, alias.aliasKey, alias.aliasKind, alias.precedence)
   }
 }
 
@@ -133,14 +110,15 @@ export const persistSymbols = (
   symbols: readonly ExtractedSymbol[],
 ): number => {
   let count = 0
+  const stmt = db.query(
+    `INSERT INTO symbols (
+        file_id, file_path, module_key, symbol_key, local_name, qualified_name, kind, scope_tier,
+        parent_symbol_id, export_names, signature_text, doc_text, body_text, identifier_terms,
+        start_line, end_line
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)`,
+  )
   for (const symbol of symbols) {
-    db.query(
-      `INSERT INTO symbols (
-          file_id, file_path, module_key, symbol_key, local_name, qualified_name, kind, scope_tier,
-          parent_symbol_id, export_names, signature_text, doc_text, body_text, identifier_terms,
-          start_line, end_line
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)`,
-    ).run(
+    stmt.run(
       fileId,
       filePath,
       moduleKey,
@@ -207,11 +185,12 @@ export const persistModuleExports = (
   referenceCandidates: ExtractReferenceCandidatesResult,
   storedSymbols: ReturnType<typeof selectStoredSymbols>,
 ): void => {
+  const stmt = db.query(
+    'INSERT INTO module_exports (file_id, export_name, export_kind, symbol_id, target_module_specifier) VALUES (?, ?, ?, ?, ?)',
+  )
   for (const moduleExport of referenceCandidates.moduleExports) {
     const matchingSymbol = storedSymbols.find((symbol) => symbol.localName === moduleExport.localName)
-    db.query(
-      'INSERT INTO module_exports (file_id, export_name, export_kind, symbol_id, target_module_specifier) VALUES (?, ?, ?, ?, ?)',
-    ).run(
+    stmt.run(
       fileId,
       moduleExport.exportName,
       moduleExport.exportKind,
