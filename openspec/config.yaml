@@ -1,0 +1,102 @@
+schema: spec-driven
+
+context: |
+  codeindex is a local developer tool: symbol-first TypeScript/JavaScript
+  indexing and MCP-backed code search for AI agents and maintainers. It
+  indexes any repo via tree-sitter (web-tree-sitter runtime +
+  tree-sitter-javascript/tree-sitter-typescript grammars), stores
+  files/symbols/references in SQLite (WAL mode), and serves them through an
+  MCP server (code_symbol, code_search, code_impact) and a CLI (index,
+  reindex, stats).
+
+  Tech stack:
+  - Runtime: Bun only (bun test, bun run <script>; never npm/npx)
+  - Language: strict TypeScript, checked with tsgo
+    (@typescript/native-preview)
+  - Validation: Zod v4 at external boundaries (MCP tool params, CLI args,
+    config files)
+  - Storage: SQLite via bun:sqlite; DB at <repo-root>/.codeindex/index.db,
+    WAL mode (sibling -wal/-shm files while open); incoming-reference table
+    is symbol_references (REFERENCES is a SQLite keyword)
+  - Lint/format: oxlint (.oxlintrc.json), oxfmt (.oxfmtrc.json)
+
+  Key conventions:
+  - code_symbol is exact-first: exact local-name, qualified-name, and
+    export-name matches before FTS fallback
+  - code_search is the exploratory entrypoint; results ranked by scope tier
+    and match quality, each carrying rankScore
+  - Exact-match previews come from stored body_text / signature_text
+  - MCP tool responses include structuredContent alongside text; empty
+    code_search results carry a guidance string
+  - The MCP server always operates on the caller's cwd
+
+  Verification commands:
+  - bun run test — full suite; bun test tests/<path> for focused runs
+  - bun run typecheck, bun run lint, bun run format:check
+  - bun run check — all of the above plus check:bench, in parallel
+  - bun run check:bench — benchmark gates vs stamped baselines
+    (bench/baseline.json, index-baseline.json, impact-baseline.json);
+    regenerate baselines only when corpus/intent changes, never to make a
+    failing gate pass
+
+rules:
+  proposal:
+    - State which surfaces the change touches (indexer, storage schema, MCP
+      tools, CLI, bench harness); runtime behavior changes need delta specs,
+      docs/tooling-only changes opt out with skip_specs (set it true)
+    - Include a "Non-goals" section listing explicitly out-of-scope behavior
+    - For each declared capability, state what concretely breaks or stays
+      missing without it; a capability justified only by an anticipated need
+      belongs in Non-goals rather than in scope, recorded as declined
+    - Name the existing module that already covers a declared capability
+      where one does, and either extend it or say why a separate one is
+      needed
+    - Keep proposals under 500 words; detail belongs in design.md
+  specs:
+    - Requirements use SHALL statements; every requirement has at least one
+      `#### Scenario:` with WHEN/THEN
+    - For MCP tool changes, spec both the text payload and the
+      structuredContent shape, and preserve exact-first semantics (exact
+      matches before FTS)
+    - For search-ranking changes, state the expected effect on the bench
+      oracle gates and which corpus (repo-local, papai) proves it
+    - For storage changes, describe migration/backfill for existing
+      .codeindex/index.db files and WAL behavior
+  design:
+    - Name the existing module that covers the need before introducing a new
+      one — the dependency question one level in
+    - State impact on search semantics (scope tiers, rankScore, match types)
+      and on MCP tool responses (text + structuredContent)
+    - For bench-gated work, name the affected baselines and the like-for-like
+      comparison story
+    - Note test-first interactions — which new files the failing-test-first
+      order gates
+  tasks:
+    - Break tasks into independently verifiable chunks; order them test-first
+      (failing test before implementation)
+    - Every task ends with its verification command (bun test tests/<path>,
+      bun run typecheck, bun run lint, ...)
+    - Final task always runs full bun run check (plus bun run check:bench
+      when indexing or search behavior moved)
+
+operations:
+  apply:
+    guidance:
+      - Follow test-driven-development — write the failing test, watch it
+        fail, implement, watch it pass
+      - Check off tasks.md checkboxes as each task completes; keep the file
+        current as filesystem state
+      - Commit each tasks.md section in its own commit as it completes; the
+        tasks.md checkbox state lands in the same commit as the work
+      - The change folder (openspec/changes/<name>/) rides with the code on
+        the same branch; never commit implementation without artifacts
+  archive:
+    guidance:
+      - Before archiving, confirm all tasks.md checkboxes are complete and
+        openspec validate --strict passes
+      - Confirm merged specs under openspec/specs/ read as current truth
+        (no ADDED/MODIFIED/REMOVED framing left in main specs)
+      - Summarize the archive outcome (shipped capabilities, spec files
+        touched) before finishing
+      - Archive as a small follow-up commit on master after the work lands,
+        not inside the implementation branch

@@ -32,7 +32,7 @@
 **Interfaces:**
 - Produces: a working openspec root (`openspec list` / `openspec doctor` clean) and repo-local `openspec-*` skills + `opsx` commands for both hosts, which every later task and all future work rely on.
 
-- [ ] **Step 1: Run init non-interactively for both hosts**
+- [x] **Step 1: Run init non-interactively for both hosts**
 
 ```bash
 openspec init --tools claude,opencode --no-animation
@@ -40,7 +40,7 @@ openspec init --tools claude,opencode --no-animation
 
 Expected: creates `openspec/` structure and tool scaffolding. The existing `openspec/changes/migrate-brainstorming-to-openspec/design.md` is not clobbered.
 
-- [ ] **Step 2: Verify the scaffold**
+- [x] **Step 2: Verify the scaffold**
 
 ```bash
 ls .claude/skills && ls .opencode/skills && ls openspec
@@ -49,7 +49,7 @@ test -f openspec/changes/migrate-brainstorming-to-openspec/design.md && echo "de
 
 Expected: skills list includes `openspec-explore`, `openspec-propose`, `openspec-apply-change`, `openspec-update-change`, `openspec-sync-specs`, `openspec-verify-change`, `openspec-archive-change` under both hosts; `openspec/` contains the default config; `design.md intact` prints.
 
-- [ ] **Step 3: Overwrite `openspec/config.yaml` with the tailored content**
+- [x] **Step 3: Overwrite `openspec/config.yaml` with the tailored content**
 
 Replace the entire file with:
 
@@ -99,7 +99,7 @@ rules:
   proposal:
     - State which surfaces the change touches (indexer, storage schema, MCP
       tools, CLI, bench harness); runtime behavior changes need delta specs,
-      docs/tooling-only changes set skip_specs: true
+      docs/tooling-only changes opt out with skip_specs (set it true)
     - Include a "Non-goals" section listing explicitly out-of-scope behavior
     - For each declared capability, state what concretely breaks or stays
       missing without it; a capability justified only by an anticipated need
@@ -158,7 +158,7 @@ operations:
         not inside the implementation branch
 ```
 
-- [ ] **Step 4: Verify the openspec root is healthy**
+- [x] **Step 4: Verify the openspec root is healthy**
 
 ```bash
 openspec list; openspec doctor
@@ -166,7 +166,7 @@ openspec list; openspec doctor
 
 Expected: `openspec list` exits 0 (zero active changes or lists none yet — `migrate-brainstorming-to-openspec` has no `proposal.md` yet, which is fine until Task 2); `openspec doctor` reports no broken relationships.
 
-- [ ] **Step 5: Commit the scaffold**
+- [x] **Step 5: Commit the scaffold**
 
 ```bash
 git add openspec .claude .opencode
