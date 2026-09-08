@@ -80,7 +80,9 @@ const normalizeRelativeModule = (fromModuleKey: string, specifier: string): stri
 // specifiers are normalized against the module doing the re-export. Depth-capped against import
 // cycles. Returns null when the chain dead-ends — a bare `export { x }` re-export of a non-local
 // binding records no forwarding symbol. A module's `export *` star rows (B5) are followed per-name
-// when the module has no named row for the export (first hit wins). B4 covers the direct
+// when the module has no named row for the export (first hit wins). A dead-end named row (its own
+// symbol/specifier resolved to nothing) still shadows star sources below it — named rows win by
+// design, even when they link to nothing. B4 covers the direct
 // `export { x } from './y'` form (5 of papai's 6 barrel misses).
 const buildReexportResolver = (
   moduleExports: readonly ModuleExportSummary[],

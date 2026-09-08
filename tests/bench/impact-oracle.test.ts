@@ -152,6 +152,8 @@ describe('classifyShape', () => {
       '}',
       'class WidgetX extends BaseCls {}',
       'class NewOnly {}',
+      'class AnnotatedBase {}',
+      'let tagged: AnnotatedBase',
       'export function outer(): unknown {',
       '  const g = bareFn',
       '  return [api.nsFn(), obj.omFn(), plainFn(), helperFn().ghostProp, bag[keyVar], g, new Holder(), <CompFn />, WidgetX, new NewOnly()]',
@@ -232,6 +234,10 @@ describe('classifyShape', () => {
     { needle: 'keyVar', expected: 'other' },
     // new NewOnly() — constructor call, distinct from a plain call
     { needle: 'NewOnly', expected: 'construct' },
+    // `let tagged: AnnotatedBase` — type-annotation position: classifyShape is position-agnostic
+    // and returns the value-form fall-through; shapeLabelForPosition relabels it 'named-type' after
+    // (pinned in impact-ast.test.ts). S6 #11: the table had no annotation-position identifier row.
+    { needle: 'AnnotatedBase', expected: 'bare-value' },
   ]
   for (const c of cases) {
     test(`classifies ${c.needle} as ${c.expected}`, () => {

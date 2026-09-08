@@ -443,4 +443,122 @@ describe('resolveReferenceCandidates', () => {
     })
     expect(resolved[0]).toMatchObject({ targetSymbolId: null, confidence: 'name_only', targetFileId: null })
   })
+
+  test.each([
+    'interface_declaration',
+    'type_alias_declaration',
+    'enum_declaration',
+    'class_declaration',
+    'abstract_class_declaration',
+  ])('same-module type ref binds to a %s (B7 kind filter, per-kind pin)', (kind) => {
+    const resolved = resolveReferenceCandidates({
+      symbols: [
+        { id: 1, qualifiedName: 'src/mod#Task', localName: 'Task', moduleKey: 'src/mod', exportNames: [], kind },
+      ],
+      moduleAliases: [],
+      files: [],
+      references: [
+        {
+          sourceQualifiedName: 'src/mod#process',
+          edgeType: 'type_refs',
+          targetName: 'Task',
+          targetExportName: null,
+          targetModuleSpecifier: null,
+          lineNumber: 2,
+        },
+      ],
+      currentModuleKey: 'src/mod',
+    })
+    expect(resolved[0]).toMatchObject({ targetSymbolId: 1, confidence: 'name_only' })
+  })
+
+  test('multi-star barrel: the FIRST star source wins the name (B5 first-hit-wins pin)', () => {
+    // Both star targets export `picked`, so the result discriminates the iteration order: if the
+    // star loop ever processed './second' first, symbol 2 would win this pin. targetFileId stays
+    // the barrel's own id — it is the specifier-matched file, never a star source's file.
+    const resolved = resolveReferenceCandidates({
+      symbols: [
+        {
+          id: 1,
+          qualifiedName: 'src/first#picked',
+          localName: 'picked',
+          moduleKey: 'src/first',
+          exportNames: ['picked'],
+        },
+        {
+          id: 2,
+          qualifiedName: 'src/second#picked',
+          localName: 'picked',
+          moduleKey: 'src/second',
+          exportNames: ['picked'],
+        },
+      ],
+      moduleAliases: [],
+      files: [
+        { id: 10, moduleKey: 'src/star-barrel' },
+        { id: 11, moduleKey: 'src/first' },
+        { id: 12, moduleKey: 'src/second' },
+      ],
+      moduleExports: [
+        {
+          moduleKey: 'src/star-barrel',
+          exportName: '*',
+          exportKind: 'star',
+          symbolId: null,
+          targetModuleSpecifier: './first',
+        },
+        {
+          moduleKey: 'src/star-barrel',
+          exportName: '*',
+          exportKind: 'star',
+          symbolId: null,
+          targetModuleSpecifier: './second',
+        },
+        { moduleKey: 'src/first', exportName: 'picked', exportKind: 'named', symbolId: 1, targetModuleSpecifier: null },
+        {
+          moduleKey: 'src/second',
+          exportName: 'picked',
+          exportKind: 'named',
+          symbolId: 2,
+          targetModuleSpecifier: null,
+        },
+      ],
+      references: [
+        {
+          sourceQualifiedName: null,
+          edgeType: 'imports',
+          targetName: 'picked',
+          targetExportName: 'picked',
+          targetModuleSpecifier: './star-barrel',
+          lineNumber: 1,
+        },
+      ],
+      currentModuleKey: 'src/caller',
+    })
+    expect(resolved[0]).toMatchObject({ targetSymbolId: 1, confidence: 'resolved', targetFileId: 10 })
+  })
+
+  test('namespace import through a parent-level specifier resolves to the same file-only shape (B5)', () => {
+    // Parent-level input: the specifier climbs out of a nested module directory (`../ns` from
+    // src/feature/caller → src/ns), exercising the parent-dir normalization arm the sibling test's
+    // './ns' join never touches. Same resolved shape as the sibling: file only, never name-matched.
+    const resolved = resolveReferenceCandidates({
+      symbols: [{ id: 1, qualifiedName: 'src/ns#ns', localName: 'ns', moduleKey: 'src/ns', exportNames: [] }],
+      moduleAliases: [],
+      files: [{ id: 10, moduleKey: 'src/ns' }],
+      moduleExports: [],
+      references: [
+        {
+          sourceQualifiedName: null,
+          edgeType: 'imports',
+          targetName: 'ns',
+          targetExportName: '*',
+          targetModuleSpecifier: '../ns',
+          lineNumber: 1,
+        },
+      ],
+      currentModuleKey: 'src/feature/caller',
+    })
+    expect(resolved[0]).toMatchObject({ targetSymbolId: null, confidence: 'file_resolved', targetFileId: 10 })
+  })
 })

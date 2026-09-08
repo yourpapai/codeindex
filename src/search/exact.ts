@@ -109,13 +109,14 @@ const loadExactResults = (db: Database, query: string, limit: number): readonly 
             symbols.file_path, symbols.start_line, symbols.end_line, symbols.export_names,
             symbols.in_degree AS in_degree,
             symbols.signature_text, symbols.body_text,
-            module_exports.export_name AS matched_export_name
+            MAX(module_exports.export_name) AS matched_export_name
      FROM symbols
      LEFT JOIN module_exports ON module_exports.symbol_id = symbols.id AND module_exports.export_name = ?
      WHERE symbols.local_name = ?
         OR symbols.qualified_name = ?
         OR module_exports.export_name = ?
         OR (length(?) >= 3 AND symbols.file_path LIKE ? ESCAPE '\\')
+     GROUP BY symbols.id
      LIMIT ?`,
     )
     .all(query, query, query, query, query, `${escapeLikePattern(query)}%`, limit)

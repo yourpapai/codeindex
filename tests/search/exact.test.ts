@@ -336,6 +336,81 @@ describe('runExactSearch LIKE escape pins', () => {
   })
 })
 
+const insertModuleExport = (
+  db: Database,
+  id: number,
+  fileId: number,
+  exportName: string,
+  symbolId: number | null,
+): void => {
+  db.query(
+    `INSERT INTO module_exports (id, file_id, export_name, export_kind, symbol_id, target_module_specifier) VALUES (?, ?, ?, 'named', ?, NULL)`,
+  ).run(id, fileId, exportName, symbolId)
+}
+
+describe('runExactSearch NOCASE JOIN row multiplication (#14)', () => {
+  const seedDualExportSymbol = (db: Database): void => {
+    ensureSchema(db)
+    insertFile(db, 1, 'src/dual.ts', 'src/dual')
+    insertSymbol(db, {
+      id: 1,
+      fileId: 1,
+      filePath: 'src/dual.ts',
+      moduleKey: 'src/dual',
+      symbolKey: 'src/dual.ts#1-2',
+      localName: 'dual',
+      qualifiedName: 'src/dual#dual',
+      kind: 'function_declaration',
+      scopeTier: 'exported',
+      exportNames: '["dual", "Dual"]',
+      signatureText: 'export function dual()',
+      docText: '',
+      bodyText: 'x',
+      identifierTerms: 'dual',
+      startLine: 1,
+      endLine: 2,
+    })
+    insertModuleExport(db, 1, 1, 'dual', 1)
+    insertModuleExport(db, 2, 1, 'Dual', 1)
+  }
+
+  test('a symbol exported under two case-variants of the query yields ONE row', () => {
+    const db = new Database(':memory:')
+    seedDualExportSymbol(db)
+    expect(runExactSearch(db, 'DUAL', 10, {})).toHaveLength(1)
+    expect(runExactSearch(db, 'dual', 10, {})).toHaveLength(1)
+  })
+
+  test('duplicates do not crowd a second symbol out under a tight LIMIT', () => {
+    const db = new Database(':memory:')
+    seedDualExportSymbol(db)
+    insertFile(db, 2, 'src/other.ts', 'src/other')
+    insertSymbol(db, {
+      id: 2,
+      fileId: 2,
+      filePath: 'src/other.ts',
+      moduleKey: 'src/other',
+      symbolKey: 'src/other.ts#1-2',
+      localName: 'dual',
+      qualifiedName: 'src/other#dual',
+      kind: 'function_declaration',
+      scopeTier: 'exported',
+      exportNames: '["dual"]',
+      signatureText: 'export function dual()',
+      docText: '',
+      bodyText: 'x',
+      identifierTerms: 'dual',
+      startLine: 1,
+      endLine: 2,
+    })
+    insertModuleExport(db, 3, 2, 'dual', 2)
+
+    const results = runExactSearch(db, 'dual', 2, {})
+    expect(results).toHaveLength(2)
+    expect(new Set(results.map((r) => r.symbolKey)).size).toBe(2)
+  })
+})
+
 describe('runExactSearch in_degree', () => {
   test('exact results carry in_degree from storage', () => {
     const db = new Database(':memory:')
