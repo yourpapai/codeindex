@@ -343,7 +343,7 @@ git commit -m "docs(openspec): route code work via opsx, symlink AGENTS.md to CL
 **Interfaces:**
 - Produces: the freeze banner every future legacy-tree visit reads; `.superpowers/` excluded from git status noise.
 
-- [ ] **Step 1: Write `docs/superpowers/README.md`**
+- [x] **Step 1: Write `docs/superpowers/README.md`**
 
 ```markdown
 # Frozen legacy planning corpus
@@ -364,7 +364,7 @@ Disposition rules:
   and plans only as historical detail.
 ```
 
-- [ ] **Step 2: Append to `.gitignore`**
+- [x] **Step 2: Append to `.gitignore`**
 
 Add at the end of the file:
 
@@ -374,7 +374,7 @@ Add at the end of the file:
 .superpowers/
 ```
 
-- [ ] **Step 3: Verify**
+- [x] **Step 3: Verify**
 
 ```bash
 git check-ignore .superpowers/sdd/progress.md && echo ignored
@@ -383,7 +383,7 @@ git status --short | grep -v "^??" | head
 
 Expected: `ignored` prints; staged/unstaged set contains only this task's two files plus `tasks.md` checkbox state.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/superpowers/README.md .gitignore openspec/changes/migrate-brainstorming-to-openspec/tasks.md
