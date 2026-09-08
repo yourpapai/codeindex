@@ -452,7 +452,7 @@ Expected: passes.
 - Consumes: Tasks 1–6 complete.
 - Produces: the archived migration guide the freeze README (Task 4) points at; clean slate for the shakedown.
 
-- [ ] **Step 1: Archive**
+- [x] **Step 1: Archive**
 
 ```bash
 openspec archive migrate-brainstorming-to-openspec --yes --skip-specs
@@ -460,13 +460,13 @@ openspec archive migrate-brainstorming-to-openspec --yes --skip-specs
 
 Expected: folder moves to `openspec/changes/archive/2026-09-08-migrate-brainstorming-to-openspec/` (date prefix from archive time).
 
-- [ ] **Step 2: Commit the archive**
+- [x] **Step 2: Commit the archive**
 
 ```bash
 git add openspec/changes && git commit -m "chore(openspec): archive migrate-brainstorming-to-openspec"
 ```
 
-- [ ] **Step 3: Report and hand off to the shakedown**
+- [x] **Step 3: Report and hand off to the shakedown**
 
 Summarize: what shipped (scaffold, routing, freeze, ignore), spec files touched (none — `skip_specs: true`). The shakedown is the next real feature — the first phase-3 slice — run as a fresh change via `/opsx:explore`, porting the phase-3 roadmap content into its proposal and deleting the legacy file per the freeze README. Tune `openspec/config.yaml` rules from what that change teaches.
 
