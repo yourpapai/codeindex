@@ -46,3 +46,22 @@ The MCP server is registered globally in `~/.claude.json` and per-project in con
 - Exact-match previews come from stored source text (`body_text` / `signature_text`), not just `qualifiedName`.
 - MCP tool responses include `structuredContent` alongside text so hosts can consume results without reparsing JSON.
 - Empty `code_search` results include a `guidance` string suggesting next steps.
+
+## Workflow
+
+Planning runs on OpenSpec in this repo: code-behavior work enters through
+`/opsx:explore` / `/opsx:propose` and lives under `openspec/changes/<name>/`;
+`brainstorming` keeps non-code creative work only. Superpowers skills stay in
+force for everything else they own (TDD, verification, debugging, code
+review, worktrees, branch finishing). When the harness supports
+`obra/superpowers` skills, load `using-superpowers` at session start before
+acting; load any other applicable skill before responding, editing, or
+running commands.
+
+| Trigger | Route |
+| --- | --- |
+| "Let's build / add / change X" (code behavior) | `/opsx:explore` or `/opsx:propose` — **not** brainstorming |
+| Non-code creative work (docs, process, writing) | brainstorming (unchanged) |
+| Bug / test failure | systematic-debugging; if root cause becomes a change, `/opsx:propose` |
+| Inside `/opsx:apply` | test-driven-development, verification-before-completion |
+| Plan drifted from code | syncing-plan-with-code against `openspec/changes/<name>/` artifacts |
