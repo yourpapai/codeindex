@@ -98,7 +98,8 @@ const runMcpCommand = async (config: CodeindexConfig): Promise<void> => {
 
 const main = async (): Promise<void> => {
   const [, , command = 'index', rawArg] = process.argv
-  const config = await loadConfigForPath()
+  const positional = command === 'index' || command === 'reindex' ? rawArg : undefined
+  const config = await loadConfigForPath(positional)
 
   switch (command) {
     case 'index':
