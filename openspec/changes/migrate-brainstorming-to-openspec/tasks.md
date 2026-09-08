@@ -184,7 +184,7 @@ git commit -m "chore(openspec): scaffold openspec with codeindex-tailored config
 - Consumes: scaffolded root from Task 1.
 - Produces: a strict-valid change named `migrate-brainstorming-to-openspec` with `skip_specs: true`, which Tasks 3–6 execute and Task 7 archives.
 
-- [ ] **Step 1: Write `.openspec.yaml`**
+- [x] **Step 1: Write `.openspec.yaml`**
 
 ```yaml
 schema: spec-driven
@@ -192,7 +192,7 @@ created: 2026-09-08
 skip_specs: true
 ```
 
-- [ ] **Step 2: Write `proposal.md`**
+- [x] **Step 2: Write `proposal.md`**
 
 ```markdown
 # Proposal: Migrate brainstorming → OpenSpec
@@ -252,7 +252,7 @@ None. `openspec/specs/` is empty; no existing capability specs are touched.
   `design.md` is the operational migration guide.
 ```
 
-- [ ] **Step 3: Validate the change strict**
+- [x] **Step 3: Validate the change strict**
 
 ```bash
 openspec validate migrate-brainstorming-to-openspec --strict --no-interactive
@@ -260,7 +260,7 @@ openspec validate migrate-brainstorming-to-openspec --strict --no-interactive
 
 Expected: validation passes (unchecked task boxes are fine; structure is what matters).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add openspec/changes/migrate-brainstorming-to-openspec
@@ -277,7 +277,7 @@ git commit -m "docs(openspec): propose migrate-brainstorming-to-openspec change"
 - Consumes: scaffolded `opsx` commands from Task 1 (the routes must exist).
 - Produces: the routing surface every future session reads; `AGENTS.md` resolves to `CLAUDE.md` for both hosts.
 
-- [ ] **Step 1: Check whether init/update created an `AGENTS.md` file**
+- [x] **Step 1: Check whether init/update created an `AGENTS.md` file**
 
 ```bash
 ls -la AGENTS.md 2>/dev/null; grep -n "openspec" CLAUDE.md | head
@@ -285,7 +285,7 @@ ls -la AGENTS.md 2>/dev/null; grep -n "openspec" CLAUDE.md | head
 
 Expected: likely "No such file". If `AGENTS.md` exists as a regular file (openspec instruction header), note its content — if it contains an openspec-generated header block, preserve that block inside `CLAUDE.md` in Step 2 before replacing the file with the symlink in Step 3.
 
-- [ ] **Step 2: Append the Workflow section to `CLAUDE.md`**
+- [x] **Step 2: Append the Workflow section to `CLAUDE.md`**
 
 Add at the end of `CLAUDE.md`:
 
@@ -313,13 +313,13 @@ running commands.
 
 (If Step 1 found an openspec-generated header in `AGENTS.md`, paste that header above the Workflow section instead of dropping it.)
 
-- [ ] **Step 3: Create the symlink**
+- [x] **Step 3: Create the symlink**
 
 ```bash
 rm -f AGENTS.md && ln -s CLAUDE.md AGENTS.md
 ```
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 ```bash
 grep -n "opsx" CLAUDE.md | head; readlink AGENTS.md
@@ -327,7 +327,7 @@ grep -n "opsx" CLAUDE.md | head; readlink AGENTS.md
 
 Expected: routing table rows found in `CLAUDE.md`; `readlink` prints `CLAUDE.md`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add CLAUDE.md AGENTS.md
@@ -427,13 +427,13 @@ git add -A && git commit -m "docs(openspec): sweep stale legacy routing referenc
 **Files:**
 - Modify: none.
 
-- [x] **Step 1: Confirm every checkbox in this tasks.md is `- [x]`**
+- [x] **Step 1: Confirm every executed task's checkbox is `- [x]`**
 
 ```bash
-grep -c "\- \[ \]" openspec/changes/migrate-brainstorming-to-openspec/tasks.md
+grep -c "^- \[ \]" openspec/changes/migrate-brainstorming-to-openspec/tasks.md
 ```
 
-Expected: `0`.
+Expected: `3` — exactly Task 7's three steps remain unchecked (they flip during Task 7; the archive commit carries the final state). Any other count means an executed task's boxes were not flipped. The pattern must be anchored (`^- \[ \]`): the header note contains a literal `` `- [ ]` `` that an unanchored grep would match forever.
 
 - [x] **Step 2: Strict-validate the change one last time**
 
