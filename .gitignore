@@ -30,3 +30,6 @@ logs
 *.db-shm
 *.db-wal
 .codeindex/
+
+# local agent working artifacts (superpowers sdd)
+.superpowers/
