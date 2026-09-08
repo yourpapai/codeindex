@@ -30,8 +30,6 @@ const parseExportNames = (value: string): readonly string[] => {
   return Array.isArray(parsed) && parsed.every((entry) => typeof entry === 'string') ? parsed : []
 }
 
-const eqNoCase = (left: string, right: string): boolean => left.toLowerCase() === right.toLowerCase()
-
 const escapeLikePattern = (value: string): string => value.replace(/[\\%_]/g, (ch) => `\\${ch}`)
 
 const buildSnippet = (bodyText: string, signatureText: string, qualifiedName: string): string => {
@@ -61,28 +59,31 @@ const mapExactRow = (
     in_degree: number
   },
   query: string,
-): SearchResult => ({
-  symbolKey: row.symbol_key,
-  qualifiedName: row.qualified_name,
-  localName: row.local_name,
-  kind: row.kind,
-  scopeTier: row.scope_tier,
-  filePath: row.file_path,
-  startLine: row.start_line,
-  endLine: row.end_line,
-  exportNames: parseExportNames(row.export_names),
-  matchReason:
-    row.matched_export_name !== null && eqNoCase(row.matched_export_name, query)
-      ? 'exact export_names'
-      : eqNoCase(row.qualified_name, query)
-        ? 'exact qualified_name'
-        : eqNoCase(row.local_name, query)
-          ? 'exact local_name'
-          : 'exact file_path',
-  confidence: 'exact',
-  snippet: buildSnippet(row.body_text, row.signature_text, row.qualified_name),
-  inDegree: row.in_degree,
-})
+): SearchResult => {
+  const queryLower = query.toLowerCase()
+  return {
+    symbolKey: row.symbol_key,
+    qualifiedName: row.qualified_name,
+    localName: row.local_name,
+    kind: row.kind,
+    scopeTier: row.scope_tier,
+    filePath: row.file_path,
+    startLine: row.start_line,
+    endLine: row.end_line,
+    exportNames: parseExportNames(row.export_names),
+    matchReason:
+      row.matched_export_name !== null && row.matched_export_name.toLowerCase() === queryLower
+        ? 'exact export_names'
+        : row.qualified_name.toLowerCase() === queryLower
+          ? 'exact qualified_name'
+          : row.local_name.toLowerCase() === queryLower
+            ? 'exact local_name'
+            : 'exact file_path',
+    confidence: 'exact',
+    snippet: buildSnippet(row.body_text, row.signature_text, row.qualified_name),
+    inDegree: row.in_degree,
+  }
+}
 
 const loadExactResults = (db: Database, query: string, limit: number): readonly SearchResult[] =>
   db
@@ -102,7 +103,7 @@ const loadExactResults = (db: Database, query: string, limit: number): readonly 
         body_text: string
         in_degree: number
       },
-      [string, string, string, string, string, number]
+      [string, string, string, string, string, string, number]
     >(
       `SELECT symbols.symbol_key, symbols.qualified_name, symbols.local_name, symbols.kind, symbols.scope_tier,
             symbols.file_path, symbols.start_line, symbols.end_line, symbols.export_names,
@@ -114,10 +115,10 @@ const loadExactResults = (db: Database, query: string, limit: number): readonly 
      WHERE symbols.local_name = ?
         OR symbols.qualified_name = ?
         OR module_exports.export_name = ?
-        OR symbols.file_path LIKE ? ESCAPE '\\'
+        OR (length(?) >= 3 AND symbols.file_path LIKE ? ESCAPE '\\')
      LIMIT ?`,
     )
-    .all(query, query, query, query, `${escapeLikePattern(query)}%`, limit)
+    .all(query, query, query, query, query, `${escapeLikePattern(query)}%`, limit)
     .map((row) => mapExactRow(row, query))
 
 export const runExactSearch = (

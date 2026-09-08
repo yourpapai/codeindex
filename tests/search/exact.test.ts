@@ -218,6 +218,124 @@ describe('runExactSearch LIKE escaping', () => {
   })
 })
 
+describe('runExactSearch short-query prefix guard', () => {
+  const seed = (db: Database): void => {
+    ensureSchema(db)
+    insertFile(db, 1, 'src/user.ts', 'src/user')
+    insertSymbol(db, {
+      id: 1,
+      fileId: 1,
+      filePath: 'src/user.ts',
+      moduleKey: 'src/user',
+      symbolKey: 'src/user.ts#1-2',
+      localName: 'getUserById',
+      qualifiedName: 'src/user#getUserById',
+      kind: 'function_declaration',
+      scopeTier: 'exported',
+      exportNames: '["getUserById"]',
+      signatureText: 'export function getUserById()',
+      docText: '',
+      bodyText: 'x',
+      identifierTerms: 'get user by id',
+      startLine: 1,
+      endLine: 2,
+    })
+  }
+
+  test('queries shorter than 3 chars do not hit the file_path prefix arm', () => {
+    const db = new Database(':memory:')
+    seed(db)
+    const results = runExactSearch(db, 's', 10, {})
+    expect(results.every((r) => r.matchReason !== 'exact file_path')).toBe(true)
+    expect(results).toHaveLength(0)
+  })
+
+  test('queries of 3+ chars still match file paths', () => {
+    const db = new Database(':memory:')
+    seed(db)
+    const results = runExactSearch(db, 'src', 10, {})
+    expect(results.some((r) => r.matchReason === 'exact file_path')).toBe(true)
+  })
+})
+
+describe('runExactSearch LIKE escape pins', () => {
+  const seed = (db: Database): void => {
+    ensureSchema(db)
+    insertFile(db, 1, 'src/foo_bar.ts', 'src/foo_bar')
+    insertSymbol(db, {
+      id: 1,
+      fileId: 1,
+      filePath: 'src/foo_bar.ts',
+      moduleKey: 'src/foo_bar',
+      symbolKey: 'src/foo_bar.ts#1-2',
+      localName: 'widget',
+      qualifiedName: 'src/foo_bar#widget',
+      kind: 'function_declaration',
+      scopeTier: 'exported',
+      exportNames: '["widget"]',
+      signatureText: 'export function widget()',
+      docText: '',
+      bodyText: 'x',
+      identifierTerms: 'widget',
+      startLine: 1,
+      endLine: 2,
+    })
+    insertFile(db, 2, 'src/fooXbar.ts', 'src/fooXbar')
+    insertSymbol(db, {
+      id: 2,
+      fileId: 2,
+      filePath: 'src/fooXbar.ts',
+      moduleKey: 'src/fooXbar',
+      symbolKey: 'src/fooXbar.ts#1-2',
+      localName: 'gadget',
+      qualifiedName: 'src/fooXbar#gadget',
+      kind: 'function_declaration',
+      scopeTier: 'exported',
+      exportNames: '["gadget"]',
+      signatureText: 'export function gadget()',
+      docText: '',
+      bodyText: 'x',
+      identifierTerms: 'gadget',
+      startLine: 1,
+      endLine: 2,
+    })
+    insertFile(db, 3, 'src/ab.ts', 'src/ab')
+    insertSymbol(db, {
+      id: 3,
+      fileId: 3,
+      filePath: 'src/ab.ts',
+      moduleKey: 'src/ab',
+      symbolKey: 'src/ab.ts#1-2',
+      localName: 'anchor',
+      qualifiedName: 'src/ab#anchor',
+      kind: 'function_declaration',
+      scopeTier: 'exported',
+      exportNames: '["anchor"]',
+      signatureText: 'export function anchor()',
+      docText: '',
+      bodyText: 'x',
+      identifierTerms: 'anchor',
+      startLine: 1,
+      endLine: 2,
+    })
+  }
+
+  test('underscore in the query does not wildcard-match other characters', () => {
+    const db = new Database(':memory:')
+    seed(db)
+    const results = runExactSearch(db, 'src/foo_bar', 10, {})
+    expect(results).toHaveLength(1)
+    expect(results[0]!.filePath).toBe('src/foo_bar.ts')
+  })
+
+  test('backslash in the query does not act as an escape or wildcard', () => {
+    const db = new Database(':memory:')
+    seed(db)
+    const results = runExactSearch(db, 'a\\b', 10, {})
+    expect(results).toHaveLength(0)
+  })
+})
+
 describe('runExactSearch in_degree', () => {
   test('exact results carry in_degree from storage', () => {
     const db = new Database(':memory:')
