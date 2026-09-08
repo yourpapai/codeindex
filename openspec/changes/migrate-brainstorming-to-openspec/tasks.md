@@ -399,7 +399,7 @@ git commit -m "docs(openspec): freeze docs/superpowers legacy corpus, ignore .su
 - Consumes: all prior tasks.
 - Produces: verified-clean instruction surfaces; the green gate for archive.
 
-- [ ] **Step 1: Sweep for stale routing**
+- [x] **Step 1: Sweep for stale routing**
 
 ```bash
 grep -rn "brainstorming" CLAUDE.md
@@ -408,7 +408,7 @@ grep -rn "docs/superpowers" CLAUDE.md package.json src tests bench docs/research
 
 Expected: the first grep matches only the two Workflow-section lines (the routing row and the brainstorming-keeps-non-code line). The second grep returns no hits (codeindex code never referenced the legacy tree); any hit must be either fixed or justified as historical in the commit message.
 
-- [ ] **Step 2: Run the full gate**
+- [x] **Step 2: Run the full gate**
 
 ```bash
 bun run check
@@ -416,7 +416,7 @@ bun run check
 
 Expected: all parallel checks pass (test, typecheck, lint, format:check, bench gates) — this migration touched no code.
 
-- [ ] **Step 3: Commit (only if the sweep fixed something)**
+- [x] **Step 3: Commit (only if the sweep fixed something)**
 
 ```bash
 git add -A && git commit -m "docs(openspec): sweep stale legacy routing references"
@@ -427,7 +427,7 @@ git add -A && git commit -m "docs(openspec): sweep stale legacy routing referenc
 **Files:**
 - Modify: none.
 
-- [ ] **Step 1: Confirm every checkbox in this tasks.md is `- [x]`**
+- [x] **Step 1: Confirm every checkbox in this tasks.md is `- [x]`**
 
 ```bash
 grep -c "\- \[ \]" openspec/changes/migrate-brainstorming-to-openspec/tasks.md
@@ -435,7 +435,7 @@ grep -c "\- \[ \]" openspec/changes/migrate-brainstorming-to-openspec/tasks.md
 
 Expected: `0`.
 
-- [ ] **Step 2: Strict-validate the change one last time**
+- [x] **Step 2: Strict-validate the change one last time**
 
 ```bash
 openspec validate migrate-brainstorming-to-openspec --strict --no-interactive
