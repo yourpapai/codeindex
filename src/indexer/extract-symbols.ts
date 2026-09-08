@@ -52,6 +52,7 @@ const memberTypes = new Set(['method_definition', 'public_field_definition'])
 
 export const normalizeIdentifierTerms = (name: string): string =>
   name
+    .replace(/([A-Z])s$/, '$1 s')
     .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .replace(/[_-]+/g, ' ')

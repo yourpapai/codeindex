@@ -37,6 +37,6 @@ describe('findSymbolCandidates', () => {
     const results = findSymbolCandidates(db, 'helper', 10)
     expect(results.length).toBeGreaterThanOrEqual(1)
     const first = results[0]!
-    expect(first.matchReason).toBe('fts identifier_terms/doc_text/body_text')
+    expect(first.matchReason).toBe('fts identifier_terms/signature_text/doc_text/body_text')
   })
 })

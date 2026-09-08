@@ -80,6 +80,13 @@ describe('runFtsSearch', () => {
     expect(typeof results[0]!.relevance).toBe('number')
     expect(results[0]!.relevance!).toBeGreaterThanOrEqual(0)
   })
+
+  test('fts matchReason names the searched columns', () => {
+    const db = makeDb('getDrizzleDb')
+    const results = runFtsSearch(db, 'getDrizzleDb', 10, {})
+    expect(results.length).toBeGreaterThan(0)
+    expect(results[0]!.matchReason).toBe('fts identifier_terms/signature_text/doc_text/body_text')
+  })
 })
 
 const insertFile = (db: Database, id: number, filePath: string, moduleKey: string): void => {

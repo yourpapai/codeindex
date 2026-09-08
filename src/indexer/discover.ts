@@ -30,7 +30,11 @@ const supportedExtensionsFor = (languages: readonly SupportedLanguage[]): Readon
 const readGitignore = async (repoRoot: string): Promise<string> => {
   try {
     return await readFile(path.join(repoRoot, '.gitignore'), 'utf8')
-  } catch {
+  } catch (error) {
+    if (isEnoent(error)) return ''
+    console.error(
+      `codeindex: .gitignore exists but could not be read (${error instanceof Error ? error.message : String(error)}) — proceeding without ignore rules`,
+    )
     return ''
   }
 }

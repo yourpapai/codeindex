@@ -145,3 +145,16 @@ describe('normalizeIdentifierTerms acronym runs', () => {
     expect(normalizeIdentifierTerms('getDrizzleDb')).toBe('get drizzle db')
   })
 })
+
+describe('normalizeIdentifierTerms plural acronyms', () => {
+  test('splits a trailing-s acronym into its stem and the plural marker', () => {
+    expect(normalizeIdentifierTerms('IDs')).toBe('id s')
+    expect(normalizeIdentifierTerms('URLs')).toBe('url s')
+  })
+
+  test('leaves non-plural names unchanged', () => {
+    expect(normalizeIdentifierTerms('getUser')).toBe('get user')
+    expect(normalizeIdentifierTerms('APIKeys')).toBe('api keys')
+    expect(normalizeIdentifierTerms('getUsers')).toBe('get users')
+  })
+})

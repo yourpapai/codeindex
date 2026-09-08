@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from 'bun:test'
+import { afterEach, describe, expect, spyOn, test } from 'bun:test'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -57,5 +57,27 @@ describe('discoverSourceFiles', () => {
 
     expect(result.files.map((entry) => entry.relativePath)).toEqual(['src/small.ts'])
     expect(result.skippedFiles).toEqual(['src/huge.ts'])
+  })
+
+  test('an unreadable .gitignore warns but discovery proceeds', async () => {
+    const repoRoot = makeTempRepo()
+    mkdirSync(path.join(repoRoot, 'src'), { recursive: true })
+    writeFileSync(path.join(repoRoot, 'src', 'kept.ts'), 'export const kept = 1\n')
+    mkdirSync(path.join(repoRoot, '.gitignore'))
+    const errSpy = spyOn(console, 'error')
+    try {
+      const result = await discoverSourceFiles({
+        repoRoot,
+        roots: [path.join(repoRoot, 'src')],
+        exclude: [],
+        languages: ['ts'],
+        maxFileSizeBytes: 1_000_000,
+      })
+      expect(result.files.length).toBeGreaterThan(0)
+      const output = errSpy.mock.calls.map((call) => call.join(' ')).join('\n')
+      expect(output).toContain('.gitignore')
+    } finally {
+      errSpy.mockRestore()
+    }
   })
 })
