@@ -5,8 +5,8 @@
 
 ## 2. Failure visibility (test-first)
 
-- [ ] 2.1 Add failing test in `tests/mcp/query-logging.test.ts`: point `queriesPath` at a non-DB file, run a wrapped `code_search` through `withQueryLogging` → assert the search result is still returned normally AND a diagnostic naming the failure was emitted (spy on `console.error`); currently stderr is silent, test fails. Verify: `bun test tests/mcp/query-logging.test.ts`
-- [ ] 2.2 Implement the stderr report inside `record`'s catch (single-line `console.error` with tool and error; contract unchanged — never fail the query). Re-run 2.1 test → passes; `tests/mcp/server.test.ts` and `tests/mcp/wiring.test.ts` stay green. Verify: `bun test tests/mcp/query-logging.test.ts tests/mcp/server.test.ts tests/mcp/wiring.test.ts`
+- [x] 2.1 Add failing test in `tests/mcp/query-logging.test.ts`: point `queriesPath` at a non-DB file, run a wrapped `code_search` through `withQueryLogging` → assert the search result is still returned normally AND a diagnostic naming the failure was emitted (spy on `console.error`); currently stderr is silent, test fails. Verify: `bun test tests/mcp/query-logging.test.ts`
+- [x] 2.2 Implement the stderr report inside `record`'s catch (single-line `console.error` with tool and error; contract unchanged — never fail the query). Re-run 2.1 test → passes; `tests/mcp/server.test.ts` and `tests/mcp/wiring.test.ts` stay green. Verify: `bun test tests/mcp/query-logging.test.ts tests/mcp/server.test.ts tests/mcp/wiring.test.ts`
 
 ## 3. Full verification
 

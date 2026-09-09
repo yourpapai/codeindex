@@ -32,8 +32,9 @@ const record = (queriesPath: string, input: RecordInput): void => {
     } finally {
       db.close()
     }
-  } catch {
+  } catch (err) {
     // Query logging is best-effort observability; never let it fail a real query.
+    console.error(`[codeindex] query-log record failed for ${input.tool}: ${errorMessage(err)}`)
   }
 }
 

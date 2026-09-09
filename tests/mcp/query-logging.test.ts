@@ -1,6 +1,6 @@
 import { Database } from 'bun:sqlite'
 import { afterAll, describe, expect, test } from 'bun:test'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -113,8 +113,36 @@ describe('withQueryLogging', () => {
     // Point queriesPath at an unwritable location to force a logging failure.
     const brokenConfig: CodeindexConfig = { ...config, queriesPath: path.join(config.repoRoot, 'no-such-dir', 'q.db') }
     const wrapped = withQueryLogging(stubDeps(), brokenConfig)
-    const results = await wrapped.codeSearch({ query: 'x', limit: 10 })
-    expect(results.length).toBe(1)
+    const originalError = console.error
+    console.error = (): void => {}
+    try {
+      const results = await wrapped.codeSearch({ query: 'x', limit: 10 })
+      expect(results.length).toBe(1)
+    } finally {
+      console.error = originalError
+    }
+  })
+
+  test('reports a recording failure to stderr while the query succeeds', async () => {
+    const config = configWith(true)
+    const notADb = path.join(config.repoRoot, 'not-a-db')
+    writeFileSync(notADb, 'this is definitely not a sqlite database')
+    const brokenConfig: CodeindexConfig = { ...config, queriesPath: notADb }
+    const wrapped = withQueryLogging(stubDeps(), brokenConfig)
+    const originalError = console.error
+    const reported: string[] = []
+    console.error = (message?: unknown): void => {
+      reported.push(String(message))
+    }
+    try {
+      const results = await wrapped.codeSearch({ query: 'x', limit: 10 })
+      expect(results.length).toBe(1)
+    } finally {
+      console.error = originalError
+    }
+    expect(reported.length).toBe(1)
+    expect(reported[0]).toContain('code_search')
+    expect(reported[0]).toContain('file is not a database')
   })
 
   test('logs an error row and rethrows when the wrapped tool rejects', async () => {
