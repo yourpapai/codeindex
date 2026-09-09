@@ -1,0 +1,11 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "codeindex": {
+      "type": "local",
+      "command": ["bun", "run", "/Users/ki/Projects/yourpapai/codeindex/src/cli.ts", "mcp"],
+      "cwd": ".",
+      "enabled": true
+    }
+  }
+}

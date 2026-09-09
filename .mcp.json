@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "codeindex": {
+      "command": "bun",
+      "args": ["run", "/Users/ki/Projects/yourpapai/codeindex/src/cli.ts", "mcp"]
+    }
+  }
+}

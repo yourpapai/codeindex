@@ -31,7 +31,11 @@ Run from this directory:
 
 ## MCP Usage
 
-The MCP server is registered globally in `~/.claude.json` and per-project in consumer repos. It always operates on the **caller's `cwd`** (the project Claude Code is opened in), so each repo can have its own `.codeindex.json` and `.codeindex/index.db`.
+The MCP server is registered per-project, not globally. This repo registers it for its own coding agents (`.mcp.json` for Claude Code, `opencode.json` for opencode); consumer repos register it the same way (papai uses a vendored `scripts/codeindex-cli.ts` wrapper). It always operates on the **caller's `cwd`**, so each repo has its own `.codeindex.json` and `.codeindex/index.db`.
+
+## Dogfooding
+
+Agents working in this repo should prefer `code_search` / `code_symbol` over grep for symbol lookups — registered MCP server first, grep only for non-symbol needs (todos, prose, config). Responses carry freshness marks (`fresh` / `possibly_stale`) and an `indexFreshness` state; while a startup catch-up or edit-triggered watcher reindex is in flight the index is marked stale instead of served silently. Call `code_index` to refresh explicitly (it joins the serialized writer queue with watcher reindexes). For symbol lookups in worktrees, a per-worktree DB starts cold and self-heals via startup catch-up, so the honesty marks apply there too.
 
 ## Parser Setup
 
