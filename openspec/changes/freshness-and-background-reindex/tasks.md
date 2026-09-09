@@ -21,9 +21,9 @@ spec references: `specs/index-freshness/spec.md`,
 
 ## 3. Reindex scheduler — single writer (D4)
 
-- [ ] 3.1 RED — write `tests/mcp/reindex-scheduler.test.ts`: concurrent triggers serialize (one active run); triggers during an active run coalesce into at most one follow-up; follow-up re-derives the incremental set (no stale queued sets).
-- [ ] 3.2 GREEN — implement `src/mcp/reindex-scheduler.ts`; route `deps.codeIndex` through it in `src/cli.ts` (agent-triggered `code_index` and future watcher submissions share one queue).
-- [ ] 3.3 Verify: `bun test tests/mcp/reindex-scheduler.test.ts && bun run typecheck`
+- [x] 3.1 RED — write `tests/mcp/reindex-scheduler.test.ts`: concurrent triggers serialize (one active run); triggers during an active run coalesce into at most one follow-up; follow-up re-derives the incremental set (no stale queued sets).
+- [x] 3.2 GREEN — implement `src/mcp/reindex-scheduler.ts`; route `deps.codeIndex` through it in `src/cli.ts` (agent-triggered `code_index` and future watcher submissions share one queue).
+- [x] 3.3 Verify: `bun test tests/mcp/reindex-scheduler.test.ts && bun run typecheck`
 
 ## 4. Watcher — probe, watch, state (background-reindex capability, D3/D7/D8)
 

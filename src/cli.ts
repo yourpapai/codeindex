@@ -7,6 +7,7 @@ import { loadCodeindexConfig, type CodeindexConfig } from './config.js'
 import { indexCodebase } from './indexer/index-codebase.js'
 import { withFreshness, type IndexFreshnessState } from './mcp/freshness.js'
 import { withQueryLogging } from './mcp/query-logging.js'
+import { createReindexScheduler, type ReindexScheduler } from './mcp/reindex-scheduler.js'
 import { createCodeindexServer } from './mcp/server.js'
 import { findIncomingReferences, findSymbolCandidates, searchSymbols } from './search/index.js'
 import { openDatabase } from './storage/db.js'
@@ -81,7 +82,10 @@ export const runLogStatsCommand = (config: CodeindexConfig): QueryLogStats => {
 // per-hit marks work identically either way.
 const neutralFreshnessState: IndexFreshnessState = { indexFreshness: 'fresh' }
 
-export const buildMcpDeps = (config: CodeindexConfig): Parameters<typeof createCodeindexServer>[0] =>
+export const buildMcpDeps = (
+  config: CodeindexConfig,
+  scheduler: ReindexScheduler = createReindexScheduler(({ mode }) => indexCodebase({ config, mode })),
+): Parameters<typeof createCodeindexServer>[0] =>
   withFreshness(
     {
       codeSearch: (input: Parameters<typeof searchSymbols>[1]): Promise<ReturnType<typeof searchSymbols>> =>
@@ -93,7 +97,7 @@ export const buildMcpDeps = (config: CodeindexConfig): Parameters<typeof createC
       ): Promise<ReturnType<typeof findIncomingReferences>> =>
         Promise.resolve(withDatabase(config, (db) => findIncomingReferences(db, input))),
       codeIndex: ({ mode }: { mode: 'full' | 'incremental' }): Promise<Awaited<ReturnType<typeof indexCodebase>>> =>
-        indexCodebase({ config, mode }),
+        scheduler.submit({ mode }),
     },
     config,
     () => neutralFreshnessState,
