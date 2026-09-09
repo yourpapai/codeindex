@@ -4,6 +4,11 @@ import type { IndexSummary } from '../indexer/index-codebase.js'
 import type { ImpactResult } from '../search/index.js'
 import type { RankedSearchResult, SearchResult } from '../types.js'
 
+export const FreshnessSchema = z.enum(['fresh', 'possibly_stale'])
+export type Freshness = z.infer<typeof FreshnessSchema>
+
+export type FreshnessMark = Readonly<{ freshness?: Freshness }>
+
 export interface CodeindexToolDeps {
   readonly codeSearch: (input: {
     query: string
@@ -11,17 +16,15 @@ export interface CodeindexToolDeps {
     kinds?: readonly string[]
     scopeTiers?: readonly SearchResult['scopeTier'][]
     pathPrefix?: string
-  }) => Promise<readonly RankedSearchResult[]>
-  readonly codeSymbol: (
-    query: string,
-    limit: number,
-  ) => Promise<readonly SearchResult[] | readonly RankedSearchResult[]>
+  }) => Promise<readonly (RankedSearchResult & FreshnessMark)[]>
+  readonly codeSymbol: (query: string, limit: number) => Promise<readonly (SearchResult & FreshnessMark)[]>
   readonly codeImpact: (input: {
     symbolKey?: string
     qualifiedName?: string
     limit: number
-  }) => Promise<readonly ImpactResult[]>
+  }) => Promise<readonly (ImpactResult & FreshnessMark)[]>
   readonly codeIndex: (input: { mode: 'full' | 'incremental' }) => Promise<IndexSummary>
+  readonly getIndexFreshness?: () => Freshness
 }
 
 export const CodeSearchInputSchema = z.object({
@@ -69,6 +72,7 @@ const RankedSearchResultSchema = z.object({
   confidence: z.string(),
   snippet: z.string(),
   rankScore: z.number(),
+  freshness: FreshnessSchema.optional(),
 })
 
 export const CodeSearchOutputSchema = z.object({
@@ -76,10 +80,12 @@ export const CodeSearchOutputSchema = z.object({
   resultCount: z.number(),
   results: z.array(RankedSearchResultSchema),
   guidance: z.string().optional(),
+  indexFreshness: FreshnessSchema.optional(),
 })
 
 export const CodeSymbolOutputSchema = z.object({
   results: z.array(RankedSearchResultSchema),
+  indexFreshness: FreshnessSchema.optional(),
 })
 
 const ImpactResultSchema = z.object({
@@ -88,10 +94,12 @@ const ImpactResultSchema = z.object({
   edgeType: z.string(),
   confidence: z.string(),
   lineNumber: z.number(),
+  freshness: FreshnessSchema.optional(),
 })
 
 export const CodeImpactOutputSchema = z.object({
   results: z.array(ImpactResultSchema),
+  indexFreshness: FreshnessSchema.optional(),
 })
 
 export const CodeIndexOutputSchema = z.object({

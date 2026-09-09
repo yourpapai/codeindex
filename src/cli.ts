@@ -5,6 +5,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 
 import { loadCodeindexConfig, type CodeindexConfig } from './config.js'
 import { indexCodebase } from './indexer/index-codebase.js'
+import { withFreshness, type IndexFreshnessState } from './mcp/freshness.js'
 import { withQueryLogging } from './mcp/query-logging.js'
 import { createCodeindexServer } from './mcp/server.js'
 import { findIncomingReferences, findSymbolCandidates, searchSymbols } from './search/index.js'
@@ -76,18 +77,27 @@ export const runLogStatsCommand = (config: CodeindexConfig): QueryLogStats => {
   }
 }
 
-export const buildMcpDeps = (config: CodeindexConfig): Parameters<typeof createCodeindexServer>[0] => ({
-  codeSearch: (input: Parameters<typeof searchSymbols>[1]): Promise<ReturnType<typeof searchSymbols>> =>
-    Promise.resolve(withDatabase(config, (db) => searchSymbols(db, input))),
-  codeSymbol: (query: string, limit: number): Promise<ReturnType<typeof findSymbolCandidates>> =>
-    Promise.resolve(withDatabase(config, (db) => findSymbolCandidates(db, query, limit))),
-  codeImpact: (
-    input: Parameters<typeof findIncomingReferences>[1],
-  ): Promise<ReturnType<typeof findIncomingReferences>> =>
-    Promise.resolve(withDatabase(config, (db) => findIncomingReferences(db, input))),
-  codeIndex: ({ mode }: { mode: 'full' | 'incremental' }): Promise<Awaited<ReturnType<typeof indexCodebase>>> =>
-    indexCodebase({ config, mode }),
-})
+// Neutral until the watcher (§4) supplies live catch-up state; the wrapper's
+// per-hit marks work identically either way.
+const neutralFreshnessState: IndexFreshnessState = { indexFreshness: 'fresh' }
+
+export const buildMcpDeps = (config: CodeindexConfig): Parameters<typeof createCodeindexServer>[0] =>
+  withFreshness(
+    {
+      codeSearch: (input: Parameters<typeof searchSymbols>[1]): Promise<ReturnType<typeof searchSymbols>> =>
+        Promise.resolve(withDatabase(config, (db) => searchSymbols(db, input))),
+      codeSymbol: (query: string, limit: number): Promise<ReturnType<typeof findSymbolCandidates>> =>
+        Promise.resolve(withDatabase(config, (db) => findSymbolCandidates(db, query, limit))),
+      codeImpact: (
+        input: Parameters<typeof findIncomingReferences>[1],
+      ): Promise<ReturnType<typeof findIncomingReferences>> =>
+        Promise.resolve(withDatabase(config, (db) => findIncomingReferences(db, input))),
+      codeIndex: ({ mode }: { mode: 'full' | 'incremental' }): Promise<Awaited<ReturnType<typeof indexCodebase>>> =>
+        indexCodebase({ config, mode }),
+    },
+    config,
+    () => neutralFreshnessState,
+  )
 
 const runMcpCommand = async (config: CodeindexConfig): Promise<void> => {
   const server = createCodeindexServer(withQueryLogging(buildMcpDeps(config), config))

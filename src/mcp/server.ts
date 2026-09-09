@@ -15,7 +15,14 @@ import {
   CodeSymbolInputSchema,
   CodeSymbolOutputSchema,
   type CodeindexToolDeps,
+  type Freshness,
 } from './tools.js'
+
+const freshnessSuffix = (results: readonly { readonly freshness?: Freshness }[], indexFreshness: Freshness): string => {
+  const staleCount = results.filter((result) => result.freshness === 'possibly_stale').length
+  const staleClause = staleCount > 0 ? `; ${staleCount} of ${results.length} hits possibly_stale` : ''
+  return ` (indexFreshness: ${indexFreshness}${staleClause})`
+}
 
 const registerSearchTool = (server: McpServer, deps: Readonly<CodeindexToolDeps>): void => {
   server.registerTool(
@@ -27,6 +34,7 @@ const registerSearchTool = (server: McpServer, deps: Readonly<CodeindexToolDeps>
     },
     async ({ query, limit, kinds, scopeTiers, pathPrefix }: CodeSearchInput) => {
       const results = await deps.codeSearch({ query, limit, kinds, scopeTiers, pathPrefix })
+      const indexFreshness = deps.getIndexFreshness?.()
       const guidance =
         results.length === 0
           ? 'No symbol matches. Retry with broader terms, relax scopeTiers, or use code_symbol when you know the exact name.'
@@ -41,8 +49,8 @@ const registerSearchTool = (server: McpServer, deps: Readonly<CodeindexToolDeps>
           : `${results.length} result(s): ${topNames}${results.length > 5 ? ', …' : ''}`
       return buildStructuredToolResult(
         CodeSearchOutputSchema,
-        { query, resultCount: results.length, results: [...results], guidance },
-        summary,
+        { query, resultCount: results.length, results: [...results], guidance, indexFreshness },
+        indexFreshness === undefined ? summary : summary + freshnessSuffix(results, indexFreshness),
       )
     },
   )
@@ -58,11 +66,16 @@ const registerSymbolTool = (server: McpServer, deps: Readonly<CodeindexToolDeps>
     },
     async ({ query, limit }: CodeSymbolInput) => {
       const results = await deps.codeSymbol(query, limit)
+      const indexFreshness = deps.getIndexFreshness?.()
       const summary = `${results.length} candidate(s): ${results
         .slice(0, 5)
         .map((r) => r.qualifiedName)
         .join(', ')}`
-      return buildStructuredToolResult(CodeSymbolOutputSchema, { results: [...results] }, summary)
+      return buildStructuredToolResult(
+        CodeSymbolOutputSchema,
+        { results: [...results], indexFreshness },
+        indexFreshness === undefined ? summary : summary + freshnessSuffix(results, indexFreshness),
+      )
     },
   )
 }
@@ -77,8 +90,13 @@ const registerImpactTool = (server: McpServer, deps: Readonly<CodeindexToolDeps>
     },
     async ({ symbolKey, qualifiedName, limit }: CodeImpactInput) => {
       const results = await deps.codeImpact({ symbolKey, qualifiedName, limit })
+      const indexFreshness = deps.getIndexFreshness?.()
       const summary = `${results.length} incoming reference(s)`
-      return buildStructuredToolResult(CodeImpactOutputSchema, { results: [...results] }, summary)
+      return buildStructuredToolResult(
+        CodeImpactOutputSchema,
+        { results: [...results], indexFreshness },
+        indexFreshness === undefined ? summary : summary + freshnessSuffix(results, indexFreshness),
+      )
     },
   )
 }

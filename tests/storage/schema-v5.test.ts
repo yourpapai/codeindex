@@ -1,9 +1,9 @@
 import { Database } from 'bun:sqlite'
+import { afterEach, describe, expect, test } from 'bun:test'
 import { existsSync } from 'node:fs'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { afterEach, describe, expect, test } from 'bun:test'
 
 import { openDatabase } from '../../src/storage/db.js'
 import { insertFile, markParseFailure } from '../../src/storage/queries.js'

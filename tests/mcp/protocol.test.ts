@@ -1,11 +1,13 @@
 import { Database } from 'bun:sqlite'
 import { afterEach, describe, expect, test } from 'bun:test'
+import { tmpdir } from 'node:os'
 
 import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import type { TextContent } from '@modelcontextprotocol/sdk/types.js'
 import type { z } from 'zod'
 
 import type { IndexSummary } from '../../src/indexer/index-codebase.js'
+import { withFreshness, type IndexFreshnessStateProvider } from '../../src/mcp/freshness.js'
 import { createCodeindexServer } from '../../src/mcp/server.js'
 import {
   CodeImpactOutputSchema,
@@ -176,5 +178,67 @@ describe('code_index payload honesty', () => {
     }
     const result = await callCodeIndexTool(depsWithIndexSummary(summary), { mode: 'incremental' })
     expect(result.content[0]!.text).toBe('Indexed 3 files, 10 symbols, 5 references')
+  })
+})
+
+const possiblyStaleProvider: IndexFreshnessStateProvider = () => ({ indexFreshness: 'possibly_stale' })
+
+const wrappedFreshnessDeps = (
+  db: Database,
+  stateProvider: IndexFreshnessStateProvider = possiblyStaleProvider,
+): CodeindexToolDeps => withFreshness(makeInMemoryDeps(db), { repoRoot: tmpdir(), dbPath: ':memory:' }, stateProvider)
+
+const textBlockOf = (result: {
+  readonly content: readonly { readonly type: string; readonly text?: string }[]
+}): string => result.content.find((entry) => entry.type === 'text')?.text ?? ''
+
+describe('freshness protocol surface', () => {
+  test('code_search carries per-result freshness and response-level indexFreshness in both payloads', async () => {
+    const client = await connectClient(createCodeindexServer(wrappedFreshnessDeps(buildSeededDb())))
+    const result = await client.callTool({ name: 'code_search', arguments: { query: 'searchSymbols' } })
+    const payload = CodeSearchOutputSchema.parse(result.structuredContent)
+    expect(payload.indexFreshness).toBe('possibly_stale')
+    expect(payload.results.length).toBeGreaterThanOrEqual(1)
+    expect(payload.results.every((row) => row.freshness === 'possibly_stale')).toBe(true)
+    const text = textBlockOf(CallToolResultSchema.parse(result))
+    expect(text).toContain('(indexFreshness: possibly_stale')
+    expect(text).toContain(`; ${payload.results.length} of ${payload.results.length} hits possibly_stale`)
+  })
+
+  test('code_search carries fresh response-level state from the provider', async () => {
+    const client = await connectClient(
+      createCodeindexServer(wrappedFreshnessDeps(buildSeededDb(), () => ({ indexFreshness: 'fresh' }))),
+    )
+    const result = await client.callTool({ name: 'code_search', arguments: { query: 'zzz_nonexistent_symbol' } })
+    const payload = CodeSearchOutputSchema.parse(result.structuredContent)
+    expect(payload.indexFreshness).toBe('fresh')
+    const text = textBlockOf(CallToolResultSchema.parse(result))
+    expect(text).toContain('(indexFreshness: fresh)')
+  })
+
+  test('code_symbol carries freshness fields and keeps exact matches before FTS', async () => {
+    const client = await connectClient(createCodeindexServer(wrappedFreshnessDeps(buildSeededDb())))
+    const result = await client.callTool({ name: 'code_symbol', arguments: { query: 'searchSymbols' } })
+    const payload = CodeSymbolOutputSchema.parse(result.structuredContent)
+    expect(payload.indexFreshness).toBe('possibly_stale')
+    expect(payload.results.length).toBeGreaterThanOrEqual(1)
+    expect(payload.results.every((row) => row.freshness === 'possibly_stale')).toBe(true)
+    expect(payload.results[0]!.qualifiedName).toBe('src/search/index#searchSymbols')
+    const text = textBlockOf(CallToolResultSchema.parse(result))
+    expect(text).toContain('(indexFreshness: possibly_stale')
+  })
+
+  test('code_impact carries freshness fields in both payloads', async () => {
+    const client = await connectClient(createCodeindexServer(wrappedFreshnessDeps(buildSeededDb())))
+    const result = await client.callTool({
+      name: 'code_impact',
+      arguments: { qualifiedName: 'src/storage/db#openDatabase' },
+    })
+    const payload = CodeImpactOutputSchema.parse(result.structuredContent)
+    expect(payload.indexFreshness).toBe('possibly_stale')
+    expect(payload.results.length).toBeGreaterThanOrEqual(1)
+    expect(payload.results.every((row) => row.freshness === 'possibly_stale')).toBe(true)
+    const text = textBlockOf(CallToolResultSchema.parse(result))
+    expect(text).toContain('(indexFreshness: possibly_stale')
   })
 })

@@ -13,11 +13,11 @@ spec references: `specs/index-freshness/spec.md`,
 
 ## 2. Freshness marks (index-freshness capability, D2/D6)
 
-- [ ] 2.1 RED — write `tests/mcp/freshness.test.ts`: per-hit rules (fresh at `indexed_at >= mtimeMs`; hash-equal stays fresh after touch; hash-differ → `possibly_stale`; stat/read failure → `possibly_stale`); response-level `indexFreshness` derived from an injected state provider; assertion that result order, `rankScore`, and match types are byte-identical with freshness on vs off.
-- [ ] 2.2 GREEN — implement `src/mcp/freshness.ts` `withFreshness(deps, config, stateProvider)`: batch file-row lookup by hit `filePath`, per-hit `stat()`, `sha256` fallback (reuse `src/indexer/resolve-files.ts` `sha256`), no search-layer changes.
-- [ ] 2.3 RED — extend MCP protocol tests: text payload AND `structuredContent` carry per-result `freshness` and response-level `indexFreshness` for `code_search`, `code_symbol`, `code_impact`; exact-first semantics unchanged (exact matches still precede FTS).
-- [ ] 2.4 GREEN — add the zod fields to the three output schemas in `src/mcp/tools.ts`; wire `withFreshness` into `buildMcpDeps` (`src/cli.ts`) with a neutral state provider (watcher lands in §4).
-- [ ] 2.5 Verify: `bun test tests/mcp && bun run typecheck && bun run lint`
+- [x] 2.1 RED — write `tests/mcp/freshness.test.ts`: per-hit rules (fresh at `indexed_at >= mtimeMs`; hash-equal stays fresh after touch; hash-differ → `possibly_stale`; stat/read failure → `possibly_stale`); response-level `indexFreshness` derived from an injected state provider; assertion that result order, `rankScore`, and match types are byte-identical with freshness on vs off.
+- [x] 2.2 GREEN — implement `src/mcp/freshness.ts` `withFreshness(deps, config, stateProvider)`: batch file-row lookup by hit `filePath`, per-hit `stat()`, `sha256` fallback (reuse `src/indexer/resolve-files.ts` `sha256`), no search-layer changes.
+- [x] 2.3 RED — extend MCP protocol tests: text payload AND `structuredContent` carry per-result `freshness` and response-level `indexFreshness` for `code_search`, `code_symbol`, `code_impact`; exact-first semantics unchanged (exact matches still precede FTS).
+- [x] 2.4 GREEN — add the zod fields to the three output schemas in `src/mcp/tools.ts`; wire `withFreshness` into `buildMcpDeps` (`src/cli.ts`) with a neutral state provider (watcher lands in §4).
+- [x] 2.5 Verify: `bun test tests/mcp && bun run typecheck && bun run lint`
 
 ## 3. Reindex scheduler — single writer (D4)
 
