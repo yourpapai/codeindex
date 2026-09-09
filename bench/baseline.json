@@ -1,7 +1,7 @@
 {
   "k": 10,
-  "meanPrecisionAtK": 0.11428571428571428,
-  "meanRecallAtK": 1,
-  "mrr": 0.9047619047619048,
-  "repoHead": "3d5428b4e7caa2e805389c022e2603be0eb21a9b"
+  "meanPrecisionAtK": 0.09999999999999999,
+  "meanRecallAtK": 0.9285714285714286,
+  "mrr": 0.719047619047619,
+  "repoHead": "3d8a01f3ff4b2e88f40d414d6059e8caed5a1a0c"
 }

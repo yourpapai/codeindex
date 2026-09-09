@@ -39,5 +39,5 @@ spec references: `specs/index-freshness/spec.md`,
 
 ## 6. Bench gates + full verification
 
-- [ ] 6.1 Confirm flat gates: `bun run bench:check && bun run bench:impact:check` (IR search + impact baselines byte-flat per D6 — do NOT regenerate to make them pass); regenerate only `bench/index-baseline.json` (schema v5 intent change) and confirm corpus counts match the pre-change baseline exactly.
-- [ ] 6.2 Final gate: `bun run check && bun run check:bench`
+- [x] 6.1 Confirm flat gates: `bun run bench:check && bun run bench:impact:check` (IR search + impact baselines byte-flat per D6 — do NOT regenerate to make them pass); regenerate only `bench/index-baseline.json` (schema v5 intent change) and confirm corpus counts match the pre-change baseline exactly.
+- [x] 6.2 Final gate: `bun run check && bun run check:bench`
