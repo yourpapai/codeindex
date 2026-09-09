@@ -56,15 +56,15 @@ export const insertFile = (
 ): number => {
   db.query(
     `INSERT INTO files (file_path, module_key, language, file_hash, parse_status, parse_error, indexed_at)
-       VALUES (?, ?, ?, ?, 'indexed', NULL, datetime('now'))
+       VALUES (?, ?, ?, ?, 'indexed', NULL, ?)
        ON CONFLICT(file_path) DO UPDATE SET
          module_key = excluded.module_key,
          language = excluded.language,
          file_hash = excluded.file_hash,
          parse_status = 'indexed',
          parse_error = NULL,
-         indexed_at = datetime('now')`,
-  ).run(values.filePath, values.moduleKey, values.language, values.fileHash)
+         indexed_at = excluded.indexed_at`,
+  ).run(values.filePath, values.moduleKey, values.language, values.fileHash, Date.now())
 
   const row = db.query<{ id: number }, [string]>('SELECT id FROM files WHERE file_path = ?').get(values.filePath)
   if (row === null) {
@@ -80,9 +80,9 @@ export const markParseFailure = (db: Database, file: Readonly<{ relativePath: st
   }
   db.query(
     `INSERT INTO files (file_path, module_key, language, file_hash, parse_status, parse_error, indexed_at)
-       VALUES (?, ?, ?, '', 'parse_failed', ?, datetime('now'))
-       ON CONFLICT(file_path) DO UPDATE SET parse_status = 'parse_failed', parse_error = excluded.parse_error, indexed_at = datetime('now')`,
-  ).run(file.relativePath, file.relativePath.replace(/\.[^.]+$/, ''), 'ts', message)
+       VALUES (?, ?, ?, '', 'parse_failed', ?, ?)
+       ON CONFLICT(file_path) DO UPDATE SET parse_status = 'parse_failed', parse_error = excluded.parse_error, indexed_at = excluded.indexed_at`,
+  ).run(file.relativePath, file.relativePath.replace(/\.[^.]+$/, ''), 'ts', message, Date.now())
 }
 
 export const backfillSymbolInDegree = (db: Database): void => {

@@ -9,7 +9,7 @@ const schemaStatements = [
     file_hash TEXT NOT NULL,
     parse_status TEXT NOT NULL,
     parse_error TEXT,
-    indexed_at TEXT NOT NULL
+    indexed_at INTEGER NOT NULL
   )`,
   `CREATE TABLE IF NOT EXISTS module_aliases (
     id INTEGER PRIMARY KEY,
@@ -118,7 +118,10 @@ const ftsStatements = [
 ]
 
 // Bump when any table/column/index definition changes; ensureSchema will wipe and rebuild.
-const SCHEMA_VERSION = 4
+// v5 (4→5) is a deliberate rebuild trigger, not a shape-only oversight: files.indexed_at
+// switched from second-resolution ISO text to epoch-ms INTEGER, and the forced wipe closes
+// out the legacy identifier_terms token drift deferred by phase-2 Slice 9.
+const SCHEMA_VERSION = 5
 
 const DROP_ORDER = [
   'index_meta',

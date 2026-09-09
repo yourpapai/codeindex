@@ -72,7 +72,7 @@ describe('schema v4', () => {
       .get('src/a#getuserbyid')
     expect(qualified).not.toBeNull()
 
-    expect(db.query<{ user_version: number }, []>('PRAGMA user_version').get()!.user_version).toBe(4)
+    expect(db.query<{ user_version: number }, []>('PRAGMA user_version').get()!.user_version).toBe(5)
   })
 
   test('module_exports.export_name matches case-insensitively', () => {
