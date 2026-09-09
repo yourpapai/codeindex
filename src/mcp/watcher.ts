@@ -8,6 +8,7 @@ import type { IndexSummary } from '../indexer/index-codebase.js'
 import { openDatabase } from '../storage/db.js'
 import type { IndexFreshnessState } from './freshness.js'
 import type { ReindexMode } from './reindex-scheduler.js'
+import type { WatcherState, WatcherStatus } from './tools.js'
 
 export const DEFAULT_DEBOUNCE_MS = 300
 
@@ -15,15 +16,6 @@ export const DEFAULT_DEBOUNCE_MS = 300
 // are swallowed until the watcher is armed: the boot loop below converts that pre-watch
 // state into probe truth instead of phantom catch-up runs.
 const REPLAY_SETTLE_MS = 200
-
-export type WatcherStatus = 'idle' | 'catching_up' | 'error'
-
-export interface WatcherState {
-  readonly status: WatcherStatus
-  readonly pendingEvents: number
-  readonly lastError: string | null
-  readonly lastCompletedAt: number | null
-}
 
 export interface IndexWatcher {
   readonly start: () => Promise<void>

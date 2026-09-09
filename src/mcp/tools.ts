@@ -25,6 +25,7 @@ export interface CodeindexToolDeps {
   }) => Promise<readonly (ImpactResult & FreshnessMark)[]>
   readonly codeIndex: (input: { mode: 'full' | 'incremental' }) => Promise<IndexSummary>
   readonly getIndexFreshness?: () => Freshness
+  readonly getWatcherState?: () => WatcherState
 }
 
 export const CodeSearchInputSchema = z.object({
@@ -57,6 +58,17 @@ export const CodeIndexInputSchema = z.object({
   mode: z.enum(['full', 'incremental']).default('incremental'),
 })
 export type CodeIndexInput = z.infer<typeof CodeIndexInputSchema>
+
+export const WatcherStatusSchema = z.enum(['idle', 'catching_up', 'error'])
+export type WatcherStatus = z.infer<typeof WatcherStatusSchema>
+
+export const WatcherStateSchema = z.object({
+  status: WatcherStatusSchema,
+  pendingEvents: z.number().int(),
+  lastError: z.string().nullable(),
+  lastCompletedAt: z.number().nullable(),
+})
+export type WatcherState = z.infer<typeof WatcherStateSchema>
 
 const RankedSearchResultSchema = z.object({
   symbolKey: z.string(),
@@ -112,6 +124,7 @@ export const CodeIndexOutputSchema = z.object({
   referencesIndexed: z.number(),
   referencesUnresolved: z.number(),
   elapsedMs: z.number(),
+  watcher: WatcherStateSchema.optional(),
 })
 
 export const buildStructuredToolResult = <S extends z.ZodType>(

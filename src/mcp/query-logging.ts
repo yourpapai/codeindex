@@ -146,5 +146,6 @@ export const withQueryLogging = (deps: Readonly<CodeindexToolDeps>, config: Code
     codeImpact: wrapCodeImpact(deps, queriesPath),
     codeIndex: deps.codeIndex,
     getIndexFreshness: deps.getIndexFreshness,
+    getWatcherState: deps.getWatcherState,
   }
 }

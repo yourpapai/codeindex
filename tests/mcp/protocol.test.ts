@@ -8,6 +8,7 @@ import type { z } from 'zod'
 
 import type { IndexSummary } from '../../src/indexer/index-codebase.js'
 import { withFreshness, type IndexFreshnessStateProvider } from '../../src/mcp/freshness.js'
+import { createReindexScheduler } from '../../src/mcp/reindex-scheduler.js'
 import { createCodeindexServer } from '../../src/mcp/server.js'
 import {
   CodeImpactOutputSchema,
@@ -15,9 +16,15 @@ import {
   CodeSearchOutputSchema,
   CodeSymbolOutputSchema,
   type CodeindexToolDeps,
+  type WatcherState,
 } from '../../src/mcp/tools.js'
 import { ensureSchema } from '../../src/storage/schema.js'
 import { connectClient, makeInMemoryDeps, seedFile, seedSymbol } from './harness.js'
+
+const delay = (ms: number): Promise<void> =>
+  new Promise<void>((resolve) => {
+    setTimeout(resolve, ms)
+  })
 
 const openDbs: Database[] = []
 
@@ -115,6 +122,93 @@ describe('MCP protocol boundary', () => {
     const client = await connectClient(createCodeindexServer(makeInMemoryDeps(buildSeededDb())))
     const result = await client.callTool({ name: 'code_search', arguments: {} })
     expect(result.isError).toBe(true)
+  })
+})
+
+describe('watcher state reporting', () => {
+  const watcherState: WatcherState = {
+    status: 'catching_up',
+    pendingEvents: 3,
+    lastError: null,
+    lastCompletedAt: 42,
+  }
+
+  const depsWithWatcher = (summary: IndexSummary): CodeindexToolDeps => ({
+    codeSearch: (): ReturnType<CodeindexToolDeps['codeSearch']> => Promise.resolve([]),
+    codeSymbol: (): ReturnType<CodeindexToolDeps['codeSymbol']> => Promise.resolve([]),
+    codeImpact: (): ReturnType<CodeindexToolDeps['codeImpact']> => Promise.resolve([]),
+    codeIndex: (): ReturnType<CodeindexToolDeps['codeIndex']> => Promise.resolve(summary),
+    getWatcherState: (): WatcherState => watcherState,
+  })
+
+  test('code_index carries watcher state in text and structuredContent', async () => {
+    const summary: IndexSummary = {
+      filesIndexed: 1,
+      filesFailed: 0,
+      filesPruned: 0,
+      skippedFiles: [],
+      skippedFilesTotal: 0,
+      symbolsIndexed: 2,
+      referencesIndexed: 1,
+      referencesUnresolved: 0,
+      elapsedMs: 1,
+    }
+    const client = await connectClient(createCodeindexServer(depsWithWatcher(summary)))
+    const result = CallToolResultSchema.parse(
+      await client.callTool({ name: 'code_index', arguments: { mode: 'incremental' } }),
+    )
+    const payload = CodeIndexOutputSchema.parse(result.structuredContent)
+    expect(payload.watcher).toEqual(watcherState)
+    const text = textBlockOf(result)
+    expect(text).toContain('(watcher: catching_up)')
+  })
+
+  test('a code_index call during an active run joins the queue and reports catching_up', async () => {
+    let runCount = 0
+    let releaseFirst: (() => void) | null = null
+    const summary: IndexSummary = {
+      filesIndexed: 1,
+      filesFailed: 0,
+      filesPruned: 0,
+      skippedFiles: [],
+      skippedFilesTotal: 0,
+      symbolsIndexed: 0,
+      referencesIndexed: 0,
+      referencesUnresolved: 0,
+      elapsedMs: 1,
+    }
+    const runner = async (): Promise<IndexSummary> => {
+      runCount += 1
+      if (runCount === 1) {
+        await new Promise<void>((resolve) => {
+          releaseFirst = resolve
+        })
+      }
+      return summary
+    }
+    const scheduler = createReindexScheduler(runner)
+    const deps: CodeindexToolDeps = {
+      codeSearch: (): ReturnType<CodeindexToolDeps['codeSearch']> => Promise.resolve([]),
+      codeSymbol: (): ReturnType<CodeindexToolDeps['codeSymbol']> => Promise.resolve([]),
+      codeImpact: (): ReturnType<CodeindexToolDeps['codeImpact']> => Promise.resolve([]),
+      codeIndex: ({ mode }): ReturnType<CodeindexToolDeps['codeIndex']> => scheduler.submit({ mode }),
+      getWatcherState: (): WatcherState => watcherState,
+    }
+    const client = await connectClient(createCodeindexServer(deps))
+
+    void scheduler.submit({ mode: 'incremental' })
+    const pending = client.callTool({ name: 'code_index', arguments: { mode: 'incremental' } })
+    await delay(50)
+    expect(runCount).toBe(1)
+    expect(scheduler.isBusy()).toBe(true)
+
+    releaseFirst!()
+    const result = CallToolResultSchema.parse(await pending)
+    const payload = CodeIndexOutputSchema.parse(result.structuredContent)
+    expect(payload.watcher).toEqual(watcherState)
+    expect(runCount).toBe(2)
+    const text = textBlockOf(result)
+    expect(text).toContain('(watcher: catching_up)')
   })
 })
 

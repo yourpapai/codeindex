@@ -110,11 +110,13 @@ const registerIndexTool = (server: McpServer, deps: Readonly<CodeindexToolDeps>)
       outputSchema: CodeIndexOutputSchema,
     },
     async ({ mode }: CodeIndexInput) => {
+      const watcher = deps.getWatcherState?.()
       const summary = await deps.codeIndex({ mode })
       const skippedSuffix = summary.skippedFilesTotal > 0 ? `, ${summary.skippedFilesTotal} skipped` : ''
+      const watcherSuffix = watcher !== undefined && watcher.status !== 'idle' ? ` (watcher: ${watcher.status})` : ''
       const summaryText = `Indexed ${summary.filesIndexed} files, ${summary.symbolsIndexed} symbols, ${summary.referencesIndexed} references${skippedSuffix}`
-      const payload = { ...summary, skippedFiles: summary.skippedFiles.slice(0, 20) }
-      return buildStructuredToolResult(CodeIndexOutputSchema, payload, summaryText)
+      const payload = { ...summary, skippedFiles: summary.skippedFiles.slice(0, 20), watcher }
+      return buildStructuredToolResult(CodeIndexOutputSchema, payload, summaryText + watcherSuffix)
     },
   )
 }

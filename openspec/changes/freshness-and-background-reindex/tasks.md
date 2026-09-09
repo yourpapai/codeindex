@@ -33,9 +33,9 @@ spec references: `specs/index-freshness/spec.md`,
 
 ## 5. Server assembly + `code_index` watcher reporting (D5)
 
-- [ ] 5.1 RED — protocol tests: `code_index` response carries `watcher` (`status`/`pendingEvents`/`lastError`/`lastCompletedAt`) in text + `structuredContent`; a call during an active run reports `catching_up` and joins the queue. Integration test: server boot in a temp-dir repo with dirty index → serves immediately with `indexFreshness: "possibly_stale"` → flips to `fresh` after catch-up completes.
-- [ ] 5.2 GREEN — extend `CodeIndexOutputSchema` with the `watcher` object; assemble in `runMcpCommand` (`src/cli.ts`): create scheduler + watcher, feed state into `withFreshness`, wire `deps.codeIndex` to the scheduler.
-- [ ] 5.3 Verify: `bun test tests/mcp && bun test tests/cli && bun run typecheck && bun run lint`
+- [x] 5.1 RED — protocol tests: `code_index` response carries `watcher` (`status`/`pendingEvents`/`lastError`/`lastCompletedAt`) in text + `structuredContent`; a call during an active run reports `catching_up` and joins the queue. Integration test: server boot in a temp-dir repo with dirty index → serves immediately with `indexFreshness: "possibly_stale"` → flips to `fresh` after catch-up completes.
+- [x] 5.2 GREEN — extend `CodeIndexOutputSchema` with the `watcher` object; assemble in `runMcpCommand` (`src/cli.ts`): create scheduler + watcher, feed state into `withFreshness`, wire `deps.codeIndex` to the scheduler.
+- [x] 5.3 Verify: `bun test tests/mcp && bun test tests/cli && bun run typecheck && bun run lint`
 
 ## 6. Bench gates + full verification
 
