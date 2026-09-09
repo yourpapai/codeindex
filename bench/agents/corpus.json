@@ -1,0 +1,65 @@
+{
+  "name": "agent-bench-codeindex-self",
+  "tasks": [
+    {
+      "id": "locate-openDatabase",
+      "kind": "locate",
+      "prompt": "In this repository, where is the function `openDatabase` implemented? Answer with the file path and the exported symbol name only.",
+      "groundTruth": { "expected": ["openDatabase"] }
+    },
+    {
+      "id": "locate-searchSymbols",
+      "kind": "locate",
+      "prompt": "In this repository, where is the function `searchSymbols` implemented? Answer with the file path and the exported symbol name only.",
+      "groundTruth": { "expected": ["searchSymbols"] }
+    },
+    {
+      "id": "locate-rerank",
+      "kind": "locate",
+      "prompt": "Somewhere in this repository there is logic that reranks code search results by relevance. Which exported function implements it, and in which file? Answer with the file path and symbol name only.",
+      "groundTruth": { "expected": ["rerankSearchResults"] }
+    },
+    {
+      "id": "locate-load-config",
+      "kind": "locate",
+      "prompt": "This tool loads a JSON config file when indexing a repository. Which exported function loads that config, and in which file? Answer with the file path and symbol name only.",
+      "groundTruth": { "expected": ["loadCodeindexConfig"] }
+    },
+    {
+      "id": "who-uses-openDatabase",
+      "kind": "who-uses",
+      "prompt": "Which functions in this repository call the exported function `openDatabase` (defined in src/storage/db)? List the names of the calling functions only.",
+      "groundTruth": { "expected": ["withDatabase", "indexCodebase"] }
+    },
+    {
+      "id": "who-uses-ensureSchema",
+      "kind": "who-uses",
+      "prompt": "Which functions in this repository call the exported function `ensureSchema` (defined in src/storage/schema)? List the names of the calling functions only.",
+      "groundTruth": { "expected": ["runIndexPhases"] }
+    },
+    {
+      "id": "explain-indexing-pipeline",
+      "kind": "explain",
+      "prompt": "Explain how the indexing pipeline of this repository works end to end: from running the CLI `index` command to rows landing in SQLite. Name the main phases and the modules involved.",
+      "judgeNotes": "A good answer names the tree-sitter parsing, symbol/reference extraction phases, the indexCodebase entrypoint, and the SQLite storage modules with accurate file references. Penalize invented module names or invented phases."
+    },
+    {
+      "id": "explain-search-flow",
+      "kind": "explain",
+      "prompt": "Explain what happens when the code_search MCP tool is called in this repository: how the query travels from the MCP tool handler to ranked results. Name the modules involved.",
+      "judgeNotes": "A good answer traces the MCP tool registration, the search implementation, and the ranking step (rerankSearchResults, rankScore), with accurate file references. Penalize invented steps or module names."
+    },
+    {
+      "id": "review-impact",
+      "kind": "review",
+      "prompt": "Review src/impact.ts in this repository for correctness issues, bugs, or risky patterns. Report specific findings, each tied to a concrete piece of code.",
+      "judgeNotes": "A good answer cites real code from src/impact.ts (function names, actual behavior). Penalize generic advice, invented APIs, or findings that do not match the file's content."
+    },
+    {
+      "id": "map-storage-layer",
+      "kind": "map",
+      "prompt": "Give a concise architectural map of the storage layer under src/storage in this repository: which modules exist and what each is responsible for.",
+      "judgeNotes": "A good answer names the real modules under src/storage (db, schema, and any others) with correct one-line responsibilities. Penalize invented modules or wrong responsibilities."
+    }
+  ]
+}

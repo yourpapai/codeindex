@@ -33,3 +33,6 @@ logs
 
 # local agent working artifacts (superpowers sdd)
 .superpowers/
+
+# agent benchmark run artifacts
+bench/agents/runs

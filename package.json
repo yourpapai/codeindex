@@ -6,8 +6,8 @@
     "test": "bun test tests",
     "typecheck": "tsgo --project tsconfig.json --noEmit",
     "lint": "oxlint --config .oxlintrc.json src tests bench",
-    "format": "oxfmt --write src tests bench --ignore-path=.oxfmtignore",
-    "format:check": "oxfmt --check src tests bench --ignore-path=.oxfmtignore",
+    "format": "oxfmt --write src tests bench --ignore-path=.oxfmtignore --ignore-path=.gitignore",
+    "format:check": "oxfmt --check src tests bench --ignore-path=.oxfmtignore --ignore-path=.gitignore",
     "check:bench": "bun run bench:check && bun run bench:index:check && bun run bench:impact:check && bun run bench:impact:fixture:check",
     "check": "bun run --parallel lint typecheck format:check test check:bench",
     "start": "bun run src/cli.ts",
@@ -24,7 +24,9 @@
     "bench:impact:check": "bun run bench/impact-run.ts --baseline bench/impact-baseline.json",
     "bench:impact:papai": "bun run bench/impact-run.ts --repo ../papai --max-targets 300 --baseline bench/impact-baseline.papai.json",
     "bench:impact:fixture": "bun run bench/impact-run.ts --repo bench/fixtures/impact-demo",
-    "bench:impact:fixture:check": "bun run bench/impact-run.ts --repo bench/fixtures/impact-demo --baseline bench/impact-baseline.fixture.json"
+    "bench:impact:fixture:check": "bun run bench/impact-run.ts --repo bench/fixtures/impact-demo --baseline bench/impact-baseline.fixture.json",
+    "bench:agent": "bun run bench/agents/run.ts --repo .",
+    "bench:agent:baseline": "bun run bench/agents/run.ts --repo . --baseline bench/agents/baseline.json"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -35,6 +37,7 @@
     "zod": "^4.0.0"
   },
   "devDependencies": {
+    "@opencode-ai/sdk": "1.18.30",
     "@types/bun": "1.3.13",
     "@typescript/native-preview": "^7.0.0-dev.20260409.1",
     "oxfmt": "^0.46.0",
