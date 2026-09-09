@@ -49,12 +49,12 @@ export const createReindexScheduler = (
 
   const submit = (input: Readonly<{ mode: ReindexMode }>): Promise<IndexSummary> =>
     new Promise<IndexSummary>((resolve, reject) => {
-      if (!busy) {
+      if (busy) {
+        pendingHasFull = pendingHasFull || input.mode === 'full'
+        pendingWaiters.push({ resolve, reject })
+      } else {
         void execute(input.mode, [{ resolve, reject }])
-        return
       }
-      pendingHasFull = pendingHasFull || input.mode === 'full'
-      pendingWaiters.push({ resolve, reject })
     })
 
   return {

@@ -15,7 +15,10 @@ const summary = (filesIndexed: number): IndexSummary => ({
   elapsedMs: 1,
 })
 
-const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
+const delay = (ms: number): Promise<void> =>
+  new Promise<void>((resolve) => {
+    setTimeout(resolve, ms)
+  })
 
 describe('reindex scheduler', () => {
   test('concurrent triggers serialize — at most one run is active', async () => {

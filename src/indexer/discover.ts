@@ -18,6 +18,32 @@ export interface DiscoverResult {
   readonly skippedFiles: readonly string[]
 }
 
+export interface IndexablePathFilter {
+  readonly isIndexable: (relativePath: string) => boolean
+}
+
+// The event-side counterpart of discoverSourceFiles: an identical predicate over one
+// relative path — extension, exclude/gitignore matcher, and root containment. Used by
+// the MCP watcher so an fs.watch event passes exactly the rules discovery applies.
+export const createIndexablePathFilter = async (
+  input: Readonly<DiscoverSourceFilesInput>,
+): Promise<IndexablePathFilter> => {
+  const matcher = ignore()
+    .add(await readGitignore(input.repoRoot))
+    .add([...input.exclude])
+  const supportedExtensions = supportedExtensionsFor(input.languages)
+  return {
+    isIndexable: (relativePath: string): boolean => {
+      if (!supportedExtensions.has(path.extname(relativePath))) return false
+      if (matcher.ignores(relativePath)) return false
+      return input.roots.some((root) => {
+        const rel = path.relative(root, path.join(input.repoRoot, relativePath))
+        return rel !== '' && !rel.startsWith('..') && !path.isAbsolute(rel)
+      })
+    },
+  }
+}
+
 export interface DiscoveredFile {
   readonly absolutePath: string
   readonly relativePath: string

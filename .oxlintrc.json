@@ -53,9 +53,10 @@
     {
       "files": ["tests/**/*.ts"],
       "rules": {
-        "max-lines-per-function": "off",
-        "max-lines": "off",
-        "no-await-in-loop": "off",
+        "eslint/max-lines-per-function": "off",
+        "eslint/max-lines": "off",
+        "eslint/no-await-in-loop": "off",
+        "eslint-plugin-jest/no-conditional-in-test": "off",
         "typescript/no-confusing-void-expression": "off",
         "typescript/await-thenable": "off",
         "eslint/no-empty-function": "off"

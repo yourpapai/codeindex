@@ -27,9 +27,9 @@ spec references: `specs/index-freshness/spec.md`,
 
 ## 4. Watcher — probe, watch, state (background-reindex capability, D3/D7/D8)
 
-- [ ] 4.1 RED — write `tests/mcp/watcher.test.ts` on temp dirs: boot probe dirty/clean/wiped-DB/missing-DB; events outside configured roots/excludes/languages ignored; debounce coalesces an edit burst into exactly one incremental reindex; rename/move/delete sequences converge; failure records error state and next event retries; watcher starts and stops with the server; no daemon introduced.
-- [ ] 4.2 GREEN — implement `src/mcp/watcher.ts`: boot probe = `discoverSourceFiles` structure diff + mtime-vs-`indexed_at` scan (no reads, no hashing); `fs.watch(repoRoot, { recursive: true })` filtered by the discover predicates; 300 ms debounce; submit through the scheduler; state `{ status, pendingEvents, lastError, lastCompletedAt }`.
-- [ ] 4.3 Verify: `bun test tests/mcp/watcher.test.ts && bun run typecheck`
+- [x] 4.1 RED — write `tests/mcp/watcher.test.ts` on temp dirs: boot probe dirty/clean/wiped-DB/missing-DB; events outside configured roots/excludes/languages ignored; debounce coalesces an edit burst into exactly one incremental reindex; rename/move/delete sequences converge; failure records error state and next event retries; watcher starts and stops with the server; no daemon introduced.
+- [x] 4.2 GREEN — implement `src/mcp/watcher.ts`: boot probe = `discoverSourceFiles` structure diff + mtime-vs-`indexed_at` scan (no reads, no hashing); `fs.watch(repoRoot, { recursive: true })` filtered by the discover predicates; 300 ms debounce; submit through the scheduler; state `{ status, pendingEvents, lastError, lastCompletedAt }`.
+- [x] 4.3 Verify: `bun test tests/mcp/watcher.test.ts && bun run typecheck`
 
 ## 5. Server assembly + `code_index` watcher reporting (D5)
 
