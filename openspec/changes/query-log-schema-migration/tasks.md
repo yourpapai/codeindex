@@ -10,6 +10,6 @@
 
 ## 3. Full verification
 
-- [ ] 3.1 Static gates. Verify: `bun run typecheck && bun run lint && bun run format:check`
-- [ ] 3.2 Full suite plus bench gates (logging is off the search/ranking path, so baselines pass like-for-like). Verify: `bun run check`
-- [ ] 3.3 Dogfood confirmation: one real MCP session (`code_search` / `code_symbol` / `code_impact` calls), then `bun run start log-stats` shows `total` growing past 3. Verify: `bun run start log-stats`
+- [x] 3.1 Static gates. Verify: `bun run typecheck && bun run lint && bun run format:check`
+- [x] 3.2 Full suite plus bench gates (logging is off the search/ranking path, so baselines pass like-for-like). Verify: `bun run check`
+- [x] 3.3 Dogfood confirmation: one real MCP session (`code_search` / `code_symbol` / `code_impact` calls), then `bun run start log-stats` shows `total` growing past 3. Verify: `bun run start log-stats`
