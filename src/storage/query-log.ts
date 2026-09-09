@@ -42,8 +42,18 @@ const CREATE_QUERY_LOG = `CREATE TABLE IF NOT EXISTS query_log (
   error TEXT
 )`
 
+// Bump when the query_log shape changes; ensureQueryLogSchema wipes and rebuilds.
+// v1 (0→1) adds the user_version convention to queries.db and migrates legacy
+// files that predate the error column (history is disposable by contract).
+const QUERY_LOG_SCHEMA_VERSION = 1
+
 export const ensureQueryLogSchema = (db: Database): void => {
+  const row = db.query<{ user_version: number }, []>('PRAGMA user_version').get()!
+  if (row.user_version < QUERY_LOG_SCHEMA_VERSION) {
+    db.run('DROP TABLE IF EXISTS query_log')
+  }
   db.run(CREATE_QUERY_LOG)
+  db.run(`PRAGMA user_version = ${QUERY_LOG_SCHEMA_VERSION}`)
 }
 
 export const openQueryLog = (queriesPath: string): Database => {

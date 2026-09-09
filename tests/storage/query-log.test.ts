@@ -1,7 +1,15 @@
 import { Database } from 'bun:sqlite'
 import { describe, expect, test } from 'bun:test'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 
-import { ensureQueryLogSchema, insertQueryLogEntry, readQueryLogStats } from '../../src/storage/query-log.js'
+import {
+  ensureQueryLogSchema,
+  insertQueryLogEntry,
+  openQueryLog,
+  readQueryLogStats,
+} from '../../src/storage/query-log.js'
 import type { QueryLogEntry } from '../../src/storage/query-log.js'
 
 const baseEntry = (overrides: Partial<QueryLogEntry>): QueryLogEntry => ({
@@ -63,6 +71,45 @@ describe('query log storage', () => {
       expect(foo!.count).toBe(2)
     } finally {
       db.close()
+    }
+  })
+
+  test('migrates a legacy queries.db missing the error column', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'codeindex-legacy-qlog-'))
+    try {
+      const queriesPath = path.join(dir, 'queries.db')
+      const legacy = new Database(queriesPath)
+      try {
+        legacy.run(`CREATE TABLE query_log (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          timestamp TEXT NOT NULL,
+          tool TEXT NOT NULL,
+          query_text TEXT,
+          filters_json TEXT,
+          result_count INTEGER NOT NULL,
+          hit INTEGER NOT NULL,
+          latency_ms INTEGER NOT NULL,
+          top_qualified_names TEXT NOT NULL
+        )`)
+      } finally {
+        legacy.close()
+      }
+      const db = openQueryLog(queriesPath)
+      try {
+        insertQueryLogEntry(db, baseEntry({ error: 'no such column: error' }))
+      } finally {
+        db.close()
+      }
+      const reopened = new Database(queriesPath)
+      try {
+        const row = reopened.query<{ error: string | null }, []>('SELECT error FROM query_log').get()
+        expect(row).not.toBeNull()
+        expect(row!.error).toBe('no such column: error')
+      } finally {
+        reopened.close()
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
     }
   })
 })
