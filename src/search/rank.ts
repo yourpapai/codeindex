@@ -1,4 +1,4 @@
-import type { RankedSearchResult, SearchResult } from '../types.js'
+import type { MatchedBy, RankedSearchResult, SearchResult } from '../types.js'
 
 const scopeScore = (scopeTier: SearchResult['scopeTier']): number => {
   switch (scopeTier) {
@@ -15,11 +15,12 @@ const scopeScore = (scopeTier: SearchResult['scopeTier']): number => {
   }
 }
 
-const matchScore = (matchReason: string): number => {
-  if (matchReason.includes('exact export_names')) return 500
-  if (matchReason.includes('exact qualified_name')) return 450
-  if (matchReason.includes('exact local_name')) return 425
-  return 0
+const MATCH_SCORES: Record<MatchedBy, number> = {
+  exact_export: 500,
+  exact_qualified: 450,
+  exact_local: 425,
+  path_prefix: 0,
+  fts: 0,
 }
 
 // BM25 relevance is blended as a bounded term so lexical strength reorders results
@@ -45,7 +46,7 @@ const inDegreeScore = (result: Readonly<SearchResult>, max: number): number =>
   result.inDegree === undefined || max <= 0 ? 0 : (Math.log1p(result.inDegree) / Math.log1p(max)) * IN_DEGREE_WEIGHT
 
 export const scoreSearchResult = (result: Readonly<SearchResult>): number =>
-  scopeScore(result.scopeTier) + matchScore(result.matchReason)
+  scopeScore(result.scopeTier) + MATCH_SCORES[result.matchedBy]
 
 export const rerankSearchResults = (results: readonly SearchResult[]): readonly RankedSearchResult[] => {
   const maxRel = maxRelevance(results)

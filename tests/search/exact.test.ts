@@ -168,7 +168,7 @@ describe('runExactSearch case-insensitive matching', () => {
 
     const results = runExactSearch(db, 'getuserbyid', 10, {})
     expect(results).toHaveLength(1)
-    expect(results[0]!.matchReason).toBe('exact local_name')
+    expect(results[0]!.matchedBy).toBe('exact_local')
     expect(results[0]!.confidence).toBe('exact')
   })
 })
@@ -214,7 +214,7 @@ describe('runExactSearch LIKE escaping', () => {
     seed(db)
     const results = runExactSearch(db, 'src/foo_bar', 10, {})
     expect(results).toHaveLength(1)
-    expect(results[0]!.matchReason).toBe('exact file_path')
+    expect(results[0]!.matchedBy).toBe('path_prefix')
   })
 })
 
@@ -246,7 +246,7 @@ describe('runExactSearch short-query prefix guard', () => {
     const db = new Database(':memory:')
     seed(db)
     const results = runExactSearch(db, 's', 10, {})
-    expect(results.every((r) => r.matchReason !== 'exact file_path')).toBe(true)
+    expect(results.every((r) => r.matchedBy !== 'path_prefix')).toBe(true)
     expect(results).toHaveLength(0)
   })
 
@@ -254,7 +254,7 @@ describe('runExactSearch short-query prefix guard', () => {
     const db = new Database(':memory:')
     seed(db)
     const results = runExactSearch(db, 'src', 10, {})
-    expect(results.some((r) => r.matchReason === 'exact file_path')).toBe(true)
+    expect(results.some((r) => r.matchedBy === 'path_prefix')).toBe(true)
   })
 })
 
@@ -379,6 +379,7 @@ describe('runExactSearch NOCASE JOIN row multiplication (#14)', () => {
     seedDualExportSymbol(db)
     expect(runExactSearch(db, 'DUAL', 10, {})).toHaveLength(1)
     expect(runExactSearch(db, 'dual', 10, {})).toHaveLength(1)
+    expect(runExactSearch(db, 'dual', 10, {})[0]!.matchedBy).toBe('exact_export')
   })
 
   test('duplicates do not crowd a second symbol out under a tight LIMIT', () => {
@@ -408,6 +409,48 @@ describe('runExactSearch NOCASE JOIN row multiplication (#14)', () => {
     const results = runExactSearch(db, 'dual', 2, {})
     expect(results).toHaveLength(2)
     expect(new Set(results.map((r) => r.symbolKey)).size).toBe(2)
+  })
+})
+
+describe('runExactSearch provenance priority', () => {
+  const seed = (db: Database): void => {
+    ensureSchema(db)
+    insertFile(db, 1, 'src/widget.ts', 'src/widget')
+    insertSymbol(db, {
+      id: 1,
+      fileId: 1,
+      filePath: 'src/widget.ts',
+      moduleKey: 'src/widget',
+      symbolKey: 'src/widget.ts#1-2',
+      localName: 'widget',
+      qualifiedName: 'src/widget#widget',
+      kind: 'function_declaration',
+      scopeTier: 'exported',
+      exportNames: '["widget"]',
+      signatureText: 'export function widget()',
+      docText: '',
+      bodyText: 'x',
+      identifierTerms: 'widget',
+      startLine: 1,
+      endLine: 2,
+    })
+    insertModuleExport(db, 1, 1, 'widget', 1)
+  }
+
+  test('qualified-name match reports exact_qualified', () => {
+    const db = new Database(':memory:')
+    seed(db)
+    const results = runExactSearch(db, 'src/widget#widget', 10, {})
+    expect(results).toHaveLength(1)
+    expect(results[0]!.matchedBy).toBe('exact_qualified')
+  })
+
+  test('export-name match outranks the also-matching local name', () => {
+    const db = new Database(':memory:')
+    seed(db)
+    const results = runExactSearch(db, 'widget', 10, {})
+    expect(results).toHaveLength(1)
+    expect(results[0]!.matchedBy).toBe('exact_export')
   })
 })
 

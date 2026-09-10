@@ -13,7 +13,7 @@ const localResult: SearchResult = {
   startLine: 1,
   endLine: 1,
   exportNames: [],
-  matchReason: 'exact local_name',
+  matchedBy: 'exact_local',
   confidence: 'resolved',
   snippet: 'function helper() {}',
 }
@@ -28,7 +28,7 @@ const exportedResult: SearchResult = {
   startLine: 1,
   endLine: 1,
   exportNames: ['helper'],
-  matchReason: 'exact export_names',
+  matchedBy: 'exact_export',
   confidence: 'resolved',
   snippet: 'export function helper() {}',
 }
@@ -44,10 +44,10 @@ describe('scoreSearchResult', () => {
     expect(score).toBe(100 + 425)
   })
 
-  test('returns scope-only score when matchReason is non-exact', () => {
+  test('returns scope-only score when matchedBy is non-exact', () => {
     const ftsResult: SearchResult = {
       ...exportedResult,
-      matchReason: 'fts identifier_terms',
+      matchedBy: 'fts',
     }
     expect(scoreSearchResult(ftsResult)).toBe(400)
   })

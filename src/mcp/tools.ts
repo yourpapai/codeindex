@@ -80,7 +80,7 @@ const RankedSearchResultSchema = z.object({
   startLine: z.number(),
   endLine: z.number(),
   exportNames: z.array(z.string()),
-  matchReason: z.string(),
+  matchedBy: z.enum(['exact_export', 'exact_qualified', 'exact_local', 'path_prefix', 'fts']),
   confidence: z.string(),
   snippet: z.string(),
   rankScore: z.number(),

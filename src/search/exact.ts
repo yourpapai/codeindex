@@ -71,14 +71,14 @@ const mapExactRow = (
     startLine: row.start_line,
     endLine: row.end_line,
     exportNames: parseExportNames(row.export_names),
-    matchReason:
+    matchedBy:
       row.matched_export_name !== null && row.matched_export_name.toLowerCase() === queryLower
-        ? 'exact export_names'
+        ? 'exact_export'
         : row.qualified_name.toLowerCase() === queryLower
-          ? 'exact qualified_name'
+          ? 'exact_qualified'
           : row.local_name.toLowerCase() === queryLower
-            ? 'exact local_name'
-            : 'exact file_path',
+            ? 'exact_local'
+            : 'path_prefix',
     confidence: 'exact',
     snippet: buildSnippet(row.body_text, row.signature_text, row.qualified_name),
     inDegree: row.in_degree,

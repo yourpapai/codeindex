@@ -83,7 +83,7 @@ const loadFtsResults = (db: Database, query: string, limit: number): readonly Se
       startLine: row.start_line,
       endLine: row.end_line,
       exportNames: parseExportNames(row.export_names),
-      matchReason: 'fts identifier_terms/signature_text/doc_text/body_text',
+      matchedBy: 'fts',
       confidence: 'resolved',
       snippet: row.snippet,
       relevance: -row.bm25_score,

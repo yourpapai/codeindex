@@ -194,7 +194,7 @@ describe('freshness never affects ranking', () => {
 
     expect(strip(withMarks)).toEqual(withoutMarks)
     expect(withMarks.map((row) => row.rankScore)).toEqual(withoutMarks.map((row) => row.rankScore))
-    expect(withMarks.map((row) => row.matchReason)).toEqual(withoutMarks.map((row) => row.matchReason))
+    expect(withMarks.map((row) => row.matchedBy)).toEqual(withoutMarks.map((row) => row.matchedBy))
   })
 
   test('fixture sanity: indexed files still exist before deletion scenarios run', () => {

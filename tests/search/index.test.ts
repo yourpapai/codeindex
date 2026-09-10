@@ -20,7 +20,7 @@ describe('findSymbolCandidates', () => {
     ).run()
 
     const results = findSymbolCandidates(db, 'helper', 10)
-    expect(results.every((r) => r.matchReason.startsWith('exact'))).toBe(true)
+    expect(results.every((r) => r.matchedBy.startsWith('exact'))).toBe(true)
   })
 
   test('falls back to broad search when no exact match', () => {
@@ -37,6 +37,6 @@ describe('findSymbolCandidates', () => {
     const results = findSymbolCandidates(db, 'helper', 10)
     expect(results.length).toBeGreaterThanOrEqual(1)
     const first = results[0]!
-    expect(first.matchReason).toBe('fts identifier_terms/signature_text/doc_text/body_text')
+    expect(first.matchedBy).toBe('fts')
   })
 })

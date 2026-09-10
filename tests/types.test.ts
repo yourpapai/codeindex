@@ -14,7 +14,7 @@ describe('RankedSearchResult', () => {
       startLine: 1,
       endLine: 1,
       exportNames: ['helper'],
-      matchReason: 'exact export_names',
+      matchedBy: 'exact_export',
       confidence: 'resolved',
       snippet: 'export function helper() {}',
     }

@@ -24,7 +24,7 @@ const fakeResult = (qualifiedName: string): RankedSearchResult => ({
   startLine: 1,
   endLine: 1,
   exportNames: [],
-  matchReason: 'exact',
+  matchedBy: 'exact_export',
   confidence: 'exact',
   snippet: '',
   rankScore: 1,

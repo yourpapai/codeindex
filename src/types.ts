@@ -15,6 +15,8 @@ export type ReferenceEdgeType =
 
 export type ReferenceConfidence = 'resolved' | 'file_resolved' | 'name_only'
 
+export type MatchedBy = 'exact_export' | 'exact_qualified' | 'exact_local' | 'path_prefix' | 'fts'
+
 export interface SearchResult {
   readonly symbolKey: string
   readonly qualifiedName: string
@@ -25,7 +27,7 @@ export interface SearchResult {
   readonly startLine: number
   readonly endLine: number
   readonly exportNames: readonly string[]
-  readonly matchReason: string
+  readonly matchedBy: MatchedBy
   readonly confidence: ReferenceConfidence | 'exact'
   readonly snippet: string
   readonly relevance?: number
