@@ -58,8 +58,8 @@ Test-first throughout: every implementation task is preceded by its failing test
 
 ## 5. Bench gates + full verification
 
-- [ ] 5.1 Byte-flat gates, no regeneration: IR repo-local + papai
+- [x] 5.1 Byte-flat gates, no regeneration: IR repo-local + papai
       (`bench/baseline.json`, `bench/baseline.papai.json`) and impact
       (`bench/impact-baseline.json`, `bench/impact-baseline.papai.json`) pass
       unchanged. Verify: `bun run check:bench`
-- [ ] 5.2 Final gate. Verify: `bun run check`
+- [x] 5.2 Final gate. Verify: `bun run check`

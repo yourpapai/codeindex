@@ -13,7 +13,11 @@ const baseResult: Omit<SearchResult, 'matchedBy' | 'scopeTier' | 'symbolKey' | '
   snippet: 'function helper() {}',
 }
 
-const withMatchedBy = (symbolKey: string, matchedBy: MatchedBy, scopeTier: SearchResult['scopeTier']): SearchResult => ({
+const withMatchedBy = (
+  symbolKey: string,
+  matchedBy: MatchedBy,
+  scopeTier: SearchResult['scopeTier'],
+): SearchResult => ({
   ...baseResult,
   symbolKey,
   qualifiedName: `src/foo#${symbolKey}`,

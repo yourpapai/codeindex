@@ -25,8 +25,7 @@ export const searchSymbols = (
 ): readonly RankedSearchResult[] => {
   const mode: SearchMode = input.mode ?? 'auto'
   const servesUnion = mode === 'auto' || mode === 'fused'
-  const exactResults =
-    servesUnion || mode === 'exact' ? runExactSearch(db, input.query, input.limit, input) : []
+  const exactResults = servesUnion || mode === 'exact' ? runExactSearch(db, input.query, input.limit, input) : []
   const ftsResults = servesUnion || mode === 'fts' ? runFtsSearch(db, input.query, input.limit, input) : []
   const deduped: readonly SearchResult[] = [
     ...exactResults,

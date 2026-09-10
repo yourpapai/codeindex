@@ -28,7 +28,10 @@ describe('fuseRankedLists', () => {
 
   test('rank within a list dampens the contribution', () => {
     const fused = fuseRankedLists<Item>(
-      [[entry('a', 'fts'), entry('b', 'fts')], [entry('a', 'fts'), entry('b', 'fts')]],
+      [
+        [entry('a', 'fts'), entry('b', 'fts')],
+        [entry('a', 'fts'), entry('b', 'fts')],
+      ],
       60,
       (i) => i.id,
     )
@@ -57,11 +60,7 @@ describe('fuseRankedLists', () => {
   })
 
   test('equal scores keep first-seen order (deterministic ties)', () => {
-    const fused = fuseRankedLists<Item>(
-      [[entry('x', 'fts')], [entry('y', 'fts')]],
-      60,
-      (i) => i.id,
-    )
+    const fused = fuseRankedLists<Item>([[entry('x', 'fts')], [entry('y', 'fts')]], 60, (i) => i.id)
     expect(fused.map((f) => f.item.id)).toEqual(['x', 'y'])
   })
 

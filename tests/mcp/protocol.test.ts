@@ -120,7 +120,10 @@ describe('MCP protocol boundary', () => {
 
   test('code_search with an invalid mode is rejected at the boundary', async () => {
     const client = await connectClient(createCodeindexServer(makeInMemoryDeps(buildSeededDb())))
-    const result = await client.callTool({ name: 'code_search', arguments: { query: 'searchSymbols', mode: 'semantic' } })
+    const result = await client.callTool({
+      name: 'code_search',
+      arguments: { query: 'searchSymbols', mode: 'semantic' },
+    })
     expect(result.isError).toBe(true)
   })
 
