@@ -77,9 +77,7 @@ const findSymbolIdByKey = (db: Database, symbolKey: string): SymbolIdentityRow |
 
 const findSymbolIdByQualifiedName = (db: Database, qualifiedName: string): SymbolIdentityRow | null =>
   db
-    .query<SymbolIdentityRow, [string]>(
-      'SELECT id, symbol_key, qualified_name FROM symbols WHERE qualified_name = ?',
-    )
+    .query<SymbolIdentityRow, [string]>('SELECT id, symbol_key, qualified_name FROM symbols WHERE qualified_name = ?')
     .get(qualifiedName)
 
 const queryIncomingRows = (db: Database, targetSymbolId: number, limit: number): readonly ImpactResult[] =>
@@ -152,10 +150,7 @@ const canonicalResolution = (
 
 // Spec stage 1: try the canonical columns in input order — symbol_key when symbolKey is
 // given, then qualified_name when qualifiedName is given.
-const resolveCanonicalTarget = (
-  db: Database,
-  input: Readonly<ImpactLookupInput>,
-): ResolvedImpactTarget | undefined => {
+const resolveCanonicalTarget = (db: Database, input: Readonly<ImpactLookupInput>): ResolvedImpactTarget | undefined => {
   if (input.symbolKey !== undefined) {
     const row = findSymbolIdByKey(db, input.symbolKey)
     if (row !== null) {

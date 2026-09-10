@@ -11,7 +11,12 @@ import { withQueryLogging } from './mcp/query-logging.js'
 import { createReindexScheduler, type ReindexScheduler } from './mcp/reindex-scheduler.js'
 import { createCodeindexServer } from './mcp/server.js'
 import { createWatcher, type IndexWatcher } from './mcp/watcher.js'
-import { findIncomingReferences, findSymbolCandidates, resolveIncomingReferences, searchSymbols } from './search/index.js'
+import {
+  findIncomingReferences,
+  findSymbolCandidates,
+  resolveIncomingReferences,
+  searchSymbols,
+} from './search/index.js'
 import { openDatabase } from './storage/db.js'
 import { openQueryLog, readQueryLogStats } from './storage/query-log.js'
 import type { QueryLogStats } from './storage/query-log.js'

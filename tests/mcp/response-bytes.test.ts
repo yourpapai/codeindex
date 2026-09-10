@@ -125,7 +125,12 @@ describe('response_bytes is recorded for successful tool calls', () => {
       ...stubDeps(),
       codeImpact: (): ReturnType<CodeindexToolDeps['codeImpact']> =>
         Promise.resolve({
-          resolution: { status: 'canonical' as const, matchedBy: 'qualified_name' as const, symbolKey: 'src/a.ts#1', qualifiedName: 'src/x#found' },
+          resolution: {
+            status: 'canonical' as const,
+            matchedBy: 'qualified_name' as const,
+            symbolKey: 'src/a.ts#1',
+            qualifiedName: 'src/x#found',
+          },
           results: [
             {
               sourceQualifiedName: 'src/a#caller',

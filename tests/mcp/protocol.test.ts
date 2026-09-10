@@ -442,8 +442,8 @@ describe('watcher state reporting', () => {
     const deps: CodeindexToolDeps = {
       codeSearch: (): ReturnType<CodeindexToolDeps['codeSearch']> => Promise.resolve([]),
       codeSymbol: (): ReturnType<CodeindexToolDeps['codeSymbol']> => Promise.resolve([]),
-    codeImpact: (): ReturnType<CodeindexToolDeps['codeImpact']> =>
-      Promise.resolve({ resolution: { status: 'unresolved' as const }, results: [] }),
+      codeImpact: (): ReturnType<CodeindexToolDeps['codeImpact']> =>
+        Promise.resolve({ resolution: { status: 'unresolved' as const }, results: [] }),
       codeIndex: ({ mode }): ReturnType<CodeindexToolDeps['codeIndex']> => scheduler.submit({ mode }),
       getWatcherState: (): WatcherState => watcherState,
     }

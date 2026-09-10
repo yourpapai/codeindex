@@ -12,5 +12,5 @@
 
 ## 3. Compatibility + full check
 
-- [ ] 3.1 Confirm canonical-key compatibility: `tests/impact.test.ts`, `tests/cli.test.ts`, `tests/bench/*` green without edits to bench callers; CLI `impact` output shape untouched. Verify: `bun test tests/ tests/bench/impact-oracle.test.ts`
-- [ ] 3.2 Lint, format, and full check with bench gates flat (baselines must not be regenerated to pass). Verify: `bun run lint && bun run format:check && bun run check`
+- [x] 3.1 Confirm canonical-key compatibility: `tests/impact.test.ts`, `tests/cli.test.ts`, `tests/bench/*` green without edits to bench callers; CLI `impact` output shape untouched. Verify: `bun test tests/ tests/bench/impact-oracle.test.ts`
+- [x] 3.2 Lint, format, and full check with bench gates flat (baselines must not be regenerated to pass). Verify: `bun run lint && bun run format:check && bun run check`
