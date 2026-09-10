@@ -1,63 +1,52 @@
-import type { Database } from 'bun:sqlite'
 import { mkdirSync } from 'node:fs'
 import path from 'node:path'
 
-import { loadCodeindexConfig } from '../src/config.js'
-import type { CodeindexConfig } from '../src/config.js'
+import { loadCodeindexConfig, type CodeindexConfig } from '../src/config.js'
 import { indexCodebase } from '../src/indexer/index-codebase.js'
 import { openDatabase } from '../src/storage/db.js'
+import { compareEdges, compareImpact, countDanglingTargets, loadScopeTables } from './edit-fuzz-oracle.js'
 import type { FuzzReport, RepoModel } from './edit-fuzz-types.js'
 import { applyRandomEdit } from './fuzz-ops.js'
 import { generateChainRepo } from './fuzz-repo.js'
 import { createRng } from './fuzz-rng.js'
 import type { Rng } from './fuzz-rng.js'
 
-interface ReferenceRow {
-  readonly source_qualified_name: string | null
-  readonly target_name: string
-  readonly target_module_specifier: string | null
-  readonly edge_type: string
-  readonly line_number: number
-  readonly target_symbol_id: number | null
-}
-
-const referenceKey = (row: ReferenceRow): string =>
-  `${row.source_qualified_name ?? ''}|${row.target_name}|${row.target_module_specifier ?? ''}|${row.edge_type}|${row.line_number}`
-
-// Map of reference key -> whether it is resolved (target_symbol_id not null).
-export const readReferenceState = (db: Database): Map<string, boolean> => {
-  const rows = db
-    .query<ReferenceRow, []>(
-      `SELECT s.qualified_name AS source_qualified_name, r.target_name, r.target_module_specifier,
-              r.edge_type, r.line_number, r.target_symbol_id
-       FROM symbol_references r
-       LEFT JOIN symbols s ON s.id = r.source_symbol_id`,
-    )
-    .all()
-  const state = new Map<string, boolean>()
-  for (const row of rows) {
-    state.set(referenceKey(row), row.target_symbol_id !== null)
-  }
-  return state
-}
-
-export const countDanglingTargets = (db: Database): number => {
-  const row = db
-    .query<{ n: number }, []>(
-      `SELECT COUNT(*) AS n FROM symbol_references
-       WHERE target_symbol_id IS NOT NULL
-         AND target_symbol_id NOT IN (SELECT id FROM symbols)`,
-    )
-    .get()
-  return row === null ? 0 : row.n
-}
-
-interface SequenceDiff {
+interface SequenceDiff extends ReturnType<typeof compareEdges>, ReturnType<typeof compareImpact> {
   readonly edits: number
-  readonly checked: number
-  readonly orphaned: number
   readonly dangling: number
 }
+
+const ZERO_DIFF: SequenceDiff = {
+  edits: 0,
+  dangling: 0,
+  checked: 0,
+  orphaned: 0,
+  missingEdges: 0,
+  extraEdges: 0,
+  falseResolved: 0,
+  unexpectedUnresolved: 0,
+  mapRoutedDivergence: 0,
+  barrelRoutedDivergence: 0,
+  unexpectedImpactDivergence: 0,
+  mapRoutedImpactDivergence: 0,
+  barrelRoutedImpactDivergence: 0,
+}
+
+const addDiffs = (a: SequenceDiff, b: SequenceDiff): SequenceDiff => ({
+  edits: a.edits + b.edits,
+  dangling: a.dangling + b.dangling,
+  checked: a.checked + b.checked,
+  orphaned: a.orphaned + b.orphaned,
+  missingEdges: a.missingEdges + b.missingEdges,
+  extraEdges: a.extraEdges + b.extraEdges,
+  falseResolved: a.falseResolved + b.falseResolved,
+  unexpectedUnresolved: a.unexpectedUnresolved + b.unexpectedUnresolved,
+  mapRoutedDivergence: a.mapRoutedDivergence + b.mapRoutedDivergence,
+  barrelRoutedDivergence: a.barrelRoutedDivergence + b.barrelRoutedDivergence,
+  unexpectedImpactDivergence: a.unexpectedImpactDivergence + b.unexpectedImpactDivergence,
+  mapRoutedImpactDivergence: a.mapRoutedImpactDivergence + b.mapRoutedImpactDivergence,
+  barrelRoutedImpactDivergence: a.barrelRoutedImpactDivergence + b.barrelRoutedImpactDivergence,
+})
 
 // Applies edits one at a time, reindexing incrementally after each, and recurses for the
 // remainder. Each edit depends on the on-disk + index state left by the previous one, so
@@ -92,39 +81,23 @@ const runSequence = async (
   const { edits } = await applyEditsSequentially(rng, config, model, input.editsPerSequence)
 
   const incDb = openDatabase(config.dbPath)
-  const incState = readReferenceState(incDb)
   const dangling = countDanglingTargets(incDb)
-  incDb.close()
 
   const fullConfig: CodeindexConfig = { ...config, dbPath: path.join(repoDir, '.codeindex', 'full.db') }
   await indexCodebase({ config: fullConfig, mode: 'full' })
   const fullDb = openDatabase(fullConfig.dbPath)
-  const fullState = readReferenceState(fullDb)
-  fullDb.close()
 
-  let checked = 0
-  let orphaned = 0
-  for (const [key, resolved] of fullState) {
-    if (!resolved) {
-      continue
-    }
-    checked += 1
-    if (incState.get(key) !== true) {
-      orphaned += 1
-    }
+  const tables = loadScopeTables(incDb)
+  const diff: SequenceDiff = {
+    edits,
+    dangling,
+    ...compareEdges(incDb, fullDb, tables),
+    ...compareImpact(incDb, fullDb, tables),
   }
-
-  return { edits, checked, orphaned, dangling }
+  incDb.close()
+  fullDb.close()
+  return diff
 }
-
-const ZERO_DIFF: SequenceDiff = { edits: 0, checked: 0, orphaned: 0, dangling: 0 }
-
-const addDiffs = (a: SequenceDiff, b: SequenceDiff): SequenceDiff => ({
-  edits: a.edits + b.edits,
-  checked: a.checked + b.checked,
-  orphaned: a.orphaned + b.orphaned,
-  dangling: a.dangling + b.dangling,
-})
 
 // Runs sequences one at a time and recurses for the remainder, mirroring
 // `applyEditsSequentially` above so the lint rule against `await` inside a `for`/`while`
@@ -154,7 +127,7 @@ export const runEditFuzz = async (
 ): Promise<FuzzReport> => {
   const total = await runSequencesFrom(input, 0)
 
-  return {
+  const report: FuzzReport = {
     seed: input.seed,
     sequencesRun: input.sequenceCount,
     totalEdits: total.edits,
@@ -162,5 +135,32 @@ export const runEditFuzz = async (
     orphanedReferences: total.orphaned,
     orphaningRate: total.checked === 0 ? 0 : total.orphaned / total.checked,
     danglingTargets: total.dangling,
+    missingEdges: total.missingEdges,
+    extraEdges: total.extraEdges,
+    falseResolved: total.falseResolved,
+    unexpectedUnresolved: total.unexpectedUnresolved,
+    mapRoutedDivergence: total.mapRoutedDivergence,
+    barrelRoutedDivergence: total.barrelRoutedDivergence,
+    unexpectedImpactDivergence: total.unexpectedImpactDivergence,
+    mapRoutedImpactDivergence: total.mapRoutedImpactDivergence,
+    barrelRoutedImpactDivergence: total.barrelRoutedImpactDivergence,
   }
+
+  // The tier-1 durability gate: everything repair can re-derive from stored rows must match a
+  // fresh full reindex exactly. Routed-class divergence is deliberately reported, not gated —
+  // it is the measurement feeding the tier-2 decision (design.md, Open Questions).
+  const violations =
+    report.missingEdges +
+    report.extraEdges +
+    report.falseResolved +
+    report.unexpectedUnresolved +
+    report.unexpectedImpactDivergence
+  if (violations > 0) {
+    throw new Error(
+      `durability invariant violated: ${violations} divergence(s) in tier-1-reachable state — ` +
+        `missingEdges=${report.missingEdges}, extraEdges=${report.extraEdges}, falseResolved=${report.falseResolved}, ` +
+        `unexpectedUnresolved=${report.unexpectedUnresolved}, unexpectedImpactDivergence=${report.unexpectedImpactDivergence}`,
+    )
+  }
+  return report
 }

@@ -23,4 +23,13 @@ export interface FuzzReport {
   readonly orphanedReferences: number
   readonly orphaningRate: number
   readonly danglingTargets: number
+  readonly missingEdges: number
+  readonly extraEdges: number
+  readonly falseResolved: number
+  readonly unexpectedUnresolved: number
+  readonly mapRoutedDivergence: number
+  readonly barrelRoutedDivergence: number
+  readonly unexpectedImpactDivergence: number
+  readonly mapRoutedImpactDivergence: number
+  readonly barrelRoutedImpactDivergence: number
 }

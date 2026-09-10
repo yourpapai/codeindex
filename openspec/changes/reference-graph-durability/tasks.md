@@ -20,7 +20,7 @@
 
 ## 4. Durability invariant in the edit fuzzer
 
-- [ ] 4.1 Extend `bench/edit-fuzz.ts` with the invariant: after an N-edit sequence through incremental reindexes, edge set and `code_impact` results equal a fresh full reindex's ground truth; report (not assert) barrel-routed divergence for the tier-2 decision. Verify: `bun run bench/edit-fuzz-run.ts`
+- [x] 4.1 Extend `bench/edit-fuzz.ts` with the invariant: after an N-edit sequence through incremental reindexes, edge set and `code_impact` results equal a fresh full reindex's ground truth; report (not assert) barrel-routed divergence for the tier-2 decision. Verify: `bun run bench/edit-fuzz-run.ts`
 
 ## 5. Bench gates
 
