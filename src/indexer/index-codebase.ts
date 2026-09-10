@@ -26,6 +26,7 @@ import { extractReferenceCandidates, type ExtractReferenceCandidatesResult } fro
 import { extractSymbolsFromSource, type ExtractedSymbol } from './extract-symbols.js'
 import { createParserLoader, type ParserLoader } from './parser.js'
 import { persistResolvedReferences, type ParsedFileWorkItem } from './persist-resolved-references.js'
+import { repairReferences } from './repair-references.js'
 import { resolveFilesToProcess, sha256 } from './resolve-files.js'
 import { stampIndexProvenance } from './stamp-provenance.js'
 
@@ -38,6 +39,7 @@ export interface IndexSummary {
   readonly symbolsIndexed: number
   readonly referencesIndexed: number
   readonly referencesUnresolved: number
+  readonly referencesRepaired: number
   readonly elapsedMs: number
 }
 
@@ -185,6 +187,20 @@ interface IndexPhasesResult {
   readonly symbolsIndexed: number
   readonly referencesIndexed: number
   readonly referencesUnresolved: number
+  readonly referencesRepaired: number
+}
+
+// Persist batch references, re-link NULL-target edges (orphaned by the delete+reinsert above, or
+// never resolved), then recount in-degree — one run never serves in-degree excluding edges it
+// repaired. Runs inside the caller's transaction.
+const resolvePhase = (
+  db: Database,
+  parsedFiles: readonly ParsedFileWorkItem[],
+): Readonly<{ referencesIndexed: number; referencesUnresolved: number; referencesRepaired: number }> => {
+  const { referencesIndexed, referencesUnresolved } = persistResolvedReferences(db, parsedFiles)
+  const { referencesRepaired } = repairReferences(db)
+  backfillSymbolInDegree(db)
+  return { referencesIndexed, referencesUnresolved, referencesRepaired }
 }
 
 const runIndexPhases = async (db: Database, input: Readonly<IndexCodebaseInput>): Promise<IndexPhasesResult> => {
@@ -211,8 +227,7 @@ const runIndexPhases = async (db: Database, input: Readonly<IndexCodebaseInput>)
     emitPhase(input.onPhase, 'persist', mark)
 
     mark = Date.now()
-    const { referencesIndexed, referencesUnresolved } = persistResolvedReferences(db, parsedFiles)
-    backfillSymbolInDegree(db)
+    const { referencesIndexed, referencesUnresolved, referencesRepaired } = resolvePhase(db, parsedFiles)
     emitPhase(input.onPhase, 'resolve', mark)
 
     mark = Date.now()
@@ -230,6 +245,7 @@ const runIndexPhases = async (db: Database, input: Readonly<IndexCodebaseInput>)
       symbolsIndexed,
       referencesIndexed,
       referencesUnresolved,
+      referencesRepaired,
     }
   } catch (error) {
     db.run('ROLLBACK')

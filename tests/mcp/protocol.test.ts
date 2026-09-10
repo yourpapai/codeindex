@@ -202,6 +202,7 @@ describe('watcher state reporting', () => {
       symbolsIndexed: 2,
       referencesIndexed: 1,
       referencesUnresolved: 0,
+      referencesRepaired: 0,
       elapsedMs: 1,
     }
     const client = await connectClient(createCodeindexServer(depsWithWatcher(summary)))
@@ -226,6 +227,7 @@ describe('watcher state reporting', () => {
       symbolsIndexed: 0,
       referencesIndexed: 0,
       referencesUnresolved: 0,
+      referencesRepaired: 0,
       elapsedMs: 1,
     }
     const runner = async (): Promise<IndexSummary> => {
@@ -300,6 +302,7 @@ describe('code_index payload honesty', () => {
       symbolsIndexed: 1,
       referencesIndexed: 0,
       referencesUnresolved: 0,
+      referencesRepaired: 0,
       elapsedMs: 1,
     }
     const result = await callCodeIndexTool(depsWithIndexSummary(summary), { mode: 'incremental' })
@@ -319,6 +322,7 @@ describe('code_index payload honesty', () => {
       symbolsIndexed: 10,
       referencesIndexed: 5,
       referencesUnresolved: 0,
+      referencesRepaired: 0,
       elapsedMs: 1,
     }
     const result = await callCodeIndexTool(depsWithIndexSummary(summary), { mode: 'incremental' })

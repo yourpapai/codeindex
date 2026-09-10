@@ -94,6 +94,7 @@ describe('output schemas', () => {
       symbolsIndexed: 50,
       referencesIndexed: 100,
       referencesUnresolved: 2,
+      referencesRepaired: 0,
       elapsedMs: 1234,
     }
     expect(CodeIndexOutputSchema.safeParse(data).success).toBe(true)

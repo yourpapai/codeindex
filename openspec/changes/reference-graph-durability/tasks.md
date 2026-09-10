@@ -9,9 +9,9 @@
 
 ## 2. Indexer wiring (failing-test-first)
 
-- [ ] 2.1 Write integration test: build index, simulate orphaning (delete+reinsert a target file's symbols as a reindex does), run incremental reindex, assert `code_impact` returns the edge again and in-degree counts it in the same run. Watch it fail. Verify: `bun test tests/indexer/` (red)
-- [ ] 2.2 Wire repair into `src/indexer/index-codebase.ts` between `persistResolvedReferences` and `backfillSymbolInDegree`, inside the existing `BEGIN`/`COMMIT`; return repaired-edge count in the summary. Verify: `bun test tests/indexer/` (green)
-- [ ] 2.3 Test the startup catch-up path heals a pre-upgrade DB with orphaned edges (no schema bump, no wipe). Verify: `bun test tests/mcp/ tests/indexer/`
+- [x] 2.1 Write integration test: build index, simulate orphaning (delete+reinsert a target file's symbols as a reindex does), run incremental reindex, assert `code_impact` returns the edge again and in-degree counts it in the same run. Watch it fail. Verify: `bun test tests/indexer/` (red)
+- [x] 2.2 Wire repair into `src/indexer/index-codebase.ts` between `persistResolvedReferences` and `backfillSymbolInDegree`, inside the existing `BEGIN`/`COMMIT`; return repaired-edge count in the summary. Verify: `bun test tests/indexer/` (green)
+- [x] 2.3 Test the startup catch-up path heals a pre-upgrade DB with orphaned edges (no schema bump, no wipe). Verify: `bun test tests/mcp/ tests/indexer/`
 
 ## 3. Empty-impact guidance (failing-test-first)
 

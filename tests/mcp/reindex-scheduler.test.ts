@@ -12,6 +12,7 @@ const summary = (filesIndexed: number): IndexSummary => ({
   symbolsIndexed: 0,
   referencesIndexed: 0,
   referencesUnresolved: 0,
+  referencesRepaired: 0,
   elapsedMs: 1,
 })
 
