@@ -79,6 +79,29 @@ describe('MCP protocol boundary', () => {
     expect(payload.resultCount).toBeGreaterThanOrEqual(1)
     expect(payload.results.some((row) => row.qualifiedName === 'src/search/index#searchSymbols')).toBe(true)
     expect(payload.guidance).toBeUndefined()
+    // Default preview is none: snippet is a single anchor line, never multi-line body text.
+    expect(payload.results.every((row) => !row.snippet.includes('\n'))).toBe(true)
+    expect(payload.results.every((row) => row.snippet.length <= 160)).toBe(true)
+  })
+
+  test('code_search preview full preserves multi-line stored body text', async () => {
+    const db = buildSeededDb()
+    db.query(`UPDATE symbols SET body_text = ? WHERE local_name = ?`).run(
+      ['export const searchSymbols = () => {', '  return searchPool()', '  // more context lines', '}'].join('\n'),
+      'searchSymbols',
+    )
+    db.query(`INSERT INTO symbol_fts(symbol_fts) VALUES('rebuild')`).run()
+    const client = await connectClient(createCodeindexServer(makeInMemoryDeps(db)))
+    const result = await client.callTool({
+      name: 'code_search',
+      arguments: { query: 'searchSymbols', preview: 'full' },
+    })
+    expect(result.isError).not.toBe(true)
+    const payload = CodeSearchOutputSchema.parse(result.structuredContent)
+    const hit = payload.results.find((row) => row.qualifiedName === 'src/search/index#searchSymbols')
+    expect(hit).toBeDefined()
+    expect(hit!.snippet).toContain('\n')
+    expect(hit!.snippet).toContain('return searchPool()')
   })
 
   test('code_search on no match returns the guidance string', async () => {
@@ -199,6 +222,63 @@ describe('MCP protocol boundary', () => {
     const client = await connectClient(createCodeindexServer(makeInMemoryDeps(buildSeededDb())))
     const result = await client.callTool({ name: 'code_search', arguments: {} })
     expect(result.isError).toBe(true)
+  })
+})
+
+describe('single-channel field contract', () => {
+  test('text payload is a skim summary: count, top names, no full result objects or snippets', async () => {
+    const client = await connectClient(createCodeindexServer(makeInMemoryDeps(buildSeededDb())))
+    const result = CallToolResultSchema.parse(
+      await client.callTool({ name: 'code_search', arguments: { query: 'searchSymbols' } }),
+    )
+    const structured = CodeSearchOutputSchema.parse(result.structuredContent)
+    const text = textBlockOf(result)
+
+    expect(text).toContain(`${structured.resultCount} result(s):`)
+    expect(text).toContain('src/search/index#searchSymbols')
+    // Skim: does not embed structured result objects or full snippets.
+    expect(text).not.toContain('rankScore')
+    expect(text).not.toContain('symbolKey')
+    expect(text).not.toContain('matchedBy')
+    expect(text).not.toContain('export const')
+  })
+
+  test('structuredContent remains the authoritative ordered result array', async () => {
+    const client = await connectClient(createCodeindexServer(makeInMemoryDeps(buildSeededDb())))
+    const result = await client.callTool({ name: 'code_search', arguments: { query: 'searchSymbols' } })
+    const structured = CodeSearchOutputSchema.parse(result.structuredContent)
+    expect(structured.results.length).toBeGreaterThanOrEqual(1)
+    expect(structured.results.every((row) => row.symbolKey.length > 0)).toBe(true)
+    expect(structured.results.every((row) => typeof row.rankScore === 'number')).toBe(true)
+    expect(structured.results.every((row) => typeof row.snippet === 'string')).toBe(true)
+    expect(structured.results.every((row) => typeof row.filePath === 'string')).toBe(true)
+  })
+
+  test('empty search guidance appears once in structuredContent and is summarized in text', async () => {
+    const client = await connectClient(createCodeindexServer(makeInMemoryDeps(buildSeededDb())))
+    const result = CallToolResultSchema.parse(
+      await client.callTool({ name: 'code_search', arguments: { query: 'zzz_nonexistent_symbol' } }),
+    )
+    const structured = CodeSearchOutputSchema.parse(result.structuredContent)
+    expect(structured.resultCount).toBe(0)
+    expect(structured.results).toEqual([])
+    expect(typeof structured.guidance).toBe('string')
+    const text = textBlockOf(result)
+    expect(text).toContain(structured.guidance!)
+    expect(text).not.toContain('[')
+  })
+
+  test('code_symbol text stays a candidate-count skim while structured holds results', async () => {
+    const client = await connectClient(createCodeindexServer(makeInMemoryDeps(buildSeededDb())))
+    const result = CallToolResultSchema.parse(
+      await client.callTool({ name: 'code_symbol', arguments: { query: 'openDatabase' } }),
+    )
+    const structured = CodeSymbolOutputSchema.parse(result.structuredContent)
+    expect(structured.results.length).toBeGreaterThanOrEqual(1)
+    const text = textBlockOf(result)
+    expect(text).toContain(`${structured.results.length} candidate(s):`)
+    expect(text).not.toContain('rankScore')
+    expect(text).not.toContain('symbolKey')
   })
 })
 

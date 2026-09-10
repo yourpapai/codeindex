@@ -12,6 +12,7 @@ export interface QueryLogEntry {
   readonly latencyMs: number
   readonly topQualifiedNames: readonly string[]
   readonly error: string | null
+  readonly responseBytes?: number | null
 }
 
 export interface TopQuery {
@@ -39,20 +40,28 @@ const CREATE_QUERY_LOG = `CREATE TABLE IF NOT EXISTS query_log (
   hit INTEGER NOT NULL,
   latency_ms INTEGER NOT NULL,
   top_qualified_names TEXT NOT NULL,
-  error TEXT
+  error TEXT,
+  response_bytes INTEGER
 )`
 
-// Bump when the query_log shape changes; ensureQueryLogSchema wipes and rebuilds.
-// v1 (0→1) adds the user_version convention to queries.db and migrates legacy
-// files that predate the error column (history is disposable by contract).
-const QUERY_LOG_SCHEMA_VERSION = 1
+// v1 (0→1) added the user_version convention and error column (wipe-and-rebuild).
+// v2 (1→2) adds response_bytes in place — dogfood history is the S3 study corpus
+// and must not be wiped.
+const QUERY_LOG_SCHEMA_VERSION = 2
 
 export const ensureQueryLogSchema = (db: Database): void => {
   const row = db.query<{ user_version: number }, []>('PRAGMA user_version').get()!
-  if (row.user_version < QUERY_LOG_SCHEMA_VERSION) {
+  if (row.user_version < 1) {
     db.run('DROP TABLE IF EXISTS query_log')
   }
   db.run(CREATE_QUERY_LOG)
+  if (row.user_version === 1) {
+    try {
+      db.run('ALTER TABLE query_log ADD COLUMN response_bytes INTEGER')
+    } catch {
+      // Column already present.
+    }
+  }
   db.run(`PRAGMA user_version = ${QUERY_LOG_SCHEMA_VERSION}`)
 }
 
@@ -64,8 +73,8 @@ export const openQueryLog = (queriesPath: string): Database => {
 
 export const insertQueryLogEntry = (db: Database, entry: QueryLogEntry): void => {
   db.query(
-    `INSERT INTO query_log (timestamp, tool, query_text, filters_json, result_count, hit, latency_ms, top_qualified_names, error)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO query_log (timestamp, tool, query_text, filters_json, result_count, hit, latency_ms, top_qualified_names, error, response_bytes)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     entry.timestamp,
     entry.tool,
@@ -76,7 +85,15 @@ export const insertQueryLogEntry = (db: Database, entry: QueryLogEntry): void =>
     entry.latencyMs,
     JSON.stringify(entry.topQualifiedNames),
     entry.error,
+    entry.responseBytes ?? null,
   )
+}
+
+export const updateLatestResponseBytes = (db: Database, tool: string, responseBytes: number): void => {
+  db.query(
+    `UPDATE query_log SET response_bytes = ?
+     WHERE id = (SELECT MAX(id) FROM query_log WHERE tool = ?)`,
+  ).run(responseBytes, tool)
 }
 
 const percentile = (sortedAscending: readonly number[], fraction: number): number => {

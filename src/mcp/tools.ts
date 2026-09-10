@@ -27,6 +27,7 @@ export interface CodeindexToolDeps {
   readonly codeIndex: (input: { mode: 'full' | 'incremental' }) => Promise<IndexSummary>
   readonly getIndexFreshness?: () => Freshness
   readonly getWatcherState?: () => WatcherState
+  readonly logResponseBytes?: (tool: string, bytes: number) => void
 }
 
 export const CodeSearchInputSchema = z.object({
@@ -36,12 +37,14 @@ export const CodeSearchInputSchema = z.object({
   kinds: z.array(z.string().min(1)).optional(),
   scopeTiers: z.array(z.enum(['exported', 'module', 'member', 'local'])).optional(),
   pathPrefix: z.string().min(1).optional(),
+  preview: z.enum(['none', 'short', 'full']).default('none'),
 })
 export type CodeSearchInput = z.infer<typeof CodeSearchInputSchema>
 
 export const CodeSymbolInputSchema = z.object({
   query: z.string().min(1),
   limit: z.number().int().positive().max(50).default(10),
+  preview: z.enum(['none', 'short', 'full']).default('none'),
 })
 export type CodeSymbolInput = z.infer<typeof CodeSymbolInputSchema>
 
@@ -134,10 +137,16 @@ export const buildStructuredToolResult = <S extends z.ZodType>(
   schema: S,
   output: unknown,
   summaryText: string,
-): { content: Array<{ type: 'text'; text: string }>; structuredContent: z.output<S> } => {
+): {
+  content: Array<{ type: 'text'; text: string }>
+  structuredContent: z.output<S>
+  responseBytes: number
+} => {
   const parsed = schema.parse(output)
+  const responseBytes = Buffer.byteLength(summaryText, 'utf8') + Buffer.byteLength(JSON.stringify(parsed), 'utf8')
   return {
     content: [{ type: 'text', text: summaryText }],
     structuredContent: parsed,
+    responseBytes,
   }
 }

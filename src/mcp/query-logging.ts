@@ -1,5 +1,5 @@
 import type { CodeindexConfig } from '../config.js'
-import { insertQueryLogEntry, openQueryLog } from '../storage/query-log.js'
+import { insertQueryLogEntry, openQueryLog, updateLatestResponseBytes } from '../storage/query-log.js'
 import type { QueryLogEntry } from '../storage/query-log.js'
 import type { CodeindexToolDeps } from './tools.js'
 
@@ -141,6 +141,18 @@ export const withQueryLogging = (deps: Readonly<CodeindexToolDeps>, config: Code
     return deps
   }
   const queriesPath = config.queriesPath
+  const logResponseBytes = (tool: string, bytes: number): void => {
+    try {
+      const db = openQueryLog(queriesPath)
+      try {
+        updateLatestResponseBytes(db, tool, bytes)
+      } finally {
+        db.close()
+      }
+    } catch (err) {
+      console.error(`[codeindex] query-log response_bytes update failed for ${tool}: ${errorMessage(err)}`)
+    }
+  }
   return {
     codeSearch: wrapCodeSearch(deps, queriesPath),
     codeSymbol: wrapCodeSymbol(deps, queriesPath),
@@ -148,5 +160,6 @@ export const withQueryLogging = (deps: Readonly<CodeindexToolDeps>, config: Code
     codeIndex: deps.codeIndex,
     getIndexFreshness: deps.getIndexFreshness,
     getWatcherState: deps.getWatcherState,
+    logResponseBytes,
   }
 }

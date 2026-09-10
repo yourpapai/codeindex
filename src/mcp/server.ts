@@ -1,5 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 
+import { applyPreviewToList } from './preview.js'
 import {
   buildStructuredToolResult,
   type CodeImpactInput,
@@ -32,8 +33,9 @@ const registerSearchTool = (server: McpServer, deps: Readonly<CodeindexToolDeps>
       inputSchema: CodeSearchInputSchema,
       outputSchema: CodeSearchOutputSchema,
     },
-    async ({ query, limit, mode, kinds, scopeTiers, pathPrefix }: CodeSearchInput) => {
+    async ({ query, limit, mode, kinds, scopeTiers, pathPrefix, preview }: CodeSearchInput) => {
       const results = await deps.codeSearch({ query, limit, mode, kinds, scopeTiers, pathPrefix })
+      const compacted = applyPreviewToList(results, preview)
       const indexFreshness = deps.getIndexFreshness?.()
       const guidance =
         results.length === 0
@@ -47,11 +49,13 @@ const registerSearchTool = (server: McpServer, deps: Readonly<CodeindexToolDeps>
         results.length === 0
           ? (guidance ?? 'No matches.')
           : `${results.length} result(s): ${topNames}${results.length > 5 ? ', …' : ''}`
-      return buildStructuredToolResult(
+      const toolResult = buildStructuredToolResult(
         CodeSearchOutputSchema,
-        { query, resultCount: results.length, results: [...results], guidance, indexFreshness },
+        { query, resultCount: results.length, results: [...compacted], guidance, indexFreshness },
         indexFreshness === undefined ? summary : summary + freshnessSuffix(results, indexFreshness),
       )
+      deps.logResponseBytes?.('code_search', toolResult.responseBytes)
+      return toolResult
     },
   )
 }
@@ -64,18 +68,21 @@ const registerSymbolTool = (server: McpServer, deps: Readonly<CodeindexToolDeps>
       inputSchema: CodeSymbolInputSchema,
       outputSchema: CodeSymbolOutputSchema,
     },
-    async ({ query, limit }: CodeSymbolInput) => {
+    async ({ query, limit, preview }: CodeSymbolInput) => {
       const results = await deps.codeSymbol(query, limit)
+      const compacted = applyPreviewToList(results, preview)
       const indexFreshness = deps.getIndexFreshness?.()
       const summary = `${results.length} candidate(s): ${results
         .slice(0, 5)
         .map((r) => r.qualifiedName)
         .join(', ')}`
-      return buildStructuredToolResult(
+      const toolResult = buildStructuredToolResult(
         CodeSymbolOutputSchema,
-        { results: [...results], indexFreshness },
+        { results: [...compacted], indexFreshness },
         indexFreshness === undefined ? summary : summary + freshnessSuffix(results, indexFreshness),
       )
+      deps.logResponseBytes?.('code_symbol', toolResult.responseBytes)
+      return toolResult
     },
   )
 }
@@ -100,7 +107,7 @@ const registerImpactTool = (server: McpServer, deps: Readonly<CodeindexToolDeps>
           : undefined
       const summary =
         results.length === 0 ? (guidance ?? 'No incoming references.') : `${results.length} incoming reference(s)`
-      return buildStructuredToolResult(
+      const toolResult = buildStructuredToolResult(
         CodeImpactOutputSchema,
         {
           results: [...results],
@@ -109,6 +116,8 @@ const registerImpactTool = (server: McpServer, deps: Readonly<CodeindexToolDeps>
         },
         indexFreshness === undefined ? summary : summary + freshnessSuffix(results, indexFreshness),
       )
+      deps.logResponseBytes?.('code_impact', toolResult.responseBytes)
+      return toolResult
     },
   )
 }

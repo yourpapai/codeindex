@@ -114,4 +114,6 @@ export const withFreshness = (
     input: Parameters<CodeindexToolDeps['codeIndex']>[0],
   ): Promise<Awaited<ReturnType<CodeindexToolDeps['codeIndex']>>> => deps.codeIndex(input),
   getIndexFreshness: (): Freshness => stateProvider().indexFreshness,
+  getWatcherState: deps.getWatcherState,
+  logResponseBytes: deps.logResponseBytes,
 })
