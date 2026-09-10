@@ -53,9 +53,11 @@ proposal's list; can be added if the A/B rig shows demand).
 
 ### D3: Stage order and target selection
 
-1. Canonical: if `symbolKey` provided, `WHERE symbol_key = ?`; else
-   `WHERE qualified_name = ?` (preserves today's precedence where `symbolKey`
-   wins and the other input is ignored).
+1. Canonical: try the canonical columns in input order — `WHERE symbol_key = ?`
+   when `symbolKey` is given, then `WHERE qualified_name = ?` when
+   `qualifiedName` is given (the spec's "when ... is given" stage list; both
+   inputs may be canonical-checked when both are provided — `symbolKey` still
+   wins).
 2. Router: for each provided input string in order (`symbolKey`, then
    `qualifiedName`), run the exact stage; the first input with accepted exact
    candidates wins.
