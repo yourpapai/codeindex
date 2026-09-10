@@ -66,7 +66,7 @@ export interface ResolvedReference {
   readonly lineNumber: number
 }
 
-const normalizeRelativeModule = (fromModuleKey: string, specifier: string): string => {
+export const normalizeRelativeModule = (fromModuleKey: string, specifier: string): string => {
   if (!specifier.startsWith('.')) {
     return specifier
   }
