@@ -108,8 +108,13 @@ export const withFreshness = (
     decorateWithFreshness(await deps.codeSymbol(query, limit), (row) => row.filePath, config),
   codeImpact: async (
     input: Parameters<CodeindexToolDeps['codeImpact']>[0],
-  ): Promise<Awaited<ReturnType<CodeindexToolDeps['codeImpact']>>> =>
-    decorateWithFreshness(await deps.codeImpact(input), (row) => row.sourceFilePath, config),
+  ): Promise<Awaited<ReturnType<CodeindexToolDeps['codeImpact']>>> => {
+    const outcome = await deps.codeImpact(input)
+    return {
+      resolution: outcome.resolution,
+      results: await decorateWithFreshness(outcome.results, (row) => row.sourceFilePath, config),
+    }
+  },
   codeIndex: (
     input: Parameters<CodeindexToolDeps['codeIndex']>[0],
   ): Promise<Awaited<ReturnType<CodeindexToolDeps['codeIndex']>>> => deps.codeIndex(input),

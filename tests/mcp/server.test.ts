@@ -7,7 +7,7 @@ describe('createCodeindexServer', () => {
     const server = createCodeindexServer({
       codeSearch: () => Promise.resolve([]),
       codeSymbol: () => Promise.resolve([]),
-      codeImpact: () => Promise.resolve([]),
+      codeImpact: () => Promise.resolve({ resolution: { status: 'unresolved' as const }, results: [] }),
       codeIndex: () =>
         Promise.resolve({
           filesIndexed: 0,

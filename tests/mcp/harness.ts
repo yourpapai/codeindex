@@ -6,7 +6,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 
 import type { IndexSummary } from '../../src/indexer/index-codebase.js'
 import type { CodeindexToolDeps } from '../../src/mcp/tools.js'
-import { findIncomingReferences, findSymbolCandidates, searchSymbols } from '../../src/search/index.js'
+import { resolveIncomingReferences, findSymbolCandidates, searchSymbols } from '../../src/search/index.js'
 
 export const connectClient = async (server: McpServer): Promise<Client> => {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
@@ -34,8 +34,8 @@ export const makeInMemoryDeps = (db: Database): CodeindexToolDeps => ({
   codeSymbol: (query: string, limit: number): Promise<ReturnType<typeof findSymbolCandidates>> =>
     Promise.resolve(findSymbolCandidates(db, query, limit)),
   codeImpact: (
-    input: Parameters<typeof findIncomingReferences>[1],
-  ): Promise<ReturnType<typeof findIncomingReferences>> => Promise.resolve(findIncomingReferences(db, input)),
+    input: Parameters<typeof resolveIncomingReferences>[1],
+  ): Promise<ReturnType<typeof resolveIncomingReferences>> => Promise.resolve(resolveIncomingReferences(db, input)),
   codeIndex: (): Promise<IndexSummary> => Promise.resolve(emptySummary),
 })
 

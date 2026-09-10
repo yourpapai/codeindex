@@ -11,7 +11,7 @@ import { withQueryLogging } from './mcp/query-logging.js'
 import { createReindexScheduler, type ReindexScheduler } from './mcp/reindex-scheduler.js'
 import { createCodeindexServer } from './mcp/server.js'
 import { createWatcher, type IndexWatcher } from './mcp/watcher.js'
-import { findIncomingReferences, findSymbolCandidates, searchSymbols } from './search/index.js'
+import { findIncomingReferences, findSymbolCandidates, resolveIncomingReferences, searchSymbols } from './search/index.js'
 import { openDatabase } from './storage/db.js'
 import { openQueryLog, readQueryLogStats } from './storage/query-log.js'
 import type { QueryLogStats } from './storage/query-log.js'
@@ -39,9 +39,9 @@ export const buildMcpDeps = (
       codeSymbol: (query: string, limit: number): Promise<ReturnType<typeof findSymbolCandidates>> =>
         Promise.resolve(withDatabase(config, (db) => findSymbolCandidates(db, query, limit))),
       codeImpact: (
-        input: Parameters<typeof findIncomingReferences>[1],
-      ): Promise<ReturnType<typeof findIncomingReferences>> =>
-        Promise.resolve(withDatabase(config, (db) => findIncomingReferences(db, input))),
+        input: Parameters<typeof resolveIncomingReferences>[1],
+      ): Promise<ReturnType<typeof resolveIncomingReferences>> =>
+        Promise.resolve(withDatabase(config, (db) => resolveIncomingReferences(db, input))),
       codeIndex: ({ mode }: { mode: 'full' | 'incremental' }): Promise<Awaited<ReturnType<typeof indexCodebase>>> =>
         scheduler.submit({ mode }),
     },

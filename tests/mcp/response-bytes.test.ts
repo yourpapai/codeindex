@@ -45,7 +45,8 @@ const stubDeps = (): CodeindexToolDeps => ({
   codeSearch: (): ReturnType<CodeindexToolDeps['codeSearch']> =>
     Promise.resolve([fakeResult('src/x#found'), fakeResult('src/y#other')]),
   codeSymbol: (): ReturnType<CodeindexToolDeps['codeSymbol']> => Promise.resolve([fakeResult('src/x#found')]),
-  codeImpact: (): ReturnType<CodeindexToolDeps['codeImpact']> => Promise.resolve([]),
+  codeImpact: (): ReturnType<CodeindexToolDeps['codeImpact']> =>
+    Promise.resolve({ resolution: { status: 'unresolved' as const }, results: [] }),
   codeIndex: (): ReturnType<CodeindexToolDeps['codeIndex']> =>
     Promise.resolve({
       filesIndexed: 0,
@@ -123,15 +124,18 @@ describe('response_bytes is recorded for successful tool calls', () => {
     const deps: CodeindexToolDeps = {
       ...stubDeps(),
       codeImpact: (): ReturnType<CodeindexToolDeps['codeImpact']> =>
-        Promise.resolve([
-          {
-            sourceQualifiedName: 'src/a#caller',
-            sourceFilePath: 'src/a.ts',
-            edgeType: 'calls',
-            confidence: 'resolved',
-            lineNumber: 3,
-          },
-        ]),
+        Promise.resolve({
+          resolution: { status: 'canonical' as const, matchedBy: 'qualified_name' as const, symbolKey: 'src/a.ts#1', qualifiedName: 'src/x#found' },
+          results: [
+            {
+              sourceQualifiedName: 'src/a#caller',
+              sourceFilePath: 'src/a.ts',
+              edgeType: 'calls',
+              confidence: 'resolved',
+              lineNumber: 3,
+            },
+          ],
+        }),
     }
     const client = await connectClient(createCodeindexServer(withQueryLogging(deps, config)))
 

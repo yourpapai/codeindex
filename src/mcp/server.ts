@@ -91,26 +91,32 @@ const registerImpactTool = (server: McpServer, deps: Readonly<CodeindexToolDeps>
   server.registerTool(
     'code_impact',
     {
-      description: 'Find incoming references for a symbol',
+      description:
+        'Find incoming references for a symbol. Identity forms: exact symbol_key (file#start-end), exact qualified_name (module#name or parent>name), or exact local name — resolved exact-first; an identity matching no indexed symbol returns unresolved guidance instead of a fuzzy guess.',
       inputSchema: CodeImpactInputSchema,
       outputSchema: CodeImpactOutputSchema,
     },
     async ({ symbolKey, qualifiedName, limit }: CodeImpactInput) => {
-      const results = await deps.codeImpact({ symbolKey, qualifiedName, limit })
+      const { resolution, results } = await deps.codeImpact({ symbolKey, qualifiedName, limit })
       const indexFreshness = deps.getIndexFreshness?.()
-      // Mirrors the code_search contract: an empty result explains itself — an orphan-prone graph
-      // can legitimately return zero rows for a real symbol, so point at exact lookup and a full
-      // reindex instead of letting agents conclude "no callers" and fall back to grep.
+      // Split empty outcomes honestly: an unresolved identity is a lookup miss — the graph is
+      // fine, so never advise a reindex there. A resolved symbol with zero rows can legitimately
+      // mean an orphan-prone graph, so the code_symbol confirmation + full code_index advice
+      // survives only for that case.
+      const unresolvedGuidance = `Identity "${symbolKey ?? qualifiedName ?? ''}" did not resolve to an indexed symbol by symbol_key, qualified_name, or exact local name. Use code_symbol to find the exact identity, then retry with its symbolKey or qualifiedName.`
       const guidance =
-        results.length === 0
-          ? 'No incoming references found. Confirm the symbol name via code_symbol; if results look degraded, run code_index (full reindex) to rebuild the reference graph.'
-          : undefined
+        resolution.status === 'unresolved'
+          ? unresolvedGuidance
+          : results.length === 0
+            ? 'Symbol resolved but no incoming references found. Confirm the symbol name via code_symbol; if results look degraded, run code_index (full reindex) to rebuild the reference graph.'
+            : undefined
       const summary =
         results.length === 0 ? (guidance ?? 'No incoming references.') : `${results.length} incoming reference(s)`
       const toolResult = buildStructuredToolResult(
         CodeImpactOutputSchema,
         {
           results: [...results],
+          identity: resolution,
           ...(guidance === undefined ? {} : { guidance }),
           indexFreshness,
         },

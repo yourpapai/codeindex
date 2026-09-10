@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 import type { IndexSummary } from '../indexer/index-codebase.js'
-import type { ImpactResult } from '../search/index.js'
+import type { ImpactIdentityResolution, ImpactLookupInput, ImpactResult } from '../search/index.js'
 import type { RankedSearchResult, SearchMode, SearchResult } from '../types.js'
 
 export const FreshnessSchema = z.enum(['fresh', 'possibly_stale'])
@@ -19,11 +19,10 @@ export interface CodeindexToolDeps {
     pathPrefix?: string
   }) => Promise<readonly (RankedSearchResult & FreshnessMark)[]>
   readonly codeSymbol: (query: string, limit: number) => Promise<readonly (SearchResult & FreshnessMark)[]>
-  readonly codeImpact: (input: {
-    symbolKey?: string
-    qualifiedName?: string
-    limit: number
-  }) => Promise<readonly (ImpactResult & FreshnessMark)[]>
+  readonly codeImpact: (input: ImpactLookupInput) => Promise<{
+    resolution: ImpactIdentityResolution
+    results: readonly (ImpactResult & FreshnessMark)[]
+  }>
   readonly codeIndex: (input: { mode: 'full' | 'incremental' }) => Promise<IndexSummary>
   readonly getIndexFreshness?: () => Freshness
   readonly getWatcherState?: () => WatcherState
@@ -114,8 +113,16 @@ const ImpactResultSchema = z.object({
   freshness: FreshnessSchema.optional(),
 })
 
+export const ImpactIdentitySchema = z.object({
+  status: z.enum(['canonical', 'resolved', 'unresolved']),
+  matchedBy: z.enum(['symbol_key', 'qualified_name', 'local_name']).optional(),
+  symbolKey: z.string().optional(),
+  qualifiedName: z.string().optional(),
+})
+
 export const CodeImpactOutputSchema = z.object({
   results: z.array(ImpactResultSchema),
+  identity: ImpactIdentitySchema.optional(),
   guidance: z.string().optional(),
   indexFreshness: FreshnessSchema.optional(),
 })

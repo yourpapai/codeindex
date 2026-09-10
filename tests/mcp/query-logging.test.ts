@@ -33,7 +33,8 @@ const fakeResult = (qualifiedName: string): RankedSearchResult => ({
 const stubDeps = (): CodeindexToolDeps => ({
   codeSearch: (): ReturnType<CodeindexToolDeps['codeSearch']> => Promise.resolve([fakeResult('src/x#found')]),
   codeSymbol: (): ReturnType<CodeindexToolDeps['codeSymbol']> => Promise.resolve([]),
-  codeImpact: (): ReturnType<CodeindexToolDeps['codeImpact']> => Promise.resolve([]),
+  codeImpact: (): ReturnType<CodeindexToolDeps['codeImpact']> =>
+    Promise.resolve({ resolution: { status: 'unresolved' as const }, results: [] }),
   codeIndex: (): ReturnType<CodeindexToolDeps['codeIndex']> =>
     Promise.resolve({
       filesIndexed: 0,

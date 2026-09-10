@@ -152,9 +152,9 @@ describe('withFreshness per-hit rules', () => {
       indexFreshness: 'fresh',
     }))
     rmSync(path.join(fixture.dir, 'src/a.ts'))
-    const results = await deps.codeImpact({ qualifiedName: 'src/b#beta', limit: 20 })
-    expect(results.length).toBeGreaterThanOrEqual(1)
-    expect(results[0]!.freshness).toBe('possibly_stale')
+    const outcome = await deps.codeImpact({ qualifiedName: 'src/b#beta', limit: 20 })
+    expect(outcome.results.length).toBeGreaterThanOrEqual(1)
+    expect(outcome.results[0]!.freshness).toBe('possibly_stale')
   })
 })
 

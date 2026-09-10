@@ -40,7 +40,8 @@ const rankedResult = (
 const stubDeps = (results: readonly RankedSearchResult[]): CodeindexToolDeps => ({
   codeSearch: (): ReturnType<CodeindexToolDeps['codeSearch']> => Promise.resolve(results),
   codeSymbol: (): ReturnType<CodeindexToolDeps['codeSymbol']> => Promise.resolve(results),
-  codeImpact: (): ReturnType<CodeindexToolDeps['codeImpact']> => Promise.resolve([]),
+  codeImpact: (): ReturnType<CodeindexToolDeps['codeImpact']> =>
+    Promise.resolve({ resolution: { status: 'unresolved' as const }, results: [] }),
   codeIndex: (): ReturnType<CodeindexToolDeps['codeIndex']> =>
     Promise.resolve({
       filesIndexed: 0,

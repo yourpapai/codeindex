@@ -167,6 +167,98 @@ describe('MCP protocol boundary', () => {
     expect(block!.text).toContain('symbolKey or qualifiedName')
   })
 
+  test('code_impact carries the identity descriptor for a canonical qualifiedName', async () => {
+    const client = await connectClient(createCodeindexServer(makeInMemoryDeps(buildSeededDb())))
+    const result = await client.callTool({
+      name: 'code_impact',
+      arguments: { qualifiedName: 'src/storage/db#openDatabase' },
+    })
+    const payload = CodeImpactOutputSchema.parse(result.structuredContent)
+    expect(payload.identity).toEqual({
+      status: 'canonical',
+      matchedBy: 'qualified_name',
+      symbolKey: 'src/storage/db.ts#2',
+      qualifiedName: 'src/storage/db#openDatabase',
+    })
+  })
+
+  test('code_impact resolves the qualified-name form sent as symbolKey', async () => {
+    const client = await connectClient(createCodeindexServer(makeInMemoryDeps(buildSeededDb())))
+    const result = await client.callTool({
+      name: 'code_impact',
+      arguments: { symbolKey: 'src/storage/db#openDatabase' },
+    })
+    const payload = CodeImpactOutputSchema.parse(result.structuredContent)
+    expect(payload.identity).toEqual({
+      status: 'resolved',
+      matchedBy: 'qualified_name',
+      symbolKey: 'src/storage/db.ts#2',
+      qualifiedName: 'src/storage/db#openDatabase',
+    })
+    expect(payload.results.some((row) => row.sourceQualifiedName === 'src/search/index#searchSymbols')).toBe(true)
+  })
+
+  test('code_impact resolves a bare local name and echoes the resolved symbol', async () => {
+    const client = await connectClient(createCodeindexServer(makeInMemoryDeps(buildSeededDb())))
+    const result = await client.callTool({ name: 'code_impact', arguments: { qualifiedName: 'openDatabase' } })
+    const payload = CodeImpactOutputSchema.parse(result.structuredContent)
+    expect(payload.identity).toEqual({
+      status: 'resolved',
+      matchedBy: 'local_name',
+      symbolKey: 'src/storage/db.ts#2',
+      qualifiedName: 'src/storage/db#openDatabase',
+    })
+    expect(payload.results.length).toBeGreaterThan(0)
+  })
+
+  test('unresolved identity guidance tells the truth and never advises a reindex', async () => {
+    const client = await connectClient(createCodeindexServer(makeInMemoryDeps(buildSeededDb())))
+    const result = await client.callTool({
+      name: 'code_impact',
+      arguments: { qualifiedName: 'zzz_nonexistent_symbol' },
+    })
+    const payload = CodeImpactOutputSchema.parse(result.structuredContent)
+    expect(payload.identity).toEqual({ status: 'unresolved' })
+    expect(payload.results).toEqual([])
+    expect(typeof payload.guidance).toBe('string')
+    expect(payload.guidance).toContain('code_symbol')
+    expect(payload.guidance?.toLowerCase()).not.toContain('code_index')
+    expect(payload.guidance?.toLowerCase()).not.toContain('reindex')
+    const parsed = CallToolResultSchema.parse(result)
+    const text = parsed.content.find((entry): entry is TextContent => entry.type === 'text')?.text ?? ''
+    expect(text).toContain(payload.guidance!)
+  })
+
+  test('found-but-empty guidance keeps the reindex advice and reports the resolved symbol', async () => {
+    const client = await connectClient(createCodeindexServer(makeInMemoryDeps(buildSeededDb())))
+    const result = await client.callTool({
+      name: 'code_impact',
+      arguments: { qualifiedName: 'src/search/index#searchSymbols' },
+    })
+    const payload = CodeImpactOutputSchema.parse(result.structuredContent)
+    expect(payload.results).toEqual([])
+    expect(payload.identity).toEqual({
+      status: 'canonical',
+      matchedBy: 'qualified_name',
+      symbolKey: 'src/search/index.ts#1',
+      qualifiedName: 'src/search/index#searchSymbols',
+    })
+    expect(typeof payload.guidance).toBe('string')
+    expect(payload.guidance).toContain('code_symbol')
+    expect(payload.guidance).toContain('code_index')
+  })
+
+  test('code_impact description documents the accepted identity forms', async () => {
+    const client = await connectClient(createCodeindexServer(makeInMemoryDeps(buildSeededDb())))
+    const listed = await client.listTools()
+    const impact = listed.tools.find((tool) => tool.name === 'code_impact')
+    expect(impact).toBeDefined()
+    const description = impact!.description ?? ''
+    expect(description).toContain('symbol_key')
+    expect(description).toContain('qualified_name')
+    expect(description).toContain('local name')
+  })
+
   test('code_search with an invalid mode is rejected at the boundary', async () => {
     const client = await connectClient(createCodeindexServer(makeInMemoryDeps(buildSeededDb())))
     const result = await client.callTool({
@@ -293,7 +385,8 @@ describe('watcher state reporting', () => {
   const depsWithWatcher = (summary: IndexSummary): CodeindexToolDeps => ({
     codeSearch: (): ReturnType<CodeindexToolDeps['codeSearch']> => Promise.resolve([]),
     codeSymbol: (): ReturnType<CodeindexToolDeps['codeSymbol']> => Promise.resolve([]),
-    codeImpact: (): ReturnType<CodeindexToolDeps['codeImpact']> => Promise.resolve([]),
+    codeImpact: (): ReturnType<CodeindexToolDeps['codeImpact']> =>
+      Promise.resolve({ resolution: { status: 'unresolved' as const }, results: [] }),
     codeIndex: (): ReturnType<CodeindexToolDeps['codeIndex']> => Promise.resolve(summary),
     getWatcherState: (): WatcherState => watcherState,
   })
@@ -349,7 +442,8 @@ describe('watcher state reporting', () => {
     const deps: CodeindexToolDeps = {
       codeSearch: (): ReturnType<CodeindexToolDeps['codeSearch']> => Promise.resolve([]),
       codeSymbol: (): ReturnType<CodeindexToolDeps['codeSymbol']> => Promise.resolve([]),
-      codeImpact: (): ReturnType<CodeindexToolDeps['codeImpact']> => Promise.resolve([]),
+    codeImpact: (): ReturnType<CodeindexToolDeps['codeImpact']> =>
+      Promise.resolve({ resolution: { status: 'unresolved' as const }, results: [] }),
       codeIndex: ({ mode }): ReturnType<CodeindexToolDeps['codeIndex']> => scheduler.submit({ mode }),
       getWatcherState: (): WatcherState => watcherState,
     }
@@ -375,7 +469,8 @@ describe('code_index payload honesty', () => {
   const depsWithIndexSummary = (summary: IndexSummary): CodeindexToolDeps => ({
     codeSearch: (): ReturnType<CodeindexToolDeps['codeSearch']> => Promise.resolve([]),
     codeSymbol: (): ReturnType<CodeindexToolDeps['codeSymbol']> => Promise.resolve([]),
-    codeImpact: (): ReturnType<CodeindexToolDeps['codeImpact']> => Promise.resolve([]),
+    codeImpact: (): ReturnType<CodeindexToolDeps['codeImpact']> =>
+      Promise.resolve({ resolution: { status: 'unresolved' as const }, results: [] }),
     codeIndex: (): ReturnType<CodeindexToolDeps['codeIndex']> => Promise.resolve(summary),
   })
 

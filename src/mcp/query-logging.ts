@@ -125,9 +125,9 @@ const wrapCodeImpact = (deps: Readonly<CodeindexToolDeps>, queriesPath: string):
         filtersJson: JSON.stringify({ limit: input.limit }),
       },
       () => deps.codeImpact(input),
-      (results) => ({
-        resultCount: results.length,
-        topQualifiedNames: results
+      (outcome) => ({
+        resultCount: outcome.results.length,
+        topQualifiedNames: outcome.results
           .map((row) => row.sourceQualifiedName)
           .filter((name): name is string => name !== null)
           .slice(0, 3),
