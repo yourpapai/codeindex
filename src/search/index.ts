@@ -1,6 +1,6 @@
 import type { Database } from 'bun:sqlite'
 
-import type { RankedSearchResult, SearchResult } from '../types.js'
+import type { RankedSearchResult, SearchMode, SearchResult } from '../types.js'
 import { runExactSearch, type SearchFilters } from './exact.js'
 import { runFtsSearch } from './fts.js'
 import { rerankSearchResults } from './rank.js'
@@ -21,10 +21,13 @@ export interface ImpactResult {
 
 export const searchSymbols = (
   db: Database,
-  input: Readonly<{ query: string; limit: number } & SearchFilters>,
+  input: Readonly<{ query: string; limit: number; mode?: SearchMode } & SearchFilters>,
 ): readonly RankedSearchResult[] => {
-  const exactResults = runExactSearch(db, input.query, input.limit, input)
-  const ftsResults = runFtsSearch(db, input.query, input.limit, input)
+  const mode: SearchMode = input.mode ?? 'auto'
+  const servesUnion = mode === 'auto' || mode === 'fused'
+  const exactResults =
+    servesUnion || mode === 'exact' ? runExactSearch(db, input.query, input.limit, input) : []
+  const ftsResults = servesUnion || mode === 'fts' ? runFtsSearch(db, input.query, input.limit, input) : []
   const deduped: readonly SearchResult[] = [
     ...exactResults,
     ...ftsResults.filter((fts) => !exactResults.some((exact) => exact.symbolKey === fts.symbolKey)),

@@ -23,12 +23,12 @@ Test-first throughout: every implementation task is preceded by its failing test
 
 ## 2. Route mode — pool selection (D3)
 
-- [ ] 2.1 RED — write `tests/search/route-mode.test.ts`: omitted mode ≡ `auto`;
+- [x] 2.1 RED — write `tests/search/route-mode.test.ts`: omitted mode ≡ `auto`;
       `exact` serves only exact-family results; `fts` serves only FTS results;
       `fused` is byte-identical to `auto` (results, order, `rankScore`, `matchedBy`);
       exact-before-FTS holds under every mode. Watch it fail. Verify:
       `bun test tests/search/route-mode.test.ts`
-- [ ] 2.2 GREEN — `searchSymbols` (`src/search/index.ts`) gains optional `mode`
+- [x] 2.2 GREEN — `searchSymbols` (`src/search/index.ts`) gains optional `mode`
       (default `auto`); route the pools; `auto`/`fused` share one codepath. Verify:
       `bun test tests/search && bun run typecheck`
 

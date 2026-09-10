@@ -17,6 +17,8 @@ export type ReferenceConfidence = 'resolved' | 'file_resolved' | 'name_only'
 
 export type MatchedBy = 'exact_export' | 'exact_qualified' | 'exact_local' | 'path_prefix' | 'fts'
 
+export type SearchMode = 'auto' | 'exact' | 'fts' | 'fused'
+
 export interface SearchResult {
   readonly symbolKey: string
   readonly qualifiedName: string
