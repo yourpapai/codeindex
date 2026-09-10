@@ -24,8 +24,8 @@
 
 ## 5. Bench gates
 
-- [ ] 5.1 Confirm repair cost is absorbed: run the index bench gate and compare against the stamped baseline (regenerate only if repair changes the corpus/intent, never to pass). Verify: `bun run bench:index:check`
-- [ ] 5.2 Regenerate the three impact baselines as a declared intent change (oracle now measures a repaired graph; rationale in the commit), then confirm gates pass. Verify: `bun run bench:impact:check && bun run bench:impact:fixture:check && bun run bench:impact:papai`
+- [x] 5.1 Confirm repair cost is absorbed: run the index bench gate and compare against the stamped baseline (regenerate only if repair changes the corpus/intent, never to pass). Verify: `bun run bench:index:check`
+- [x] 5.2 Regenerate the three impact baselines as a declared intent change (oracle now measures a repaired graph; rationale in the commit), then confirm gates pass. Verify: `bun run bench:impact:check && bun run bench:impact:fixture:check && bun run bench:impact:papai`
 
 ## 6. Full verification
 
