@@ -1,75 +1,76 @@
 {
-  "generatedAt": "2026-09-09T11:09:18.724Z",
+  "generatedAt": "2026-09-10T08:46:23.708Z",
   "repo": "/Users/ki/Projects/yourpapai/codeindex",
-  "repoHead": "1df57e257a4205433ae60523cceaccb9f69d2e5d",
+  "repoHead": "a4977856770d636d15e708a16ab7753a3256beef",
   "agentModel": "opencode-go/glm-5.3-flash",
-  "reps": 1,
+  "reps": 3,
   "arms": {
     "with": {
-      "runs": 10,
+      "runs": 30,
       "meanTokens": {
-        "input": 17065.3,
-        "output": 1268.5,
-        "reasoning": 519.5,
-        "cacheRead": 67814.4,
+        "input": 26671.866666666665,
+        "output": 1111.9666666666667,
+        "reasoning": 583.8333333333334,
+        "cacheRead": 67078.4,
         "cacheWrite": 0
       },
       "medianTokens": {
-        "input": 15677.5,
-        "output": 391.5,
-        "reasoning": 154.5,
-        "cacheRead": 60832,
+        "input": 20478.5,
+        "output": 679,
+        "reasoning": 137,
+        "cacheRead": 52640,
         "cacheWrite": 0
       },
-      "meanCost": 0.0027441134999999996,
-      "meanWallTimeMs": 59282.8,
-      "medianWallTimeMs": 46767,
+      "meanCost": 0.006861031999999999,
+      "meanWallTimeMs": 54587.333333333336,
+      "medianWallTimeMs": 32851.5,
       "toolCallCounts": {
-        "codeindex_code_search": 8,
-        "codeindex_code_symbol": 7,
-        "grep": 12,
-        "glob": 1,
-        "codeindex_code_index": 1,
-        "codeindex_code_impact": 2,
-        "read": 48,
+        "codeindex_code_search": 18,
+        "codeindex_code_symbol": 14,
+        "grep": 35,
+        "glob": 9,
+        "read": 119,
+        "codeindex_code_impact": 10,
+        "bash": 27,
+        "codeindex_code_index": 4,
+        "skill": 2
+      },
+      "objectivePassRate": 0.8888888888888888,
+      "hallucinationRate": 0.1111111111111111
+    },
+    "without": {
+      "runs": 30,
+      "meanTokens": {
+        "input": 25303.633333333335,
+        "output": 1062.4666666666667,
+        "reasoning": 544.9,
+        "cacheRead": 51630.933333333334,
+        "cacheWrite": 0
+      },
+      "medianTokens": {
+        "input": 21766.5,
+        "output": 398.5,
+        "reasoning": 121,
+        "cacheRead": 27872,
+        "cacheWrite": 0
+      },
+      "meanCost": 0.006148156333333332,
+      "meanWallTimeMs": 45959.46666666667,
+      "medianWallTimeMs": 26559.5,
+      "toolCallCounts": {
+        "grep": 51,
+        "glob": 14,
+        "read": 121,
+        "bash": 10,
         "skill": 2
       },
       "objectivePassRate": 0.8333333333333334,
       "hallucinationRate": 0.16666666666666666
-    },
-    "without": {
-      "runs": 10,
-      "meanTokens": {
-        "input": 22502.2,
-        "output": 684.1,
-        "reasoning": 1681.1,
-        "cacheRead": 56044.8,
-        "cacheWrite": 0
-      },
-      "medianTokens": {
-        "input": 22602,
-        "output": 413.5,
-        "reasoning": 617,
-        "cacheRead": 33344,
-        "cacheWrite": 0
-      },
-      "meanCost": 0.0031196369999999998,
-      "meanWallTimeMs": 86920,
-      "medianWallTimeMs": 40875.5,
-      "toolCallCounts": {
-        "grep": 16,
-        "bash": 8,
-        "read": 48,
-        "skill": 3,
-        "glob": 4
-      },
-      "objectivePassRate": 0.5,
-      "hallucinationRate": 0.3333333333333333
     }
   },
   "judge": {
-    "with": 1,
-    "without": 1,
-    "tie": 2
+    "with": 2,
+    "without": 2,
+    "tie": 0
   }
 }
