@@ -58,3 +58,45 @@ export const rerankSearchResults = (results: readonly SearchResult[]): readonly 
     }))
     .sort((left, right) => right.rankScore - left.rankScore)
 }
+
+export interface FusedListEntry<T> {
+  readonly item: T
+  readonly matchedBy: MatchedBy
+}
+
+export interface FusedEntry<T> {
+  readonly item: T
+  readonly matchedBy: MatchedBy
+  readonly rrfScore: number
+}
+
+// Reciprocal-rank fusion (zg's K=60) over pre-ranked lists. Provenance comes from the
+// first list that surfaced an item, so [exact, fts, ...] ordering preserves exact-wins
+// semantics for future multi-list fusion. Uncalled today: auto/fused stay on the
+// weighted-sum; this is the one-line hook for a future semantic list (P4). It must
+// never replace the exact∪FTS fusion — RRF interleaves lists and would violate
+// exact-before-FTS.
+export const fuseRankedLists = <T>(
+  lists: readonly (readonly FusedListEntry<T>[])[],
+  k: number,
+  keyOf: (item: T) => string,
+): readonly FusedEntry<T>[] => {
+  const fused = new Map<string, { item: T; score: number; matchedBy: MatchedBy; order: number }>()
+  let seen = 0
+  for (const list of lists) {
+    for (let index = 0; index < list.length; index++) {
+      const { item, matchedBy } = list[index]!
+      const contribution = 1 / (k + index + 1)
+      const key = keyOf(item)
+      const existing = fused.get(key)
+      if (existing === undefined) {
+        fused.set(key, { item, score: contribution, matchedBy, order: seen++ })
+      } else {
+        existing.score += contribution
+      }
+    }
+  }
+  return [...fused.values()]
+    .sort((left, right) => right.score - left.score || left.order - right.order)
+    .map(({ item, matchedBy, score }) => ({ item, matchedBy, rrfScore: score }))
+}

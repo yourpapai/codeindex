@@ -34,10 +34,10 @@ Test-first throughout: every implementation task is preceded by its failing test
 
 ## 3. RRF fusion utility — tested, uncalled (D4)
 
-- [ ] 3.1 RED — write `tests/search/fusion.test.ts`: `fuseRankedLists(lists, k = 60)`
+- [x] 3.1 RED — write `tests/search/fusion.test.ts`: `fuseRankedLists(lists, k = 60)`
       RRF math on fixture lists, per-hit `matchedBy` provenance retained, deterministic
       tie-breaks. Watch it fail. Verify: `bun test tests/search/fusion.test.ts`
-- [ ] 3.2 GREEN — implement `fuseRankedLists` in `src/search/rank.ts`; no callers wired
+- [x] 3.2 GREEN — implement `fuseRankedLists` in `src/search/rank.ts`; no callers wired
       (auto/fused stay on the weighted-sum). Verify:
       `bun test tests/search/fusion.test.ts && bun run typecheck`
 
