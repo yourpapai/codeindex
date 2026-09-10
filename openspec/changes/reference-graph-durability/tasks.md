@@ -29,4 +29,4 @@
 
 ## 6. Full verification
 
-- [ ] 6.1 Full check including bench gates (indexing behavior moved, so bench is in scope). Verify: `bun run check`
+- [x] 6.1 Full check including bench gates (indexing behavior moved, so bench is in scope). Verify: `bun run check`

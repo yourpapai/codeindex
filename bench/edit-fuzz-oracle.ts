@@ -140,56 +140,46 @@ export interface EdgeDivergence {
   readonly barrelRoutedDivergence: number
 }
 
+const ZERO_EDGE_DIVERGENCE: EdgeDivergence = {
+  checked: 0,
+  orphaned: 0,
+  missingEdges: 0,
+  extraEdges: 0,
+  falseResolved: 0,
+  unexpectedUnresolved: 0,
+  mapRoutedDivergence: 0,
+  barrelRoutedDivergence: 0,
+}
+
 export const compareEdges = (incDb: Database, fullDb: Database, tables: ScopeTables): EdgeDivergence => {
   const incEdges = new Map(loadOracleEdges(incDb).map((edge) => [edge.key, edge]))
   const fullEdges = loadOracleEdges(fullDb)
-  const accumulate = (divergence: EdgeDivergence, edge: OracleEdge, inc: OracleEdge | undefined): EdgeDivergence => {
-    if (inc === undefined) {
-      return { ...divergence, missingEdges: divergence.missingEdges + 1 }
-    }
-    if (edge.resolved && !inc.resolved) {
-      const tier = classifyEdge(edge.sourceModule ?? '', edge.targetModule ?? '', edge.specifier, tables)
-      if (tier === 'tier1') {
-        return {
-          ...divergence,
-          orphaned: divergence.orphaned + 1,
-          unexpectedUnresolved: divergence.unexpectedUnresolved + 1,
-        }
-      }
-      if (tier === 'mapRouted') {
-        return {
-          ...divergence,
-          orphaned: divergence.orphaned + 1,
-          mapRoutedDivergence: divergence.mapRoutedDivergence + 1,
-        }
-      }
-      return {
-        ...divergence,
-        orphaned: divergence.orphaned + 1,
-        barrelRoutedDivergence: divergence.barrelRoutedDivergence + 1,
-      }
-    }
-    if (!edge.resolved && inc.resolved) {
-      return { ...divergence, falseResolved: divergence.falseResolved + 1 }
-    }
-    return divergence
-  }
   let checked = 0
-  let divergence: EdgeDivergence = {
-    checked: 0,
-    orphaned: 0,
-    missingEdges: 0,
-    extraEdges: 0,
-    falseResolved: 0,
-    unexpectedUnresolved: 0,
-    mapRoutedDivergence: 0,
-    barrelRoutedDivergence: 0,
-  }
+  let divergence: EdgeDivergence = ZERO_EDGE_DIVERGENCE
   for (const edge of fullEdges) {
     if (edge.resolved) {
       checked += 1
     }
-    divergence = accumulate(divergence, edge, incEdges.get(edge.key))
+    const inc = incEdges.get(edge.key)
+    if (inc === undefined) {
+      divergence = { ...divergence, missingEdges: divergence.missingEdges + 1 }
+      continue
+    }
+    if (edge.resolved && !inc.resolved) {
+      const tier = classifyEdge(edge.sourceModule ?? '', edge.targetModule ?? '', edge.specifier, tables)
+      divergence = { ...divergence, orphaned: divergence.orphaned + 1 }
+      if (tier === 'tier1') {
+        divergence = { ...divergence, unexpectedUnresolved: divergence.unexpectedUnresolved + 1 }
+      } else if (tier === 'mapRouted') {
+        divergence = { ...divergence, mapRoutedDivergence: divergence.mapRoutedDivergence + 1 }
+      } else {
+        divergence = { ...divergence, barrelRoutedDivergence: divergence.barrelRoutedDivergence + 1 }
+      }
+      continue
+    }
+    if (!edge.resolved && inc.resolved) {
+      divergence = { ...divergence, falseResolved: divergence.falseResolved + 1 }
+    }
   }
   const fullKeys = new Set(fullEdges.map((edge) => edge.key))
   let extraEdges = 0
