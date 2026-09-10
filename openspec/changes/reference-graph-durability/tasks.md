@@ -15,8 +15,8 @@
 
 ## 3. Empty-impact guidance (failing-test-first)
 
-- [ ] 3.1 Write MCP-level test: `code_impact` with zero results emits `guidance` in text payload AND `structuredContent`; non-empty result has no `guidance` field. Watch it fail. Verify: `bun test tests/mcp/` (red)
-- [ ] 3.2 Add `guidance` to the impact tool response path (zod schema + emission, mirroring the `code_search` mechanism; static message: verify name via `code_symbol`, full reindex rebuilds the graph). Verify: `bun test tests/mcp/` (green) && `bun run typecheck`
+- [x] 3.1 Write MCP-level test: `code_impact` with zero results emits `guidance` in text payload AND `structuredContent`; non-empty result has no `guidance` field. Watch it fail. Verify: `bun test tests/mcp/` (red)
+- [x] 3.2 Add `guidance` to the impact tool response path (zod schema + emission, mirroring the `code_search` mechanism; static message: verify name via `code_symbol`, full reindex rebuilds the graph). Verify: `bun test tests/mcp/` (green) && `bun run typecheck`
 
 ## 4. Durability invariant in the edit fuzzer
 

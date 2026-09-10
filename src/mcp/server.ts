@@ -91,10 +91,22 @@ const registerImpactTool = (server: McpServer, deps: Readonly<CodeindexToolDeps>
     async ({ symbolKey, qualifiedName, limit }: CodeImpactInput) => {
       const results = await deps.codeImpact({ symbolKey, qualifiedName, limit })
       const indexFreshness = deps.getIndexFreshness?.()
-      const summary = `${results.length} incoming reference(s)`
+      // Mirrors the code_search contract: an empty result explains itself — an orphan-prone graph
+      // can legitimately return zero rows for a real symbol, so point at exact lookup and a full
+      // reindex instead of letting agents conclude "no callers" and fall back to grep.
+      const guidance =
+        results.length === 0
+          ? 'No incoming references found. Confirm the symbol name via code_symbol; if results look degraded, run code_index (full reindex) to rebuild the reference graph.'
+          : undefined
+      const summary =
+        results.length === 0 ? (guidance ?? 'No incoming references.') : `${results.length} incoming reference(s)`
       return buildStructuredToolResult(
         CodeImpactOutputSchema,
-        { results: [...results], indexFreshness },
+        {
+          results: [...results],
+          ...(guidance === undefined ? {} : { guidance }),
+          indexFreshness,
+        },
         indexFreshness === undefined ? summary : summary + freshnessSuffix(results, indexFreshness),
       )
     },

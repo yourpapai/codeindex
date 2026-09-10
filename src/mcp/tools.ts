@@ -113,6 +113,7 @@ const ImpactResultSchema = z.object({
 
 export const CodeImpactOutputSchema = z.object({
   results: z.array(ImpactResultSchema),
+  guidance: z.string().optional(),
   indexFreshness: FreshnessSchema.optional(),
 })
 

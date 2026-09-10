@@ -108,6 +108,32 @@ describe('MCP protocol boundary', () => {
     expect(payload.results.some((row) => row.sourceQualifiedName === 'src/search/index#searchSymbols')).toBe(true)
   })
 
+  test('code_impact with zero results carries guidance in structuredContent and the text payload', async () => {
+    const client = await connectClient(createCodeindexServer(makeInMemoryDeps(buildSeededDb())))
+    const result = await client.callTool({
+      name: 'code_impact',
+      arguments: { qualifiedName: 'src/search/index#searchSymbols' },
+    })
+    const payload = CodeImpactOutputSchema.parse(result.structuredContent)
+    expect(payload.results).toEqual([])
+    expect(typeof payload.guidance).toBe('string')
+    expect(payload.guidance).toContain('code_symbol')
+    const parsed = CallToolResultSchema.parse(result)
+    const text = parsed.content.find((entry): entry is TextContent => entry.type === 'text')?.text ?? ''
+    expect(text).toContain(payload.guidance!)
+  })
+
+  test('code_impact with results has no guidance field', async () => {
+    const client = await connectClient(createCodeindexServer(makeInMemoryDeps(buildSeededDb())))
+    const result = await client.callTool({
+      name: 'code_impact',
+      arguments: { qualifiedName: 'src/storage/db#openDatabase' },
+    })
+    expect(result.structuredContent).not.toHaveProperty('guidance')
+    const payload = CodeImpactOutputSchema.parse(result.structuredContent)
+    expect(payload.results.length).toBeGreaterThan(0)
+  })
+
   test('code_impact without symbolKey or qualifiedName is a tool error', async () => {
     const client = await connectClient(createCodeindexServer(makeInMemoryDeps(buildSeededDb())))
     const result = await client.callTool({ name: 'code_impact', arguments: { limit: 5 } })
