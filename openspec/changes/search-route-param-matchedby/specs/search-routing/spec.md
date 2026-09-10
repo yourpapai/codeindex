@@ -16,8 +16,8 @@ The `code_search` tool SHALL accept a `mode` parameter with values `auto`, `exac
 the union of the exact pool and the FTS pool with the current rerank; `exact` SHALL
 serve only the exact pool; `fts` SHALL serve only the FTS pool. The mode parameter
 SHALL be validated at the tool boundary, and an invalid value SHALL be rejected like
-any other malformed input. The mode parameter and the served pool SHALL be reflected
-identically in the text payload and the `structuredContent` shape.
+any other malformed input. The served pool SHALL be observable through per-hit
+`matchedBy` values in `structuredContent`.
 
 #### Scenario: Omitted mode behaves as auto
 
@@ -58,8 +58,9 @@ evolves later — `fused` exists so benchmark arms and callers can pin one behav
 
 Every search result in `code_search` and `code_symbol` responses SHALL carry
 `matchedBy` with exactly one of the values `exact_export`, `exact_qualified`,
-`exact_local`, `path_prefix`, or `fts`, in both the text payload and
-`structuredContent`. The free-form `matchReason` string field SHALL be removed from the
+`exact_local`, `path_prefix`, or `fts`, in the `structuredContent` machine payload
+(the text channel remains the human-oriented summary, mirroring how per-hit freshness
+is surfaced). The free-form `matchReason` string field SHALL be removed from the
 response schemas (**BREAKING** — consumers reading `matchReason` must migrate to
 `matchedBy`). The provenance value SHALL reflect the strongest name match: an
 export-name match SHALL be `exact_export` even when the local name also matches.
@@ -71,8 +72,7 @@ export-name match SHALL be `exact_export` even when the local name also matches.
 
 #### Scenario: No matchReason field remains
 
-- **WHEN** any `code_search` or `code_symbol` response is inspected
-  (text payload or `structuredContent`)
+- **WHEN** any `code_search` or `code_symbol` `structuredContent` is inspected
 - **THEN** results carry `matchedBy` and contain no `matchReason` field
 
 ### Requirement: Path-prefix matches are labeled path_prefix

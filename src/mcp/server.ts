@@ -32,8 +32,8 @@ const registerSearchTool = (server: McpServer, deps: Readonly<CodeindexToolDeps>
       inputSchema: CodeSearchInputSchema,
       outputSchema: CodeSearchOutputSchema,
     },
-    async ({ query, limit, kinds, scopeTiers, pathPrefix }: CodeSearchInput) => {
-      const results = await deps.codeSearch({ query, limit, kinds, scopeTiers, pathPrefix })
+    async ({ query, limit, mode, kinds, scopeTiers, pathPrefix }: CodeSearchInput) => {
+      const results = await deps.codeSearch({ query, limit, mode, kinds, scopeTiers, pathPrefix })
       const indexFreshness = deps.getIndexFreshness?.()
       const guidance =
         results.length === 0

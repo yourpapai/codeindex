@@ -118,6 +118,54 @@ describe('MCP protocol boundary', () => {
     expect(block!.text).toContain('symbolKey or qualifiedName')
   })
 
+  test('code_search with an invalid mode is rejected at the boundary', async () => {
+    const client = await connectClient(createCodeindexServer(makeInMemoryDeps(buildSeededDb())))
+    const result = await client.callTool({ name: 'code_search', arguments: { query: 'searchSymbols', mode: 'semantic' } })
+    expect(result.isError).toBe(true)
+  })
+
+  test('code_search mode flows through to the search pool', async () => {
+    const client = await connectClient(createCodeindexServer(makeInMemoryDeps(buildSeededDb())))
+    for (const mode of ['exact', 'fts', 'fused'] as const) {
+      const result = await client.callTool({ name: 'code_search', arguments: { query: 'searchSymbols', mode } })
+      expect(result.isError).not.toBe(true)
+      const payload = CodeSearchOutputSchema.parse(result.structuredContent)
+      const expected = mode === 'fts' ? 'fts' : undefined
+      for (const row of payload.results) {
+        if (expected === 'fts') {
+          expect(row.matchedBy).toBe('fts')
+        } else {
+          expect(row.matchedBy).not.toBe('fts')
+        }
+      }
+    }
+  })
+
+  test('code_search results carry matchedBy and no matchReason in structuredContent', async () => {
+    const client = await connectClient(createCodeindexServer(makeInMemoryDeps(buildSeededDb())))
+    const result = await client.callTool({ name: 'code_search', arguments: { query: 'searchSymbols' } })
+    expect(result.isError).not.toBe(true)
+    const structured = CodeSearchOutputSchema.parse(result.structuredContent)
+    expect(structured.results.length).toBeGreaterThanOrEqual(1)
+    expect(structured.results.every((row) => typeof row.matchedBy === 'string')).toBe(true)
+    expect(structured.results.every((row) => !('matchReason' in row))).toBe(true)
+    const textBlock = CallToolResultSchema.parse(result).content.find(
+      (entry): entry is TextContent => entry.type === 'text',
+    )
+    expect(textBlock).toBeDefined()
+    expect(textBlock!.text).toContain('src/search/index#searchSymbols')
+  })
+
+  test('code_symbol results carry matchedBy and no matchReason', async () => {
+    const client = await connectClient(createCodeindexServer(makeInMemoryDeps(buildSeededDb())))
+    const result = await client.callTool({ name: 'code_symbol', arguments: { query: 'openDatabase' } })
+    expect(result.isError).not.toBe(true)
+    const structured = CodeSymbolOutputSchema.parse(result.structuredContent)
+    expect(structured.results.length).toBeGreaterThanOrEqual(1)
+    expect(structured.results.every((row) => typeof row.matchedBy === 'string')).toBe(true)
+    expect(structured.results.every((row) => !('matchReason' in row))).toBe(true)
+  })
+
   test('code_search with a missing query is a validation error', async () => {
     const client = await connectClient(createCodeindexServer(makeInMemoryDeps(buildSeededDb())))
     const result = await client.callTool({ name: 'code_search', arguments: {} })

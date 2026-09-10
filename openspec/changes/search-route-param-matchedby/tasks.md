@@ -43,16 +43,16 @@ Test-first throughout: every implementation task is preceded by its failing test
 
 ## 4. MCP surface — schema + protocol (D1/D3)
 
-- [ ] 4.1 RED — extend `tests/mcp/tools.test.ts` + protocol tests:
+- [x] 4.1 RED — extend `tests/mcp/tools.test.ts` + protocol tests:
       `CodeSearchInputSchema` accepts `mode` and rejects invalid values at the boundary;
       output schemas carry `matchedBy` (enum) and no `matchReason`, in text payload AND
       `structuredContent`, for `code_search` and `code_symbol`. Watch it fail. Verify:
       `bun test tests/mcp`
-- [ ] 4.2 GREEN — `src/mcp/tools.ts`: `mode` on `CodeSearchInputSchema` +
+- [x] 4.2 GREEN — `src/mcp/tools.ts`: `mode` on `CodeSearchInputSchema` +
       `CodeindexToolDeps.codeSearch`; `matchedBy` on `RankedSearchResultSchema`; wire
       `mode` through the server/CLI deps. Update MCP fixtures still using
       `matchReason`. Verify: `bun test tests/mcp && bun run typecheck && bun run lint`
-- [ ] 4.3 RED→GREEN — `tests/mcp/freshness.test.ts`: invariance assertion (order,
+- [x] 4.3 RED→GREEN — `tests/mcp/freshness.test.ts`: invariance assertion (order,
       `rankScore`, provenance identical with freshness marks on vs off) moves from
       `matchReason` to `matchedBy`. Verify: `bun test tests/mcp/freshness.test.ts`
 

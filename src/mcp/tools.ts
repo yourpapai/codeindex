@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import type { IndexSummary } from '../indexer/index-codebase.js'
 import type { ImpactResult } from '../search/index.js'
-import type { RankedSearchResult, SearchResult } from '../types.js'
+import type { RankedSearchResult, SearchMode, SearchResult } from '../types.js'
 
 export const FreshnessSchema = z.enum(['fresh', 'possibly_stale'])
 export type Freshness = z.infer<typeof FreshnessSchema>
@@ -13,6 +13,7 @@ export interface CodeindexToolDeps {
   readonly codeSearch: (input: {
     query: string
     limit: number
+    mode?: SearchMode
     kinds?: readonly string[]
     scopeTiers?: readonly SearchResult['scopeTier'][]
     pathPrefix?: string
@@ -31,6 +32,7 @@ export interface CodeindexToolDeps {
 export const CodeSearchInputSchema = z.object({
   query: z.string().min(1),
   limit: z.number().int().positive().max(50).default(10),
+  mode: z.enum(['auto', 'exact', 'fts', 'fused']).optional(),
   kinds: z.array(z.string().min(1)).optional(),
   scopeTiers: z.array(z.enum(['exported', 'module', 'member', 'local'])).optional(),
   pathPrefix: z.string().min(1).optional(),
