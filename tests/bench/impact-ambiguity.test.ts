@@ -4,8 +4,8 @@ import path from 'node:path'
 
 import { loadCodeindexConfig } from '../../src/config.js'
 import { indexCodebase } from '../../src/indexer/index-codebase.js'
-import { openDatabase } from '../../src/storage/db.js'
 import { resolveIncomingReferences } from '../../src/search/index.js'
+import { openDatabase } from '../../src/storage/db.js'
 
 const repoRoot = path.join(import.meta.dir, '../../bench/fixtures/impact-ambiguity')
 
@@ -15,7 +15,13 @@ afterAll(() => {
 
 const identityOf = (
   outcome: ReturnType<typeof resolveIncomingReferences>,
-): { status: string; matchedBy?: string; qualifiedName?: string; reason?: string; candidates?: readonly { qualifiedName: string }[] } =>
+): {
+  status: string
+  matchedBy?: string
+  qualifiedName?: string
+  reason?: string
+  candidates?: readonly { qualifiedName: string }[]
+} =>
   outcome.resolution.status === 'unresolved'
     ? {
         status: outcome.resolution.status,
@@ -52,13 +58,11 @@ describe('impact-ambiguity fixture identity levers', () => {
       expect(multiExport.results).toEqual([])
       expect(multiExport.resolution.status).toBe('unresolved')
       expect(multiExport.resolution.status === 'unresolved' && multiExport.resolution.reason).toBe('ambiguous')
-      const candidates =
-        multiExport.resolution.status === 'unresolved' ? (multiExport.resolution.candidates ?? []) : []
+      const candidates = multiExport.resolution.status === 'unresolved' ? (multiExport.resolution.candidates ?? []) : []
       expect(candidates.length).toBe(2)
-      expect(candidates.map((c) => c.qualifiedName).sort()).toEqual([
-        expect.stringContaining('helper-a#Helper'),
-        expect.stringContaining('helper-b#Helper'),
-      ])
+      const candidateNames = candidates.map((c) => c.qualifiedName)
+      expect(candidateNames.some((name) => name.includes('helper-a#Helper'))).toBe(true)
+      expect(candidateNames.some((name) => name.includes('helper-b#Helper'))).toBe(true)
       expect(candidates.every((c) => c.scopeTier === 'exported')).toBe(true)
 
       // Lever C: Module#Name partial resolves the Toast Action, not Button's.

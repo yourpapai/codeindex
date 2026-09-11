@@ -1,8 +1,8 @@
+import { Button } from './button'
 import { alpha } from './colors'
 import { Helper as HelperA } from './helper-a'
 import { Helper as HelperB } from './helper-b'
 import { Toast } from './toast'
-import { Button } from './button'
 
 export function useAlpha(): number {
   return alpha

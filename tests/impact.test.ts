@@ -566,9 +566,9 @@ describe('resolveIncomingReferences', () => {
     const outcome = resolveIncomingReferences(db, { qualifiedName: 'Toast#Action', limit: 10 })
     expect(outcome.resolution.status).toBe('unresolved')
     expect(outcome.resolution.status === 'unresolved' && outcome.resolution.reason).toBe('ambiguous')
-    expect(outcome.resolution.status === 'unresolved' && outcome.resolution.candidates?.map((c) => c.qualifiedName)).toEqual(
-      ['src/a/toast#Action', 'src/b/toast#Action'],
-    )
+    expect(
+      outcome.resolution.status === 'unresolved' && outcome.resolution.candidates?.map((c) => c.qualifiedName),
+    ).toEqual(['src/a/toast#Action', 'src/b/toast#Action'])
   })
 
   test('canonical full qualified_name still wins over Module#Name partial', () => {

@@ -29,16 +29,15 @@ failures. The measure-and-decide task is mandatory before archive.
 
 ## 5. Measure and decide — keep or throw
 
-- [ ] 5.1 Run full `bun run check` (lint, typecheck, format:check, test, check:bench). Verify: exit 0 without re-stamping `bench/impact-baseline*.json`
-- [ ] 5.2 Record measurement: fixture resolve rates (unique-export 100%, multi-export 0 auto-pick), impact FN/FP vs pre-change, and any protocol token-size delta. Verify: numbers written in this file’s decision note or commit message
-- [ ] 5.3 Explicit decision: **KEEP** all levers, or **THROW** named levers via `git revert` of that lever’s commit(s). If throw, re-run `bun run check` and leave remaining levers green. Verify: decision recorded; working tree consistent with the decision
+- [x] 5.1 Run full `bun run check` (lint, typecheck, format:check, test, check:bench). Verify: exit 0 without re-stamping `bench/impact-baseline*.json`
+- [x] 5.2 Record measurement: fixture resolve rates (unique-export 100%, multi-export 0 auto-pick), impact FN/FP vs pre-change, and any protocol token-size delta. Verify: numbers written in this file’s decision note or commit message
+- [x] 5.3 Explicit decision: **KEEP** all levers, or **THROW** named levers via `git revert` of that lever’s commit(s). If throw, re-run `bun run check` and leave remaining levers green. Verify: decision recorded; working tree consistent with the decision
 
 ## Decision note
 
-*(fill during 5.2–5.3)*
-
-- Date:
-- Impact bench delta:
-- Fixture rates:
-- Decision (KEEP / THROW A / THROW B / THROW C):
-- Reverts applied:
+- Date: 2026-09-11
+- Impact bench delta (codeindex self, no re-stamp): valueFalseNegativeRate 0.0090 → 0.0080 (−0.0010); falsePositiveRate 0.0000 → 0.0000; fixture namespace FN unchanged at 0.1000
+- Fixture rates (`tests/bench/impact-ambiguity.test.ts`): unique-export accept 100% (alpha → colors export despite Theme>alpha); multi-export auto-pick 0 (Helper unresolved + 2 candidates); Module#Name partial accept 100% (Toast#Action)
+- Protocol token-size: candidates capped at 5; guidance lists qualified names only on ambiguous misses (no measured regression against compact-output baseline)
+- Decision (KEEP / THROW A / THROW B / THROW C): **KEEP all levers (A, B, C)**
+- Reverts applied: none
