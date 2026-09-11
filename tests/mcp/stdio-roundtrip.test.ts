@@ -3,8 +3,8 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 
-import { indexCodebase } from '../../src/indexer/index-codebase.js'
 import { loadConfigForPath } from '../../src/cli.js'
+import { indexCodebase } from '../../src/indexer/index-codebase.js'
 import { CodeSearchOutputSchema } from '../../src/mcp/tools.js'
 import { cliPath, makeTempRepo, type TempRepo } from './protocol-harness.js'
 

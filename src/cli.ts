@@ -62,18 +62,32 @@ export interface McpRuntime {
   readonly watcher: IndexWatcher
 }
 
+export interface CreateMcpRuntimeOptions {
+  /** Test seam: replace the reindex runner. Defaults to indexCodebase for config. */
+  readonly indexRunner?: (
+    input: Readonly<{ mode: 'full' | 'incremental' }>,
+  ) => Promise<Awaited<ReturnType<typeof indexCodebase>>>
+}
+
 // Shared process-level assembly: one serialized writer (scheduler), one watcher
 // feeding freshness state, and a boot-time ensureSchema so queries serve immediately
 // even on a fresh worktree. createServer can be called per transport/session; every
 // server instance closes over the same deps object.
-export const createMcpRuntime = (config: CodeindexConfig): McpRuntime => {
+export const createMcpRuntime = (
+  config: CodeindexConfig,
+  options: Readonly<CreateMcpRuntimeOptions> = {},
+): McpRuntime => {
   const db = openDatabase(config.dbPath)
   try {
     ensureSchema(db)
   } finally {
     db.close()
   }
-  const scheduler = createReindexScheduler(({ mode }) => indexCodebase({ config, mode }))
+  const indexRunner =
+    options.indexRunner ??
+    (({ mode }: Readonly<{ mode: 'full' | 'incremental' }>): Promise<Awaited<ReturnType<typeof indexCodebase>>> =>
+      indexCodebase({ config, mode }))
+  const scheduler = createReindexScheduler(indexRunner)
   const watcher = createWatcher(config, (input) => scheduler.submit(input))
   const deps = withQueryLogging(buildMcpDeps(config, { scheduler, watcher }), config)
   return {

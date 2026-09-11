@@ -1,11 +1,11 @@
 import { randomUUID, timingSafeEqual } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import { z } from 'zod'
 
-import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
-
-import { createMcpRuntime } from '../cli.js'
+import { createMcpRuntime, type CreateMcpRuntimeOptions } from '../cli.js'
 import type { CodeindexConfig } from '../config.js'
 
 export const DEFAULT_SERVE_PORT = 3456
@@ -94,6 +94,8 @@ export interface StartServeOptions {
   readonly token?: string | null
   /** Pin JSON responses instead of SSE streams. Default true (design D6). */
   readonly enableJsonResponse?: boolean
+  /** Test seam: replace the process-level reindex runner. */
+  readonly indexRunner?: CreateMcpRuntimeOptions['indexRunner']
 }
 
 export interface ServeHandle {
@@ -109,90 +111,126 @@ const isAddrInUse = (error: unknown): boolean => {
   return error instanceof Error && /address already in use|EADDRINUSE/i.test(error.message)
 }
 
-export const startServe = async (
-  config: CodeindexConfig,
-  options: Readonly<StartServeOptions> = {},
-): Promise<ServeHandle> => {
-  const port = options.port ?? DEFAULT_SERVE_PORT
-  const token = options.token ?? null
-  const enableJsonResponse = options.enableJsonResponse ?? true
-  const { createServer, watcher } = createMcpRuntime(config)
-  const transports = new Map<string, WebStandardStreamableHTTPServerTransport>()
+const unauthorized = (): Response =>
+  new Response('Unauthorized', {
+    status: 401,
+    headers: { 'WWW-Authenticate': 'Bearer' },
+  })
 
-  const fetch = async (req: Request): Promise<Response> => {
+const createSessionTransport = (
+  transports: Map<string, WebStandardStreamableHTTPServerTransport>,
+  enableJsonResponse: boolean,
+): WebStandardStreamableHTTPServerTransport => {
+  const transport = new WebStandardStreamableHTTPServerTransport({
+    sessionIdGenerator: (): string => randomUUID(),
+    onsessioninitialized: (id: string): void => {
+      transports.set(id, transport)
+    },
+    onsessionclosed: (id: string): void => {
+      transports.delete(id)
+    },
+    enableJsonResponse,
+  })
+  transport.onclose = (): void => {
+    if (transport.sessionId !== undefined) {
+      transports.delete(transport.sessionId)
+    }
+  }
+  return transport
+}
+
+interface ServeFetchContext {
+  readonly token: string | null
+  readonly enableJsonResponse: boolean
+  readonly transports: Map<string, WebStandardStreamableHTTPServerTransport>
+  readonly createServer: () => McpServer
+}
+
+const createServeFetch = (context: Readonly<ServeFetchContext>): ((req: Request) => Promise<Response>) => {
+  return async (req: Request): Promise<Response> => {
     const url = new URL(req.url)
     if (url.pathname !== SERVE_PATH) {
       return new Response('Not Found', { status: 404 })
     }
-
-    if (token !== null && !bearerAuthorized(req.headers.get('authorization'), token)) {
-      return new Response('Unauthorized', {
-        status: 401,
-        headers: { 'WWW-Authenticate': 'Bearer' },
-      })
+    if (context.token !== null && !bearerAuthorized(req.headers.get('authorization'), context.token)) {
+      return unauthorized()
     }
 
     const sessionId = req.headers.get('mcp-session-id')
     if (sessionId !== null) {
-      const existing = transports.get(sessionId)
+      const existing = context.transports.get(sessionId)
       if (existing === undefined) {
         return new Response('Session not found', { status: 404 })
       }
       return existing.handleRequest(req)
     }
-
     if (req.method !== 'POST') {
       return new Response('Bad Request', { status: 400 })
     }
 
-    const server = createServer()
-    const transport = new WebStandardStreamableHTTPServerTransport({
-      sessionIdGenerator: () => randomUUID(),
-      onsessioninitialized: (id) => {
-        transports.set(id, transport)
-      },
-      onsessionclosed: (id) => {
-        transports.delete(id)
-      },
-      enableJsonResponse,
-    })
-    transport.onclose = (): void => {
-      if (transport.sessionId !== undefined) {
-        transports.delete(transport.sessionId)
-      }
-    }
+    const server = context.createServer()
+    const transport = createSessionTransport(context.transports, context.enableJsonResponse)
     await server.connect(transport)
     return transport.handleRequest(req)
   }
+}
 
-  let server: ReturnType<typeof Bun.serve>
+const bindServe = (
+  port: number,
+  fetchHandler: (req: Request) => Promise<Response>,
+  onFail: () => void,
+  repoRoot: string,
+): ReturnType<typeof Bun.serve> => {
   try {
-    server = Bun.serve({
+    return Bun.serve({
       hostname: SERVE_HOST,
       port,
-      fetch,
+      fetch: fetchHandler,
     })
   } catch (error) {
-    watcher.stop()
+    onFail()
     if (isAddrInUse(error)) {
       throw new Error(
-        `Port ${port} is already in use for repo ${config.repoRoot}. ` +
+        `Port ${port} is already in use for repo ${repoRoot}. ` +
           `Another process (or worktree) may already be serving MCP on this port. ` +
           `Pass --port <n> to pick a free port.`,
+        { cause: error },
       )
     }
     throw error
   }
+}
 
+export const startServe = async (
+  config: CodeindexConfig,
+  options: Readonly<StartServeOptions> = {},
+): Promise<ServeHandle> => {
+  const port = options.port ?? DEFAULT_SERVE_PORT
+  const { createServer, watcher } = createMcpRuntime(config, {
+    indexRunner: options.indexRunner,
+  })
+  const transports = new Map<string, WebStandardStreamableHTTPServerTransport>()
+  const fetchHandler = createServeFetch({
+    token: options.token ?? null,
+    enableJsonResponse: options.enableJsonResponse ?? true,
+    transports,
+    createServer,
+  })
+  const server = bindServe(
+    port,
+    fetchHandler,
+    (): void => {
+      watcher.stop()
+    },
+    config.repoRoot,
+  )
   await watcher.start()
 
   const stop = async (): Promise<void> => {
     watcher.stop()
-    for (const transport of [...transports.values()]) {
-      await transport.close().catch(() => undefined)
-    }
+    await Promise.all([...transports.values()].map((transport) => transport.close().catch(() => undefined)))
     transports.clear()
-    server.stop()
+    void server.stop()
   }
 
   const boundPort = server.port ?? port

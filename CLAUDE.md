@@ -33,6 +33,18 @@ Run from this directory:
 
 The MCP server is registered per-project, not globally. This repo registers it for its own coding agents (`.mcp.json` for Claude Code, `opencode.json` for opencode); consumer repos register it the same way (papai uses a vendored `scripts/codeindex-cli.ts` wrapper). It always operates on the **caller's `cwd`**, so each repo has its own `.codeindex.json` and `.codeindex/index.db`.
 
+### Transports
+
+- **stdio (default):** `bun run mcp` / `codeindex mcp`. Each host process gets its own watcher and writer.
+- **loopback HTTP (optional):** `codeindex serve [--port N]` starts a Streamable HTTP MCP endpoint at `http://127.0.0.1:3456/mcp` (default port `3456`, override with `--port`). Multiple MCP hosts pointed at the same URL share one process-level reindex queue, watcher, and freshness state — preferred when several hosts use one worktree. Path is always `/mcp`; non-`/mcp` routes 404.
+- **Optional bearer auth (HTTP only):** set `CODEINDEX_TOKEN` (≥32 chars) or `CODEINDEX_TOKEN_FILE` before starting `serve`. Requests must send `Authorization: Bearer <token>`. Stdio ignores these variables.
+
+### Transports
+
+- **stdio (default):** `bun run mcp` / `codeindex mcp`. Each host process gets its own watcher and writer.
+- **loopback HTTP (optional):** `codeindex serve [--port N]` starts a Streamable HTTP MCP endpoint at `http://127.0.0.1:3456/mcp` (default port `3456`, override with `--port`). Multiple MCP hosts pointed at the same URL share one process-level reindex queue, watcher, and freshness state — preferred when several hosts use one worktree. Path is always `/mcp`; non-`/mcp` routes 404.
+- **Optional bearer auth (HTTP only):** set `CODEINDEX_TOKEN` (≥32 chars) or `CODEINDEX_TOKEN_FILE` before starting `serve`. Requests must send `Authorization: Bearer <token>`. Stdio ignores these variables.
+
 ## Dogfooding
 
 Agents working in this repo should prefer `code_search` / `code_symbol` over grep for symbol lookups — registered MCP server first, grep only for non-symbol needs (todos, prose, config). Responses carry freshness marks (`fresh` / `possibly_stale`) and an `indexFreshness` state; while a startup catch-up or edit-triggered watcher reindex is in flight the index is marked stale instead of served silently. Call `code_index` to refresh explicitly (it joins the serialized writer queue with watcher reindexes). For symbol lookups in worktrees, a per-worktree DB starts cold and self-heals via startup catch-up, so the honesty marks apply there too.

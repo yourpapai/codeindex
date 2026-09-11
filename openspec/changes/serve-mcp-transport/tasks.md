@@ -23,8 +23,8 @@
 
 ## 5. Shared-session invariants + docs touch
 
-- [ ] 5.1 Assert two concurrent HTTP clients share one reindex queue (extend http-roundtrip or scheduler-focused test: concurrent `code_index` serializes, max one active run). Verify: `bun test tests/mcp/ && bun run typecheck`
-- [ ] 5.2 Document `codeindex serve` in `AGENTS.md` / `CLAUDE.md` MCP Usage (loopback URL shape, default port, optional token, stdio still default). Verify: `bun run lint && bun run format:check`
+- [x] 5.1 Assert two concurrent HTTP clients share one reindex queue (extend http-roundtrip or scheduler-focused test: concurrent `code_index` serializes, max one active run). Verify: `bun test tests/mcp/ && bun run typecheck`
+- [x] 5.2 Document `codeindex serve` in `AGENTS.md` / `CLAUDE.md` MCP Usage (loopback URL shape, default port, optional token, stdio still default). Verify: `bun run lint && bun run format:check`
 
 ## 6. Full gates
 

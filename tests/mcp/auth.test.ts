@@ -8,8 +8,8 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 
 import { loadConfigForPath } from '../../src/cli.js'
 import { indexCodebase } from '../../src/indexer/index-codebase.js'
-import { CodeSearchOutputSchema } from '../../src/mcp/tools.js'
 import { loadServeToken, validateServeToken } from '../../src/mcp/serve.js'
+import { CodeSearchOutputSchema } from '../../src/mcp/tools.js'
 import { makeTempRepo, type TempRepo } from './protocol-harness.js'
 
 const LONG_TOKEN = 'test-token-0123456789abcdef0123456789'
@@ -39,15 +39,9 @@ afterEach(async () => {
   else process.env['CODEINDEX_TOKEN_FILE'] = savedEnv.CODEINDEX_TOKEN_FILE
 })
 
-const connectHttp = async (
-  url: string,
-  options: { readonly token?: string } = {},
-): Promise<Client> => {
+const connectHttp = async (url: string, options: { readonly token?: string } = {}): Promise<Client> => {
   const transport = new StreamableHTTPClientTransport(new URL(url), {
-    requestInit:
-      options.token === undefined
-        ? undefined
-        : { headers: { Authorization: `Bearer ${options.token}` } },
+    requestInit: options.token === undefined ? undefined : { headers: { Authorization: `Bearer ${options.token}` } },
   })
   const client = new Client({ name: 'auth-test', version: '0.0.0' })
   clients.push(client)
