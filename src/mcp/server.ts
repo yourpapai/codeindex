@@ -92,7 +92,7 @@ const registerImpactTool = (server: McpServer, deps: Readonly<CodeindexToolDeps>
     'code_impact',
     {
       description:
-        'Find incoming references for a symbol. Identity forms: exact symbol_key (file#start-end), exact qualified_name (module#name or parent>name), exact repo-unique local name, or unique-export local name (accepted when exactly one export holds the name even if members share it). Ambiguous local names (multiple exports, or multiple non-export matches) return unresolved with a capped candidate list rather than a rank-order guess; unknown identities return unresolved instead of fuzzy matches.',
+        'Find incoming references for a symbol. Identity forms: exact symbol_key (file#start-end), exact qualified_name (module#name or parent>name), exact repo-unique local name, unique-export local name (accepted when exactly one export holds the name even if members share it), or Module#Name partials (segment-exact module_key). Ambiguous local names (multiple exports, or multiple non-export matches) return unresolved with a capped candidate list rather than a rank-order guess; unknown identities return unresolved instead of fuzzy matches.',
       inputSchema: CodeImpactInputSchema,
       outputSchema: CodeImpactOutputSchema,
     },

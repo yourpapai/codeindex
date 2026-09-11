@@ -261,6 +261,7 @@ describe('MCP protocol boundary', () => {
     expect(description.toLowerCase()).toContain('export')
     expect(description.toLowerCase()).toContain('candidat')
     expect(description.toLowerCase()).toContain('ambig')
+    expect(description).toContain('Module#Name')
   })
 
   test('unresolved guidance names uniqueness/ambiguity rather than a fuzzy guess', async () => {
@@ -345,6 +346,30 @@ describe('MCP protocol boundary', () => {
     expect(payload.identity?.status).toBe('resolved')
     expect(payload.identity).not.toHaveProperty('reason')
     expect(payload.identity).not.toHaveProperty('candidates')
+  })
+
+  test('Module#Name partial resolves with matchedBy module_name', async () => {
+    const db = new Database(':memory:')
+    openDbs.push(db)
+    ensureSchema(db)
+    seedFile(db, { id: 1, filePath: 'src/ui/toast.tsx', moduleKey: 'src/ui/toast' })
+    seedSymbol(db, {
+      id: 1,
+      fileId: 1,
+      filePath: 'src/ui/toast.tsx',
+      moduleKey: 'src/ui/toast',
+      localName: 'Action',
+      qualifiedName: 'src/ui/toast#Toast>Action',
+    })
+    const client = await connectClient(createCodeindexServer(makeInMemoryDeps(db)))
+    const result = await client.callTool({ name: 'code_impact', arguments: { qualifiedName: 'Toast#Action' } })
+    const payload = CodeImpactOutputSchema.parse(result.structuredContent)
+    expect(payload.identity).toEqual({
+      status: 'resolved',
+      matchedBy: 'module_name',
+      symbolKey: 'src/ui/toast.tsx#1',
+      qualifiedName: 'src/ui/toast#Toast>Action',
+    })
   })
 
   test('code_search with an invalid mode is rejected at the boundary', async () => {

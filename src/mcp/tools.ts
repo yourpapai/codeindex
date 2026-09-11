@@ -122,7 +122,7 @@ export const ImpactIdentityCandidateSchema = z.object({
 
 export const ImpactIdentitySchema = z.object({
   status: z.enum(['canonical', 'resolved', 'unresolved']),
-  matchedBy: z.enum(['symbol_key', 'qualified_name', 'local_name']).optional(),
+  matchedBy: z.enum(['symbol_key', 'qualified_name', 'local_name', 'module_name']).optional(),
   symbolKey: z.string().optional(),
   qualifiedName: z.string().optional(),
   reason: z.enum(['unknown', 'ambiguous']).optional(),

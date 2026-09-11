@@ -18,9 +18,9 @@ failures. The measure-and-decide task is mandatory before archive.
 
 ## 3. Lever C — `Module#Name` partials (test-first)
 
-- [ ] 3.1 Write failing tests: `Toast#Action` resolves when exactly one `Action` has module_key `Toast` or `*​/Toast`; `Module#Name` does not match `MyModule` or sibling modules; ambiguous partial stays unresolved with candidates; canonical full qualified_name still wins first. Verify: `bun test tests/impact.test.ts` (red)
-- [ ] 3.2 Implement segment-exact `module#name` stage (after unique local, before unresolved) with `matchedBy: 'module_name'` (extend identity enum). Verify: `bun test tests/impact.test.ts tests/mcp/protocol.test.ts` (green)
-- [ ] 3.3 Document `Module#Name` in tool description. Verify: protocol description assertions
+- [x] 3.1 Write failing tests: `Toast#Action` resolves when exactly one `Action` has module_key `Toast` or `*​/Toast`; `Module#Name` does not match `MyModule` or sibling modules; ambiguous partial stays unresolved with candidates; canonical full qualified_name still wins first. Verify: `bun test tests/impact.test.ts` (red)
+- [x] 3.2 Implement segment-exact `module#name` stage (after unique local, before unresolved) with `matchedBy: 'module_name'` (extend identity enum). Verify: `bun test tests/impact.test.ts tests/mcp/protocol.test.ts` (green)
+- [x] 3.3 Document `Module#Name` in tool description. Verify: protocol description assertions
 
 ## 4. Third-party-shaped fixture + optional external check
 

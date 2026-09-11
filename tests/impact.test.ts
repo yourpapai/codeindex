@@ -465,4 +465,147 @@ describe('resolveIncomingReferences', () => {
     expect(findIncomingReferences(db, { symbolKey: 'src/storage/db#openDatabase', limit: 10 })).toEqual([])
     expect(findIncomingReferences(db, { qualifiedName: 'openDatabase', limit: 10 })).toEqual([])
   })
+
+  test('Module#Name partial resolves when exactly one segment-exact module match exists', () => {
+    const db = new Database(':memory:')
+    ensureSchema(db)
+    seedFile(db, 1, 'src/ui/toast.tsx', 'src/ui/toast')
+    seedFile(db, 2, 'src/ui/button.tsx', 'src/ui/button')
+    seedSymbol(db, {
+      id: 1,
+      fileId: 1,
+      filePath: 'src/ui/toast.tsx',
+      moduleKey: 'src/ui/toast',
+      symbolKey: 'src/ui/toast.tsx#0-9',
+      localName: 'Action',
+      qualifiedName: 'src/ui/toast#Toast>Action',
+      scopeTier: 'member',
+    })
+    seedSymbol(db, {
+      id: 2,
+      fileId: 2,
+      filePath: 'src/ui/button.tsx',
+      moduleKey: 'src/ui/button',
+      symbolKey: 'src/ui/button.tsx#0-9',
+      localName: 'Action',
+      qualifiedName: 'src/ui/button#Button>Action',
+      scopeTier: 'member',
+    })
+
+    expect(resolveIncomingReferences(db, { qualifiedName: 'Toast#Action', limit: 10 })).toEqual({
+      resolution: {
+        status: 'resolved',
+        matchedBy: 'module_name',
+        symbolKey: 'src/ui/toast.tsx#0-9',
+        qualifiedName: 'src/ui/toast#Toast>Action',
+      },
+      results: [],
+    })
+  })
+
+  test('Module#Name does not over-match sibling modules or substring segments', () => {
+    const db = new Database(':memory:')
+    ensureSchema(db)
+    seedFile(db, 1, 'src/my-module.ts', 'src/my-module')
+    seedFile(db, 2, 'src/module-helper.ts', 'src/module-helper')
+    seedSymbol(db, {
+      id: 1,
+      fileId: 1,
+      filePath: 'src/my-module.ts',
+      moduleKey: 'src/my-module',
+      symbolKey: 'src/my-module.ts#0-9',
+      localName: 'Name',
+      qualifiedName: 'src/my-module#Name',
+      scopeTier: 'module',
+    })
+    seedSymbol(db, {
+      id: 2,
+      fileId: 2,
+      filePath: 'src/module-helper.ts',
+      moduleKey: 'src/module-helper',
+      symbolKey: 'src/module-helper.ts#0-9',
+      localName: 'Name',
+      qualifiedName: 'src/module-helper#Name',
+      scopeTier: 'module',
+    })
+
+    // Neither MyModule nor module-helper is a segment-exact Module match, so the partial
+    // stage does not resolve and the full identity has no local_name hits.
+    expect(resolveIncomingReferences(db, { qualifiedName: 'Module#Name', limit: 10 })).toEqual({
+      resolution: { status: 'unresolved', reason: 'unknown' },
+      results: [],
+    })
+  })
+
+  test('ambiguous Module#Name partial stays unresolved with candidates', () => {
+    const db = new Database(':memory:')
+    ensureSchema(db)
+    seedFile(db, 1, 'src/a/toast.ts', 'src/a/toast')
+    seedFile(db, 2, 'src/b/toast.ts', 'src/b/toast')
+    seedSymbol(db, {
+      id: 1,
+      fileId: 1,
+      filePath: 'src/a/toast.ts',
+      moduleKey: 'src/a/toast',
+      symbolKey: 'src/a/toast.ts#0-9',
+      localName: 'Action',
+      qualifiedName: 'src/a/toast#Action',
+      scopeTier: 'module',
+    })
+    seedSymbol(db, {
+      id: 2,
+      fileId: 2,
+      filePath: 'src/b/toast.ts',
+      moduleKey: 'src/b/toast',
+      symbolKey: 'src/b/toast.ts#0-9',
+      localName: 'Action',
+      qualifiedName: 'src/b/toast#Action',
+      scopeTier: 'module',
+    })
+
+    const outcome = resolveIncomingReferences(db, { qualifiedName: 'Toast#Action', limit: 10 })
+    expect(outcome.resolution.status).toBe('unresolved')
+    expect(outcome.resolution.status === 'unresolved' && outcome.resolution.reason).toBe('ambiguous')
+    expect(outcome.resolution.status === 'unresolved' && outcome.resolution.candidates?.map((c) => c.qualifiedName)).toEqual(
+      ['src/a/toast#Action', 'src/b/toast#Action'],
+    )
+  })
+
+  test('canonical full qualified_name still wins over Module#Name partial', () => {
+    const db = new Database(':memory:')
+    ensureSchema(db)
+    seedFile(db, 1, 'src/toast.ts', 'src/toast')
+    seedFile(db, 2, 'src/other.ts', 'src/other')
+    seedSymbol(db, {
+      id: 1,
+      fileId: 1,
+      filePath: 'src/toast.ts',
+      moduleKey: 'src/toast',
+      symbolKey: 'src/toast.ts#0-9',
+      localName: 'Toast#Action',
+      qualifiedName: 'Toast#Action',
+      scopeTier: 'module',
+    })
+    seedSymbol(db, {
+      id: 2,
+      fileId: 2,
+      filePath: 'src/other.ts',
+      moduleKey: 'Toast',
+      symbolKey: 'src/other.ts#0-9',
+      localName: 'Action',
+      qualifiedName: 'Toast#Action#member',
+      scopeTier: 'module',
+    })
+
+    // Exact qualified_name match for the literal string wins before the partial stage.
+    expect(resolveIncomingReferences(db, { qualifiedName: 'Toast#Action', limit: 10 })).toEqual({
+      resolution: {
+        status: 'canonical',
+        matchedBy: 'qualified_name',
+        symbolKey: 'src/toast.ts#0-9',
+        qualifiedName: 'Toast#Action',
+      },
+      results: [],
+    })
+  })
 })

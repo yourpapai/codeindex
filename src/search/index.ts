@@ -19,7 +19,7 @@ export interface ImpactResult {
   readonly lineNumber: number
 }
 
-export type ImpactIdentityMatchedBy = 'symbol_key' | 'qualified_name' | 'local_name'
+export type ImpactIdentityMatchedBy = 'symbol_key' | 'qualified_name' | 'local_name' | 'module_name'
 
 export interface ImpactIdentityCandidate {
   readonly symbolKey: string
@@ -37,7 +37,7 @@ export type ImpactIdentityResolution =
     }
   | {
       readonly status: 'resolved'
-      readonly matchedBy: 'qualified_name' | 'local_name'
+      readonly matchedBy: 'qualified_name' | 'local_name' | 'module_name'
       readonly symbolKey: string
       readonly qualifiedName: string
     }
@@ -244,6 +244,58 @@ const resolveExactCandidate = (db: Database, identity: string): ResolvedImpactTa
   return undefined
 }
 
+// Lever C: Module#Name partial. Segment-exact module_key match only — never a
+// substring of a sibling segment (MyModule when input is Module).
+const MODULE_NAME_PARTIAL = /^([^/#>]+)#([^/#>]+)$/
+
+const findSymbolsByModulePartial = (db: Database, moduleName: string, localName: string): readonly SymbolIdentityRow[] =>
+  db
+    .query<SymbolIdentityRow, [string, string, string]>(
+      `SELECT id, symbol_key, qualified_name, scope_tier, module_key, file_path
+       FROM symbols
+       WHERE local_name = ?
+         AND (module_key = ? OR module_key LIKE '%/' || ?)`,
+    )
+    .all(localName, moduleName, moduleName)
+
+type ExactCandidateOutcome =
+  | { readonly kind: 'resolved'; readonly target: ResolvedImpactTarget }
+  | { readonly kind: 'ambiguous_partial'; readonly rows: readonly SymbolIdentityRow[] }
+
+const resolveExactOrPartialCandidate = (db: Database, identity: string): ExactCandidateOutcome | undefined => {
+  const resolved = resolveExactCandidate(db, identity)
+  if (resolved !== undefined) {
+    return { kind: 'resolved', target: resolved }
+  }
+
+  const partial = MODULE_NAME_PARTIAL.exec(identity)
+  if (partial === null) {
+    return undefined
+  }
+  const moduleName = partial[1]!
+  const localName = partial[2]!
+  const rows = findSymbolsByModulePartial(db, moduleName, localName)
+  if (rows.length === 1) {
+    const row = rows[0]!
+    return {
+      kind: 'resolved',
+      target: {
+        id: row.id,
+        resolution: {
+          status: 'resolved',
+          matchedBy: 'module_name',
+          symbolKey: row.symbol_key,
+          qualifiedName: row.qualified_name,
+        },
+      },
+    }
+  }
+  if (rows.length > 1) {
+    return { kind: 'ambiguous_partial', rows }
+  }
+  return undefined
+}
+
 const AMBIGUITY_CANDIDATE_CAP = 5
 
 const toIdentityCandidate = (row: SymbolIdentityRow): ImpactIdentityCandidate => ({
@@ -289,9 +341,12 @@ export const resolveIncomingReferences = (db: Database, input: Readonly<ImpactLo
     (value): value is string => value !== undefined,
   )
   for (const identity of identityInputs) {
-    const resolved = resolveExactCandidate(db, identity)
-    if (resolved !== undefined) {
-      return { resolution: resolved.resolution, results: queryIncomingRows(db, resolved.id, input.limit) }
+    const outcome = resolveExactOrPartialCandidate(db, identity)
+    if (outcome?.kind === 'resolved') {
+      return { resolution: outcome.target.resolution, results: queryIncomingRows(db, outcome.target.id, input.limit) }
+    }
+    if (outcome?.kind === 'ambiguous_partial') {
+      return { resolution: unresolvedFromLocalNameMatches(outcome.rows), results: [] }
     }
   }
 
