@@ -29,12 +29,13 @@ const registerSearchTool = (server: McpServer, deps: Readonly<CodeindexToolDeps>
   server.registerTool(
     'code_search',
     {
-      description: 'Search indexed symbols',
+      description:
+        'Search indexed symbols. Optional refresh: "background" (default, serve now), "wait" (bounded incremental catch-up then re-search), or "off" (no catch-up from this call).',
       inputSchema: CodeSearchInputSchema,
       outputSchema: CodeSearchOutputSchema,
     },
-    async ({ query, limit, mode, kinds, scopeTiers, pathPrefix, preview }: CodeSearchInput) => {
-      const results = await deps.codeSearch({ query, limit, mode, kinds, scopeTiers, pathPrefix })
+    async ({ query, limit, mode, kinds, scopeTiers, pathPrefix, preview, refresh }: CodeSearchInput) => {
+      const results = await deps.codeSearch({ query, limit, mode, kinds, scopeTiers, pathPrefix, refresh })
       const compacted = applyPreviewToList(results, preview)
       const indexFreshness = deps.getIndexFreshness?.()
       const guidance =
@@ -64,12 +65,13 @@ const registerSymbolTool = (server: McpServer, deps: Readonly<CodeindexToolDeps>
   server.registerTool(
     'code_symbol',
     {
-      description: 'Resolve a query to candidate symbols',
+      description:
+        'Resolve a query to candidate symbols. Optional refresh: "background" (default, serve now), "wait" (bounded incremental catch-up then re-search), or "off" (no catch-up from this call).',
       inputSchema: CodeSymbolInputSchema,
       outputSchema: CodeSymbolOutputSchema,
     },
-    async ({ query, limit, preview }: CodeSymbolInput) => {
-      const results = await deps.codeSymbol(query, limit)
+    async ({ query, limit, preview, refresh }: CodeSymbolInput) => {
+      const results = await deps.codeSymbol(query, limit, refresh)
       const compacted = applyPreviewToList(results, preview)
       const indexFreshness = deps.getIndexFreshness?.()
       const summary = `${results.length} candidate(s): ${results
@@ -92,12 +94,12 @@ const registerImpactTool = (server: McpServer, deps: Readonly<CodeindexToolDeps>
     'code_impact',
     {
       description:
-        'Find incoming references for a symbol. Identity forms: exact symbol_key (file#start-end), exact qualified_name (module#name or parent>name), exact repo-unique local name, unique-export local name (accepted when exactly one export holds the name even if members share it), or Module#Name partials (segment-exact module_key). Ambiguous local names (multiple exports, or multiple non-export matches) return unresolved with a capped candidate list rather than a rank-order guess; unknown identities return unresolved instead of fuzzy matches.',
+        'Find incoming references for a symbol. Identity forms: exact symbol_key (file#start-end), exact qualified_name (module#name or parent>name), exact repo-unique local name, unique-export local name (accepted when exactly one export holds the name even if members share it), or Module#Name partials (segment-exact module_key). Ambiguous local names (multiple exports, or multiple non-export matches) return unresolved with a capped candidate list rather than a rank-order guess; unknown identities return unresolved instead of fuzzy matches. Optional refresh: "background" (default), "wait", or "off".',
       inputSchema: CodeImpactInputSchema,
       outputSchema: CodeImpactOutputSchema,
     },
-    async ({ symbolKey, qualifiedName, limit }: CodeImpactInput) => {
-      const { resolution, results } = await deps.codeImpact({ symbolKey, qualifiedName, limit })
+    async ({ symbolKey, qualifiedName, limit, refresh }: CodeImpactInput) => {
+      const { resolution, results } = await deps.codeImpact({ symbolKey, qualifiedName, limit, refresh })
       const indexFreshness = deps.getIndexFreshness?.()
       // Split empty outcomes honestly: an unresolved identity is a lookup miss — the graph is
       // fine, so never advise a reindex there. A resolved symbol with zero rows can legitimately

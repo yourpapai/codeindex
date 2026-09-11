@@ -1,10 +1,10 @@
 {
-  "targetsScored": 182,
-  "trueReferenceCount": 339,
-  "falseNegatives": 11,
-  "falseNegativeRate": 0.032448377581120944,
+  "targetsScored": 196,
+  "trueReferenceCount": 358,
+  "falseNegatives": 12,
+  "falseNegativeRate": 0.0335195530726257,
   "falsePositiveRate": 0,
-  "valueFalseNegativeRate": 0.06338028169014084,
-  "typeFalseNegativeRate": 0.01015228426395939,
-  "repoHead": "eb27f9594945ca35159b71e8e2a313abe839544f"
+  "valueFalseNegativeRate": 0.06578947368421052,
+  "typeFalseNegativeRate": 0.009708737864077669,
+  "repoHead": "66ef860e7ef094a7ff8f29f3116009b0294c32fc"
 }

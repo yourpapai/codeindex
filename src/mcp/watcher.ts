@@ -1,14 +1,16 @@
-import { existsSync, watch, type FSWatcher } from 'node:fs'
-import { stat } from 'node:fs/promises'
-import path from 'node:path'
+import { watch, type FSWatcher } from 'node:fs'
 
 import type { CodeindexConfig } from '../config.js'
-import { createIndexablePathFilter, discoverSourceFiles, type IndexablePathFilter } from '../indexer/discover.js'
+import { createIndexablePathFilter, type IndexablePathFilter } from '../indexer/discover.js'
 import type { IndexSummary } from '../indexer/index-codebase.js'
-import { openDatabase } from '../storage/db.js'
 import type { IndexFreshnessState } from './freshness.js'
+import { probeDirty } from './probe-dirty.js'
+import { DEFAULT_RECONCILE_INTERVAL_MS, startReconcileTimer, stopReconcileTimer } from './reconcile-timer.js'
 import type { ReindexMode } from './reindex-scheduler.js'
 import type { WatcherState, WatcherStatus } from './tools.js'
+
+export { probeDirty } from './probe-dirty.js'
+export { DEFAULT_RECONCILE_INTERVAL_MS } from './reconcile-timer.js'
 
 export const DEFAULT_DEBOUNCE_MS = 300
 
@@ -27,11 +29,7 @@ export interface IndexWatcher {
 
 export interface CreateWatcherOptions {
   readonly debounceMs?: number
-}
-
-interface StoredFileRow {
-  readonly file_path: string
-  readonly indexed_at: number
+  readonly reconcileIntervalMs?: number
 }
 
 interface MutableWatcherState {
@@ -50,9 +48,11 @@ interface WatcherContext {
   readonly config: CodeindexConfig
   readonly submit: SubmitReindex
   readonly debounceMs: number
+  readonly reconcileIntervalMs: number
   filter: IndexablePathFilter | null
   fsWatcher: FSWatcher | null
   debounceTimer: ReturnType<typeof setTimeout> | null
+  reconcileTimer: ReturnType<typeof setInterval> | null
 }
 
 const errorMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error))
@@ -61,55 +61,6 @@ const delay = (ms: number): Promise<void> =>
   new Promise<void>((resolve) => {
     setTimeout(resolve, ms)
   })
-
-// Boot probe: pure structure + mtime truth. discoverSourceFiles supplies the current
-// file set; stored rows supply the indexed set and epoch-ms timestamps. No file reads,
-// no hashing — the catch-up reindex itself re-derives content hashes. Missing or
-// unreadable DB, dropped rows, or a mtime past the stored timestamp all mean drift.
-const probeDirty = async (config: CodeindexConfig): Promise<boolean> => {
-  const { files: discovered } = await discoverSourceFiles({
-    repoRoot: config.repoRoot,
-    roots: config.roots,
-    exclude: config.exclude,
-    languages: config.languages,
-    maxFileSizeBytes: config.maxFileSizeBytes,
-  })
-  const discoveredPaths = new Set(discovered.map((file) => file.relativePath))
-  if (!existsSync(config.dbPath)) {
-    return true
-  }
-  const db = openDatabase(config.dbPath)
-  try {
-    let stored: readonly StoredFileRow[]
-    try {
-      stored = db.query<StoredFileRow, []>('SELECT file_path, indexed_at FROM files').all()
-    } catch {
-      return true
-    }
-    const storedPaths = new Set(stored.map((row) => row.file_path))
-    for (const discoveredPath of discoveredPaths) {
-      if (!storedPaths.has(discoveredPath)) {
-        return true
-      }
-    }
-    const mtimeDrift = await Promise.all(
-      stored.map(async (row): Promise<boolean> => {
-        if (!discoveredPaths.has(row.file_path)) {
-          return true
-        }
-        try {
-          const mtimeMs = (await stat(path.join(config.repoRoot, row.file_path))).mtimeMs
-          return !(mtimeMs <= row.indexed_at)
-        } catch {
-          return true
-        }
-      }),
-    )
-    return mtimeDrift.some((drift) => drift)
-  } finally {
-    db.close()
-  }
-}
 
 // Drain pending events into at most one incremental run at a time; events that arrive
 // while a run is active keep the drain alive. Failure records state and stops the
@@ -208,6 +159,12 @@ const startWatcher = async (context: WatcherContext): Promise<void> => {
     onWatchEvent(context, filename)
   })
   await bootWatcher(context)
+  context.reconcileTimer = startReconcileTimer({
+    config: context.config,
+    submit: context.submit,
+    state: context.state,
+    intervalMs: context.reconcileIntervalMs,
+  })
 }
 
 const stopWatcher = (context: WatcherContext): void => {
@@ -215,15 +172,17 @@ const stopWatcher = (context: WatcherContext): void => {
     clearTimeout(context.debounceTimer)
     context.debounceTimer = null
   }
+  stopReconcileTimer(context.reconcileTimer)
+  context.reconcileTimer = null
   context.fsWatcher?.close()
   context.fsWatcher = null
 }
 
 // Watcher-lite for the stdio MCP server: a boot probe that catch-up reindexes a dirty
-// index, and an in-session fs.watch that debounces event bursts into incremental
-// catch-ups submitted through the shared scheduler. State is the single source the
-// response-level indexFreshness field and code_index reporting read. Missed events
-// are reconciled by the next session's boot probe — no daemon, no reconcile timer.
+// index, an in-session fs.watch that debounces event bursts into incremental catch-ups
+// submitted through the shared scheduler, and an hourly probe-first reconcile for
+// missed events. State is the single source the response-level indexFreshness field
+// and code_index reporting read.
 export const createWatcher = (
   config: CodeindexConfig,
   submit: SubmitReindex,
@@ -241,9 +200,11 @@ export const createWatcher = (
     config,
     submit,
     debounceMs: options.debounceMs ?? DEFAULT_DEBOUNCE_MS,
+    reconcileIntervalMs: options.reconcileIntervalMs ?? DEFAULT_RECONCILE_INTERVAL_MS,
     filter: null,
     fsWatcher: null,
     debounceTimer: null,
+    reconcileTimer: null,
   }
   return {
     start: (): Promise<void> => startWatcher(context),

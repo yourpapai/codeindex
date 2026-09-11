@@ -9,6 +9,7 @@ import { openDatabase } from '../storage/db.js'
 import { ensureSchema } from '../storage/schema.js'
 import { withFreshness, type IndexFreshnessState } from './freshness.js'
 import { withQueryLogging } from './query-logging.js'
+import { withRefresh } from './refresh.js'
 import { createReindexScheduler, type ReindexScheduler } from './reindex-scheduler.js'
 import { createCodeindexServer } from './server.js'
 import { createWatcher, type IndexWatcher } from './watcher.js'
@@ -37,16 +38,30 @@ export const buildMcpDeps = (
 ): Parameters<typeof createCodeindexServer>[0] => {
   const scheduler = components.scheduler ?? createReindexScheduler(({ mode }) => indexCodebase({ config, mode }))
   const watcher = components.watcher
-  return withFreshness(
+  const withDeps = withFreshness(
     {
-      codeSearch: (input: Parameters<typeof searchSymbols>[1]): Promise<ReturnType<typeof searchSymbols>> =>
-        Promise.resolve(withDatabase(config, (db) => searchSymbols(db, input))),
+      codeSearch: (input: {
+        query: string
+        limit: number
+        mode?: Parameters<typeof searchSymbols>[1]['mode']
+        kinds?: readonly string[]
+        scopeTiers?: Parameters<typeof searchSymbols>[1]['scopeTiers']
+        pathPrefix?: string
+        refresh?: 'background' | 'wait' | 'off'
+      }): Promise<ReturnType<typeof searchSymbols>> => {
+        const { refresh: _refresh, ...searchInput } = input
+        return Promise.resolve(withDatabase(config, (db) => searchSymbols(db, searchInput)))
+      },
       codeSymbol: (query: string, limit: number): Promise<ReturnType<typeof findSymbolCandidates>> =>
         Promise.resolve(withDatabase(config, (db) => findSymbolCandidates(db, query, limit))),
       codeImpact: (
-        input: Parameters<typeof resolveIncomingReferences>[1],
-      ): Promise<ReturnType<typeof resolveIncomingReferences>> =>
-        Promise.resolve(withDatabase(config, (db) => resolveIncomingReferences(db, input))),
+        input: Parameters<typeof resolveIncomingReferences>[1] & {
+          refresh?: 'background' | 'wait' | 'off'
+        },
+      ): Promise<ReturnType<typeof resolveIncomingReferences>> => {
+        const { refresh: _refresh, ...impactInput } = input
+        return Promise.resolve(withDatabase(config, (db) => resolveIncomingReferences(db, impactInput)))
+      },
       codeIndex: ({ mode }: { mode: 'full' | 'incremental' }): Promise<Awaited<ReturnType<typeof indexCodebase>>> =>
         scheduler.submit({ mode }),
     },
@@ -55,6 +70,11 @@ export const buildMcpDeps = (
       ? (): IndexFreshnessState => neutralFreshnessState
       : (): IndexFreshnessState => watcher.getIndexFreshness(),
   )
+  return withRefresh(withDeps, config, {
+    submit: (input) => scheduler.submit(input),
+    whenSettled: (): Promise<void> => scheduler.whenSettled(),
+    getWatcherState: watcher === undefined ? undefined : (): ReturnType<IndexWatcher['getState']> => watcher.getState(),
+  })
 }
 
 export interface McpRuntime {

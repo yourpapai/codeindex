@@ -7,6 +7,9 @@ import type { RankedSearchResult, SearchMode, SearchResult } from '../types.js'
 export const FreshnessSchema = z.enum(['fresh', 'possibly_stale'])
 export type Freshness = z.infer<typeof FreshnessSchema>
 
+export const RefreshModeSchema = z.enum(['background', 'wait', 'off'])
+export type RefreshMode = z.infer<typeof RefreshModeSchema>
+
 export type FreshnessMark = Readonly<{ freshness?: Freshness }>
 
 export interface CodeindexToolDeps {
@@ -17,9 +20,14 @@ export interface CodeindexToolDeps {
     kinds?: readonly string[]
     scopeTiers?: readonly SearchResult['scopeTier'][]
     pathPrefix?: string
+    refresh?: RefreshMode
   }) => Promise<readonly (RankedSearchResult & FreshnessMark)[]>
-  readonly codeSymbol: (query: string, limit: number) => Promise<readonly (SearchResult & FreshnessMark)[]>
-  readonly codeImpact: (input: ImpactLookupInput) => Promise<{
+  readonly codeSymbol: (
+    query: string,
+    limit: number,
+    refresh?: RefreshMode,
+  ) => Promise<readonly (SearchResult & FreshnessMark)[]>
+  readonly codeImpact: (input: ImpactLookupInput & { refresh?: RefreshMode }) => Promise<{
     resolution: ImpactIdentityResolution
     results: readonly (ImpactResult & FreshnessMark)[]
   }>
@@ -37,6 +45,7 @@ export const CodeSearchInputSchema = z.object({
   scopeTiers: z.array(z.enum(['exported', 'module', 'member', 'local'])).optional(),
   pathPrefix: z.string().min(1).optional(),
   preview: z.enum(['none', 'short', 'full']).default('none'),
+  refresh: RefreshModeSchema.default('background'),
 })
 export type CodeSearchInput = z.infer<typeof CodeSearchInputSchema>
 
@@ -44,6 +53,7 @@ export const CodeSymbolInputSchema = z.object({
   query: z.string().min(1),
   limit: z.number().int().positive().max(50).default(10),
   preview: z.enum(['none', 'short', 'full']).default('none'),
+  refresh: RefreshModeSchema.default('background'),
 })
 export type CodeSymbolInput = z.infer<typeof CodeSymbolInputSchema>
 
@@ -52,6 +62,7 @@ export const CodeImpactInputSchema = z
     symbolKey: z.string().min(1).optional(),
     qualifiedName: z.string().min(1).optional(),
     limit: z.number().int().positive().max(100).default(20),
+    refresh: RefreshModeSchema.default('background'),
   })
   .refine((value) => value.symbolKey !== undefined || value.qualifiedName !== undefined, {
     message: 'Either symbolKey or qualifiedName is required',

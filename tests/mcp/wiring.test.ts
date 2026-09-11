@@ -90,4 +90,29 @@ describe('server session boot', () => {
     expect(afterPayload.results.length).toBeGreaterThanOrEqual(1)
     expect(afterPayload.results.every((row) => row.freshness === 'fresh')).toBe(true)
   })
+
+  test('code_search with refresh wait finds a newly edited symbol without code_index', async () => {
+    const dir = makeRepo('waitE2eBeacon')
+    const config = await loadConfigForPath(dir)
+    await indexCodebase({ config, mode: 'full' })
+
+    const { server, watcher } = createMcpSession(config)
+    watchers.push(watcher)
+    void watcher.start()
+    await waitForArmed(watcher)
+
+    writeFileSync(
+      path.join(dir, 'src', 'thing.ts'),
+      'export const waitE2eBeacon = (): number => 1\nexport const waitE2eAfterEdit = (): number => 2\n',
+    )
+
+    const client = await connectClient(server)
+    const result = await client.callTool({
+      name: 'code_search',
+      arguments: { query: 'waitE2eAfterEdit', refresh: 'wait' },
+    })
+    expect(result.isError).not.toBe(true)
+    const payload = CodeSearchOutputSchema.parse(result.structuredContent)
+    expect(payload.results.some((row) => row.localName === 'waitE2eAfterEdit')).toBe(true)
+  })
 })

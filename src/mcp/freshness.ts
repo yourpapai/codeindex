@@ -104,8 +104,9 @@ export const withFreshness = (
   codeSymbol: async (
     query: Parameters<CodeindexToolDeps['codeSymbol']>[0],
     limit: Parameters<CodeindexToolDeps['codeSymbol']>[1],
+    refresh: Parameters<CodeindexToolDeps['codeSymbol']>[2],
   ): Promise<Awaited<ReturnType<CodeindexToolDeps['codeSymbol']>>> =>
-    decorateWithFreshness(await deps.codeSymbol(query, limit), (row) => row.filePath, config),
+    decorateWithFreshness(await deps.codeSymbol(query, limit, refresh), (row) => row.filePath, config),
   codeImpact: async (
     input: Parameters<CodeindexToolDeps['codeImpact']>[0],
   ): Promise<Awaited<ReturnType<CodeindexToolDeps['codeImpact']>>> => {

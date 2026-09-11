@@ -120,4 +120,66 @@ describe('reindex scheduler', () => {
     expect((await second).filesIndexed).toBe(2)
     expect(calls).toBe(2)
   })
+
+  test('whenSettled resolves immediately when idle', async () => {
+    const scheduler = createReindexScheduler(() => Promise.resolve(summary(1)))
+    await scheduler.whenSettled()
+  })
+
+  test('whenSettled awaits an active run without enqueueing another', async () => {
+    let calls = 0
+    const runner = async (): Promise<IndexSummary> => {
+      calls += 1
+      await delay(40)
+      return summary(calls)
+    }
+    const scheduler = createReindexScheduler(runner)
+
+    const active = scheduler.submit({ mode: 'incremental' })
+    await delay(5)
+    await scheduler.whenSettled()
+    await active
+    expect(calls).toBe(1)
+  })
+
+  test('whenSettled during busy+pending waits for the coalesced follow-up', async () => {
+    let calls = 0
+    const runner = async (): Promise<IndexSummary> => {
+      calls += 1
+      await delay(30)
+      return summary(calls)
+    }
+    const scheduler = createReindexScheduler(runner)
+
+    const first = scheduler.submit({ mode: 'incremental' })
+    await delay(5)
+    const second = scheduler.submit({ mode: 'incremental' })
+    await scheduler.whenSettled()
+    await Promise.all([first, second])
+    expect(calls).toBe(2)
+  })
+
+  test('two wait joiners during an active run coalesce into at most one follow-up', async () => {
+    let calls = 0
+    const modes: ReindexMode[] = []
+    const runner = async ({ mode }: Readonly<{ mode: ReindexMode }>): Promise<IndexSummary> => {
+      modes.push(mode)
+      calls += 1
+      await delay(30)
+      return summary(calls)
+    }
+    const scheduler = createReindexScheduler(runner)
+
+    const active = scheduler.submit({ mode: 'incremental' })
+    await delay(5)
+    // Two wait-style joins: they must not each force a private sequential run.
+    const joinA = scheduler.whenSettled()
+    const joinB = scheduler.whenSettled()
+    // A dirty probe after settle may still submit one shared follow-up.
+    const followUp = scheduler.submit({ mode: 'incremental' })
+    await Promise.all([active, followUp, joinA, joinB])
+
+    expect(calls).toBe(2)
+    expect(modes).toEqual(['incremental', 'incremental'])
+  })
 })
