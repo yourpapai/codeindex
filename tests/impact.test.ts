@@ -248,11 +248,12 @@ describe('resolveIncomingReferences', () => {
     })
   })
 
-  test('two exports sharing a bare name stay unresolved with no rank-order guess', () => {
+  test('two exports sharing a bare name stay unresolved with ambiguous candidates', () => {
     const db = new Database(':memory:')
     ensureSchema(db)
     seedFile(db, 1, 'src/a.ts', 'src/a')
     seedFile(db, 2, 'src/b.ts', 'src/b')
+    seedFile(db, 3, 'src/z.ts', 'src/z')
     seedSymbol(db, {
       id: 1,
       fileId: 1,
@@ -273,14 +274,47 @@ describe('resolveIncomingReferences', () => {
       qualifiedName: 'src/b#Helper',
       scopeTier: 'exported',
     })
+    seedSymbol(db, {
+      id: 3,
+      fileId: 3,
+      filePath: 'src/z.ts',
+      moduleKey: 'src/z',
+      symbolKey: 'src/z.ts#0-9',
+      localName: 'Helper',
+      qualifiedName: 'src/z#Helper',
+      scopeTier: 'module',
+    })
 
     expect(resolveIncomingReferences(db, { qualifiedName: 'Helper', limit: 10 })).toEqual({
-      resolution: { status: 'unresolved' },
+      resolution: {
+        status: 'unresolved',
+        reason: 'ambiguous',
+        candidates: [
+          {
+            symbolKey: 'src/a.ts#0-9',
+            qualifiedName: 'src/a#Helper',
+            scopeTier: 'exported',
+            filePath: 'src/a.ts',
+          },
+          {
+            symbolKey: 'src/b.ts#0-9',
+            qualifiedName: 'src/b#Helper',
+            scopeTier: 'exported',
+            filePath: 'src/b.ts',
+          },
+          {
+            symbolKey: 'src/z.ts#0-9',
+            qualifiedName: 'src/z#Helper',
+            scopeTier: 'module',
+            filePath: 'src/z.ts',
+          },
+        ],
+      },
       results: [],
     })
   })
 
-  test('ambiguous bare local name with zero exports stays unresolved', () => {
+  test('ambiguous bare local name with zero exports stays unresolved with candidates', () => {
     const db = new Database(':memory:')
     ensureSchema(db)
     seedFile(db, 1, 'src/a.ts', 'src/a')
@@ -307,7 +341,89 @@ describe('resolveIncomingReferences', () => {
     })
 
     expect(resolveIncomingReferences(db, { qualifiedName: 'dup', limit: 10 })).toEqual({
-      resolution: { status: 'unresolved' },
+      resolution: {
+        status: 'unresolved',
+        reason: 'ambiguous',
+        candidates: [
+          {
+            symbolKey: 'src/a.ts#0-9',
+            qualifiedName: 'src/a#dup',
+            scopeTier: 'module',
+            filePath: 'src/a.ts',
+          },
+          {
+            symbolKey: 'src/b.ts#0-9',
+            qualifiedName: 'src/b#dup',
+            scopeTier: 'module',
+            filePath: 'src/b.ts',
+          },
+        ],
+      },
+      results: [],
+    })
+  })
+
+  test('ambiguous candidates cap at 5 with exported first then qualifiedName ASC', () => {
+    const db = new Database(':memory:')
+    ensureSchema(db)
+    for (let i = 1; i <= 7; i += 1) {
+      seedFile(db, i, `src/m${i}.ts`, `src/m${i}`)
+      seedSymbol(db, {
+        id: i,
+        fileId: i,
+        filePath: `src/m${i}.ts`,
+        moduleKey: `src/m${i}`,
+        symbolKey: `src/m${i}.ts#0-9`,
+        localName: 'crowded',
+        qualifiedName: `src/m${i}#crowded`,
+        scopeTier: 'module',
+      })
+    }
+    // Two exports sort first, then remaining modules by qualifiedName ASC.
+    seedFile(db, 8, 'src/zz.ts', 'src/zz')
+    seedFile(db, 9, 'src/aa.ts', 'src/aa')
+    seedSymbol(db, {
+      id: 8,
+      fileId: 8,
+      filePath: 'src/zz.ts',
+      moduleKey: 'src/zz',
+      symbolKey: 'src/zz.ts#0-9',
+      localName: 'crowded',
+      qualifiedName: 'src/zz#crowded',
+      scopeTier: 'exported',
+    })
+    seedSymbol(db, {
+      id: 9,
+      fileId: 9,
+      filePath: 'src/aa.ts',
+      moduleKey: 'src/aa',
+      symbolKey: 'src/aa.ts#0-9',
+      localName: 'crowded',
+      qualifiedName: 'src/aa#crowded',
+      scopeTier: 'exported',
+    })
+
+    const outcome = resolveIncomingReferences(db, { qualifiedName: 'crowded', limit: 10 })
+    expect(outcome.resolution.status).toBe('unresolved')
+    expect(outcome.resolution.status === 'unresolved' && outcome.resolution.reason).toBe('ambiguous')
+    const candidates = outcome.resolution.status === 'unresolved' ? (outcome.resolution.candidates ?? []) : []
+    expect(candidates).toHaveLength(5)
+    expect(candidates.map((c) => c.qualifiedName)).toEqual([
+      'src/aa#crowded',
+      'src/zz#crowded',
+      'src/m1#crowded',
+      'src/m2#crowded',
+      'src/m3#crowded',
+    ])
+  })
+
+  test('unknown identity is unresolved with reason unknown and no candidates', () => {
+    const db = new Database(':memory:')
+    ensureSchema(db)
+    seedOpenDatabaseFixture(db)
+
+    expect(resolveIncomingReferences(db, { qualifiedName: 'doesNotExist', limit: 10 })).toEqual({
+      resolution: { status: 'unresolved', reason: 'unknown' },
       results: [],
     })
   })
@@ -328,17 +444,6 @@ describe('resolveIncomingReferences', () => {
     })
   })
 
-  test('unknown identity is unresolved with no rows', () => {
-    const db = new Database(':memory:')
-    ensureSchema(db)
-    seedOpenDatabaseFixture(db)
-
-    expect(resolveIncomingReferences(db, { qualifiedName: 'doesNotExist', limit: 10 })).toEqual({
-      resolution: { status: 'unresolved' },
-      results: [],
-    })
-  })
-
   test('identity resolution does not fall back to fuzzy or path-prefix matches', () => {
     const db = new Database(':memory:')
     ensureSchema(db)
@@ -347,7 +452,7 @@ describe('resolveIncomingReferences', () => {
     // 'src/storage/db' prefix-matches the file path in the exact stage and would also hit
     // FTS, but it is not an exact symbol_key/qualified_name/local_name — so it must stay unresolved.
     expect(resolveIncomingReferences(db, { qualifiedName: 'src/storage/db', limit: 10 })).toEqual({
-      resolution: { status: 'unresolved' },
+      resolution: { status: 'unresolved', reason: 'unknown' },
       results: [],
     })
   })

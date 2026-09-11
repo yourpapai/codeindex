@@ -21,6 +21,13 @@ export interface ImpactResult {
 
 export type ImpactIdentityMatchedBy = 'symbol_key' | 'qualified_name' | 'local_name'
 
+export interface ImpactIdentityCandidate {
+  readonly symbolKey: string
+  readonly qualifiedName: string
+  readonly scopeTier: string
+  readonly filePath: string
+}
+
 export type ImpactIdentityResolution =
   | {
       readonly status: 'canonical'
@@ -34,7 +41,11 @@ export type ImpactIdentityResolution =
       readonly symbolKey: string
       readonly qualifiedName: string
     }
-  | { readonly status: 'unresolved' }
+  | {
+      readonly status: 'unresolved'
+      readonly reason?: 'unknown' | 'ambiguous'
+      readonly candidates?: readonly ImpactIdentityCandidate[]
+    }
 
 export interface ImpactLookupOutcome {
   readonly resolution: ImpactIdentityResolution
@@ -233,6 +244,37 @@ const resolveExactCandidate = (db: Database, identity: string): ResolvedImpactTa
   return undefined
 }
 
+const AMBIGUITY_CANDIDATE_CAP = 5
+
+const toIdentityCandidate = (row: SymbolIdentityRow): ImpactIdentityCandidate => ({
+  symbolKey: row.symbol_key,
+  qualifiedName: row.qualified_name,
+  scopeTier: row.scope_tier,
+  filePath: row.file_path,
+})
+
+const rankAmbiguousCandidates = (rows: readonly SymbolIdentityRow[]): readonly ImpactIdentityCandidate[] =>
+  [...rows.map(toIdentityCandidate)]
+    .sort((a, b) => {
+      const aExport = a.scopeTier === 'exported' ? 0 : 1
+      const bExport = b.scopeTier === 'exported' ? 0 : 1
+      if (aExport !== bExport) {
+        return aExport - bExport
+      }
+      if (a.qualifiedName === b.qualifiedName) {
+        return a.symbolKey < b.symbolKey ? -1 : a.symbolKey > b.symbolKey ? 1 : 0
+      }
+      return a.qualifiedName < b.qualifiedName ? -1 : 1
+    })
+    .slice(0, AMBIGUITY_CANDIDATE_CAP)
+
+const unresolvedFromLocalNameMatches = (rows: readonly SymbolIdentityRow[]): ImpactIdentityResolution => {
+  if (rows.length === 0) {
+    return { status: 'unresolved', reason: 'unknown' }
+  }
+  return { status: 'unresolved', reason: 'ambiguous', candidates: rankAmbiguousCandidates(rows) }
+}
+
 export const resolveIncomingReferences = (db: Database, input: Readonly<ImpactLookupInput>): ImpactLookupOutcome => {
   if (input.symbolKey === undefined && input.qualifiedName === undefined) {
     throw new Error('Either symbolKey or qualifiedName is required')
@@ -252,5 +294,15 @@ export const resolveIncomingReferences = (db: Database, input: Readonly<ImpactLo
       return { resolution: resolved.resolution, results: queryIncomingRows(db, resolved.id, input.limit) }
     }
   }
-  return { resolution: { status: 'unresolved' }, results: [] }
+
+  // Lever B: honest multi-match candidates. Prefer the identity that actually
+  // produced local-name hits so agents can pick a precise retry key.
+  for (const identity of identityInputs) {
+    const matches = findSymbolsByLocalName(db, identity)
+    if (matches.length > 0) {
+      return { resolution: unresolvedFromLocalNameMatches(matches), results: [] }
+    }
+  }
+
+  return { resolution: { status: 'unresolved', reason: 'unknown' }, results: [] }
 }

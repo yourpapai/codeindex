@@ -11,10 +11,10 @@ failures. The measure-and-decide task is mandatory before archive.
 
 ## 2. Lever B — honest ambiguity candidates (test-first)
 
-- [ ] 2.1 Write failing tests: multi-export bare name → `unresolved` + `reason: 'ambiguous'` + candidates (≤5, exported first, `qualifiedName` ASC) and empty `results`; unknown → no candidates; success paths omit `reason`/candidates. Verify: `bun test tests/impact.test.ts tests/mcp/protocol.test.ts` (red)
-- [ ] 2.2 Extend `ImpactIdentityResolution` + `ImpactIdentitySchema` + `CodeImpactOutputSchema` in `src/search/index.ts` / `src/mcp/tools.ts` (additive fields only). Verify: `bun test tests/mcp/tools.test.ts`
-- [ ] 2.3 Implement candidate collection and unresolved guidance in `resolveIncomingReferences` / `src/mcp/server.ts` (cap 5; list qualified names; no `code_index` advice; no auto-pick). Verify: `bun test tests/impact.test.ts tests/mcp/protocol.test.ts` (green)
-- [ ] 2.4 Update `code_impact` description for candidates + unique-export form. Verify: description assertions in `tests/mcp/protocol.test.ts`
+- [x] 2.1 Write failing tests: multi-export bare name → `unresolved` + `reason: 'ambiguous'` + candidates (≤5, exported first, `qualifiedName` ASC) and empty `results`; unknown → no candidates; success paths omit `reason`/candidates. Verify: `bun test tests/impact.test.ts tests/mcp/protocol.test.ts` (red)
+- [x] 2.2 Extend `ImpactIdentityResolution` + `ImpactIdentitySchema` + `CodeImpactOutputSchema` in `src/search/index.ts` / `src/mcp/tools.ts` (additive fields only). Verify: `bun test tests/mcp/tools.test.ts`
+- [x] 2.3 Implement candidate collection and unresolved guidance in `resolveIncomingReferences` / `src/mcp/server.ts` (cap 5; list qualified names; no `code_index` advice; no auto-pick). Verify: `bun test tests/impact.test.ts tests/mcp/protocol.test.ts` (green)
+- [x] 2.4 Update `code_impact` description for candidates + unique-export form. Verify: description assertions in `tests/mcp/protocol.test.ts`
 
 ## 3. Lever C — `Module#Name` partials (test-first)
 

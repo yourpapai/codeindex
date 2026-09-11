@@ -92,7 +92,7 @@ const registerImpactTool = (server: McpServer, deps: Readonly<CodeindexToolDeps>
     'code_impact',
     {
       description:
-        'Find incoming references for a symbol. Identity forms: exact symbol_key (file#start-end), exact qualified_name (module#name or parent>name), or exact repo-unique local name. Ambiguous local names (more than one indexed symbol shares the name) return unresolved guidance rather than a rank-order guess; unknown identities return unresolved instead of fuzzy matches.',
+        'Find incoming references for a symbol. Identity forms: exact symbol_key (file#start-end), exact qualified_name (module#name or parent>name), exact repo-unique local name, or unique-export local name (accepted when exactly one export holds the name even if members share it). Ambiguous local names (multiple exports, or multiple non-export matches) return unresolved with a capped candidate list rather than a rank-order guess; unknown identities return unresolved instead of fuzzy matches.',
       inputSchema: CodeImpactInputSchema,
       outputSchema: CodeImpactOutputSchema,
     },
@@ -103,7 +103,12 @@ const registerImpactTool = (server: McpServer, deps: Readonly<CodeindexToolDeps>
       // fine, so never advise a reindex there. A resolved symbol with zero rows can legitimately
       // mean an orphan-prone graph, so the code_symbol confirmation + full code_index advice
       // survives only for that case.
-      const unresolvedGuidance = `Identity "${symbolKey ?? qualifiedName ?? ''}" did not resolve to an indexed symbol by exact symbol_key, exact qualified_name, or repo-unique local name (unknown or ambiguous). Ambiguous bare local names are never rank-order guessed. Use code_symbol to find the exact identity, then retry with its symbolKey or qualifiedName.`
+      const identityInput = symbolKey ?? qualifiedName ?? ''
+      const unresolvedCandidates = resolution.status === 'unresolved' ? (resolution.candidates ?? []) : []
+      const unresolvedGuidance =
+        unresolvedCandidates.length > 0
+          ? `Identity "${identityInput}" is ambiguous (${unresolvedCandidates.length} candidate(s); showing up to 5). Never rank-order guessed. Retry with a precise identity: ${unresolvedCandidates.map((c) => c.qualifiedName).join(', ')}. Use code_symbol if you need more detail.`
+          : `Identity "${identityInput}" did not resolve to an indexed symbol by exact symbol_key, exact qualified_name, or repo-unique local name (unknown or ambiguous). Ambiguous bare local names are never rank-order guessed. Use code_symbol to find the exact identity, then retry with its symbolKey or qualifiedName.`
       const guidance =
         resolution.status === 'unresolved'
           ? unresolvedGuidance

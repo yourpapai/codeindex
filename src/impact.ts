@@ -2,6 +2,7 @@ export {
   findIncomingReferences,
   findSymbolCandidates,
   resolveIncomingReferences,
+  type ImpactIdentityCandidate,
   type ImpactIdentityMatchedBy,
   type ImpactIdentityResolution,
   type ImpactLookupInput,

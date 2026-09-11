@@ -218,7 +218,7 @@ describe('MCP protocol boundary', () => {
       arguments: { qualifiedName: 'zzz_nonexistent_symbol' },
     })
     const payload = CodeImpactOutputSchema.parse(result.structuredContent)
-    expect(payload.identity).toEqual({ status: 'unresolved' })
+    expect(payload.identity).toEqual({ status: 'unresolved', reason: 'unknown' })
     expect(payload.results).toEqual([])
     expect(typeof payload.guidance).toBe('string')
     expect(payload.guidance).toContain('code_symbol')
@@ -258,6 +258,8 @@ describe('MCP protocol boundary', () => {
     expect(description).toContain('qualified_name')
     expect(description).toContain('local name')
     expect(description.toLowerCase()).toContain('unique')
+    expect(description.toLowerCase()).toContain('export')
+    expect(description.toLowerCase()).toContain('candidat')
     expect(description.toLowerCase()).toContain('ambig')
   })
 
@@ -270,6 +272,79 @@ describe('MCP protocol boundary', () => {
     const payload = CodeImpactOutputSchema.parse(result.structuredContent)
     expect(payload.guidance?.toLowerCase()).toContain('unique')
     expect(payload.guidance?.toLowerCase()).toContain('ambigu')
+  })
+
+  const buildAmbiguousExportsDb = (): Database => {
+    const db = new Database(':memory:')
+    openDbs.push(db)
+    ensureSchema(db)
+    seedFile(db, { id: 1, filePath: 'src/a.ts', moduleKey: 'src/a' })
+    seedFile(db, { id: 2, filePath: 'src/b.ts', moduleKey: 'src/b' })
+    seedSymbol(db, {
+      id: 1,
+      fileId: 1,
+      filePath: 'src/a.ts',
+      moduleKey: 'src/a',
+      localName: 'Helper',
+      qualifiedName: 'src/a#Helper',
+    })
+    seedSymbol(db, {
+      id: 2,
+      fileId: 2,
+      filePath: 'src/b.ts',
+      moduleKey: 'src/b',
+      localName: 'Helper',
+      qualifiedName: 'src/b#Helper',
+    })
+    return db
+  }
+
+  test('ambiguous multi-export identity returns candidates and honest guidance', async () => {
+    const client = await connectClient(createCodeindexServer(makeInMemoryDeps(buildAmbiguousExportsDb())))
+    const result = await client.callTool({ name: 'code_impact', arguments: { qualifiedName: 'Helper' } })
+    const payload = CodeImpactOutputSchema.parse(result.structuredContent)
+    expect(payload.results).toEqual([])
+    expect(payload.identity?.status).toBe('unresolved')
+    expect(payload.identity?.reason).toBe('ambiguous')
+    expect(payload.identity?.candidates).toEqual([
+      {
+        symbolKey: 'src/a.ts#1',
+        qualifiedName: 'src/a#Helper',
+        scopeTier: 'exported',
+        filePath: 'src/a.ts',
+      },
+      {
+        symbolKey: 'src/b.ts#2',
+        qualifiedName: 'src/b#Helper',
+        scopeTier: 'exported',
+        filePath: 'src/b.ts',
+      },
+    ])
+    expect(payload.guidance).toContain('src/a#Helper')
+    expect(payload.guidance).toContain('src/b#Helper')
+    expect(payload.guidance?.toLowerCase()).not.toContain('code_index')
+    const parsed = CallToolResultSchema.parse(result)
+    const text = parsed.content.find((entry): entry is TextContent => entry.type === 'text')?.text ?? ''
+    expect(text).toContain('src/a#Helper')
+  })
+
+  test('unknown identity has reason unknown and no candidates', async () => {
+    const client = await connectClient(createCodeindexServer(makeInMemoryDeps(buildSeededDb())))
+    const result = await client.callTool({
+      name: 'code_impact',
+      arguments: { qualifiedName: 'zzz_nonexistent_symbol' },
+    })
+    const payload = CodeImpactOutputSchema.parse(result.structuredContent)
+    expect(payload.identity).toEqual({ status: 'unresolved', reason: 'unknown' })
+  })
+
+  test('resolved identity omits reason and candidates', async () => {
+    const client = await connectClient(createCodeindexServer(makeInMemoryDeps(buildSeededDb())))
+    const result = await client.callTool({ name: 'code_impact', arguments: { qualifiedName: 'openDatabase' } })
+    const payload = CodeImpactOutputSchema.parse(result.structuredContent)
+    expect(payload.identity?.status).toBe('resolved')
+    expect(payload.identity).not.toHaveProperty('reason')
+    expect(payload.identity).not.toHaveProperty('candidates')
   })
 
   test('code_search with an invalid mode is rejected at the boundary', async () => {

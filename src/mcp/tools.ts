@@ -113,11 +113,20 @@ const ImpactResultSchema = z.object({
   freshness: FreshnessSchema.optional(),
 })
 
+export const ImpactIdentityCandidateSchema = z.object({
+  symbolKey: z.string(),
+  qualifiedName: z.string(),
+  scopeTier: z.string(),
+  filePath: z.string(),
+})
+
 export const ImpactIdentitySchema = z.object({
   status: z.enum(['canonical', 'resolved', 'unresolved']),
   matchedBy: z.enum(['symbol_key', 'qualified_name', 'local_name']).optional(),
   symbolKey: z.string().optional(),
   qualifiedName: z.string().optional(),
+  reason: z.enum(['unknown', 'ambiguous']).optional(),
+  candidates: z.array(ImpactIdentityCandidateSchema).optional(),
 })
 
 export const CodeImpactOutputSchema = z.object({
