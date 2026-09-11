@@ -57,12 +57,16 @@ export const buildMcpDeps = (
   )
 }
 
-// Server assembly: one serialized writer (scheduler), one watcher feeding freshness
-// state, and a boot-time ensureSchema so queries serve immediately even on a fresh
-// worktree whose database has not been indexed yet.
-export const createMcpSession = (
-  config: CodeindexConfig,
-): Readonly<{ readonly server: McpServer; readonly watcher: IndexWatcher }> => {
+export interface McpRuntime {
+  readonly createServer: () => McpServer
+  readonly watcher: IndexWatcher
+}
+
+// Shared process-level assembly: one serialized writer (scheduler), one watcher
+// feeding freshness state, and a boot-time ensureSchema so queries serve immediately
+// even on a fresh worktree. createServer can be called per transport/session; every
+// server instance closes over the same deps object.
+export const createMcpRuntime = (config: CodeindexConfig): McpRuntime => {
   const db = openDatabase(config.dbPath)
   try {
     ensureSchema(db)
@@ -72,7 +76,17 @@ export const createMcpSession = (
   const scheduler = createReindexScheduler(({ mode }) => indexCodebase({ config, mode }))
   const watcher = createWatcher(config, (input) => scheduler.submit(input))
   const deps = withQueryLogging(buildMcpDeps(config, { scheduler, watcher }), config)
-  return { server: createCodeindexServer(deps), watcher }
+  return {
+    createServer: () => createCodeindexServer(deps),
+    watcher,
+  }
+}
+
+export const createMcpSession = (
+  config: CodeindexConfig,
+): Readonly<{ readonly server: McpServer; readonly watcher: IndexWatcher }> => {
+  const { createServer, watcher } = createMcpRuntime(config)
+  return { server: createServer(), watcher }
 }
 
 const runMcpCommand = async (config: CodeindexConfig): Promise<void> => {

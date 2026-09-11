@@ -7,9 +7,9 @@
 
 ## 2. Serve transport core
 
-- [ ] 2.1 RED — write `tests/mcp/http-roundtrip.test.ts`: start serve on an ephemeral port against a temp repo; connect `Client` + `StreamableHTTPClientTransport`; assert `listTools`, `code_search` structured payload, and session id present after initialize. Watch it fail. Verify: `bun test tests/mcp/http-roundtrip.test.ts`
-- [ ] 2.2 Implement `src/mcp/serve.ts`: `createServeSession` reusing `createMcpSession`; `Bun.serve` on `127.0.0.1`; `WebStandardStreamableHTTPServerTransport` with `sessionIdGenerator`; route only `/mcp` (else 404); SIGINT → `watcher.stop()` + close. Decide multi-transport vs per-session server sharing one deps object (design D2). Verify: `bun test tests/mcp/http-roundtrip.test.ts && bun run typecheck`
-- [ ] 2.3 GREEN — HTTP round-trip passes; pin SSE vs JSON response mode (`enableJsonResponse`) to whichever the real client completes reliably (design D6). Verify: `bun test tests/mcp/http-roundtrip.test.ts`
+- [x] 2.1 RED — write `tests/mcp/http-roundtrip.test.ts`: start serve on an ephemeral port against a temp repo; connect `Client` + `StreamableHTTPClientTransport`; assert `listTools`, `code_search` structured payload, and session id present after initialize. Watch it fail. Verify: `bun test tests/mcp/http-roundtrip.test.ts`
+- [x] 2.2 Implement `src/mcp/serve.ts`: `createServeSession` reusing `createMcpSession`; `Bun.serve` on `127.0.0.1`; `WebStandardStreamableHTTPServerTransport` with `sessionIdGenerator`; route only `/mcp` (else 404); SIGINT → `watcher.stop()` + close. Decide multi-transport vs per-session server sharing one deps object (design D2). Verify: `bun test tests/mcp/http-roundtrip.test.ts && bun run typecheck`
+- [x] 2.3 GREEN — HTTP round-trip passes; pin SSE vs JSON response mode (`enableJsonResponse`) to whichever the real client completes reliably (design D6). Verify: `bun test tests/mcp/http-roundtrip.test.ts`
 
 ## 3. CLI `serve` command
 
