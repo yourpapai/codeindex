@@ -16,11 +16,73 @@ describe('symbol resolution and impact', () => {
       `INSERT INTO symbols (id, file_id, file_path, module_key, symbol_key, local_name, qualified_name, kind, scope_tier, parent_symbol_id, export_names, signature_text, doc_text, body_text, identifier_terms, start_line, end_line) VALUES (1, 1, 'src/helper.ts', 'src/helper', 'src/helper.ts#0-20', 'helper', 'src/helper#helper', 'function_declaration', 'exported', NULL, '["helper"]', 'export function helper()', '', 'export function helper() {}', 'helper', 1, 1)`,
     ).run()
     db.query(
-      `INSERT INTO symbol_references (source_symbol_id, source_file_id, target_symbol_id, target_name, target_export_name, target_module_specifier, edge_type, confidence, line_number) VALUES (NULL, 1, 1, 'helper', 'helper', './helper', 'imports', 'resolved', 1)`,
+      `INSERT INTO symbol_references (source_symbol_id, source_file_id, target_symbol_id, target_name, target_export_name, target_module_specifier, edge_type, confidence, line_number, line_text) VALUES (NULL, 1, 1, 'helper', 'helper', './helper', 'imports', 'resolved', 1, "import { helper } from './helper'")`,
     ).run()
 
     expect(findSymbolCandidates(db, 'helper', 5)[0]?.qualifiedName).toBe('src/helper#helper')
     expect(findIncomingReferences(db, { qualifiedName: 'src/helper#helper', limit: 10 })[0]?.edgeType).toBe('imports')
+  })
+
+  test('incoming rows include snippet equal to the stored line for calls, type refs, and imports', () => {
+    const db = new Database(':memory:')
+    ensureSchema(db)
+    seedFile(db, 1, 'src/storage/db.ts', 'src/storage/db')
+    seedFile(db, 2, 'src/mcp/session.ts', 'src/mcp/session')
+    seedSymbol(db, {
+      id: 1,
+      fileId: 1,
+      filePath: 'src/storage/db.ts',
+      moduleKey: 'src/storage/db',
+      symbolKey: 'src/storage/db.ts#120-190',
+      localName: 'openDatabase',
+      qualifiedName: 'src/storage/db#openDatabase',
+      scopeTier: 'exported',
+    })
+    seedSymbol(db, {
+      id: 2,
+      fileId: 2,
+      filePath: 'src/mcp/session.ts',
+      moduleKey: 'src/mcp/session',
+      symbolKey: 'src/mcp/session.ts#10-40',
+      localName: 'openSession',
+      qualifiedName: 'src/mcp/session#openSession',
+      scopeTier: 'module',
+    })
+    seedReference(db, 2, 2, 1, '  return openDatabase()')
+    db.query(
+      `INSERT INTO symbol_references (source_symbol_id, source_file_id, target_symbol_id, target_name, target_export_name, target_module_specifier, edge_type, confidence, line_number, line_text)
+       VALUES (2, 2, 1, 'openDatabase', null, null, 'type_refs', 'resolved', 6, '  const db: openDatabase = null')`,
+    ).run()
+    db.query(
+      `INSERT INTO symbol_references (source_symbol_id, source_file_id, target_symbol_id, target_name, target_export_name, target_module_specifier, edge_type, confidence, line_number, line_text)
+       VALUES (NULL, 2, 1, 'openDatabase', 'openDatabase', './storage/db', 'imports', 'resolved', 1, "import { openDatabase } from './storage/db'")`,
+    ).run()
+
+    const outcome = findIncomingReferences(db, { qualifiedName: 'src/storage/db#openDatabase', limit: 10 })
+    expect(outcome).toHaveLength(3)
+    const byEdge = Object.fromEntries(outcome.map((row) => [row.edgeType, row])) as Record<
+      string,
+      (typeof outcome)[number] | undefined
+    >
+    expect(byEdge['calls']!.snippet).toBe('  return openDatabase()')
+    expect(byEdge['type_refs']!.snippet).toBe('  const db: openDatabase = null')
+    expect(byEdge['imports']!.snippet).toBe("import { openDatabase } from './storage/db'")
+    // Identity/location fields unchanged.
+    expect(byEdge['calls']!.sourceFilePath).toBe('src/mcp/session.ts')
+    expect(byEdge['calls']!.lineNumber).toBe(5)
+    expect(byEdge['calls']!.confidence).toBe('resolved')
+    expect(byEdge['calls']!.sourceQualifiedName).toBe('src/mcp/session#openSession')
+  })
+
+  test('unresolved identity still returns empty results (snippet requirements do not apply)', () => {
+    const db = new Database(':memory:')
+    ensureSchema(db)
+    seedOpenDatabaseFixture(db)
+
+    expect(resolveIncomingReferences(db, { qualifiedName: 'definitelyNotARealSymbol', limit: 10 })).toEqual({
+      resolution: { status: 'unresolved', reason: 'unknown' },
+      results: [],
+    })
   })
 })
 
@@ -62,11 +124,17 @@ const seedSymbol = (db: Database, symbol: SeedSymbolInput): void => {
   )
 }
 
-const seedReference = (db: Database, sourceSymbolId: number, sourceFileId: number, targetSymbolId: number): void => {
+const seedReference = (
+  db: Database,
+  sourceSymbolId: number,
+  sourceFileId: number,
+  targetSymbolId: number,
+  lineText = '  return openDatabase()',
+): void => {
   db.query(
-    `INSERT INTO symbol_references (source_symbol_id, source_file_id, target_symbol_id, target_name, target_export_name, target_module_specifier, edge_type, confidence, line_number)
-     VALUES (?, ?, ?, ?, ?, ?, 'calls', 'resolved', 5)`,
-  ).run(sourceSymbolId, sourceFileId, targetSymbolId, 'openDatabase', 'openDatabase', './db')
+    `INSERT INTO symbol_references (source_symbol_id, source_file_id, target_symbol_id, target_name, target_export_name, target_module_specifier, edge_type, confidence, line_number, line_text)
+     VALUES (?, ?, ?, ?, ?, ?, 'calls', 'resolved', 5, ?)`,
+  ).run(sourceSymbolId, sourceFileId, targetSymbolId, 'openDatabase', 'openDatabase', './db', lineText)
 }
 
 // Mirrors the live-trap fixture from the proposal: `openDatabase` in src/storage/db.ts

@@ -51,17 +51,17 @@ describe('schema v5 migration', () => {
     downgradeToV4(db)
     ensureSchema(db)
 
-    expect(readUserVersion(db)).toBe(5)
+    expect(readUserVersion(db)).toBe(6)
     expect(countRows(db, 'files')).toBe(0)
     expect(countRows(db, 'symbols')).toBe(0)
     expect(countRows(db, 'symbol_references')).toBe(0)
     expect(countRows(db, 'index_meta')).toBe(0)
   })
 
-  test('fresh databases are created at v5 directly', () => {
+  test('fresh databases are created at current schema version directly', () => {
     const db = new Database(':memory:')
     ensureSchema(db)
-    expect(readUserVersion(db)).toBe(5)
+    expect(readUserVersion(db)).toBe(6)
   })
 })
 
@@ -122,7 +122,7 @@ describe('schema v5 WAL behavior across migration', () => {
     downgradeToV4(db)
     ensureSchema(db)
 
-    expect(readUserVersion(db)).toBe(5)
+    expect(readUserVersion(db)).toBe(6)
     expect(db.query<{ journal_mode: string }, []>('PRAGMA journal_mode').get()!.journal_mode).toBe('wal')
     expect(countRows(db, 'files')).toBe(0)
     expect(existsSync(`${dbPath}-wal`)).toBe(true)

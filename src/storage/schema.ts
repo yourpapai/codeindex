@@ -57,7 +57,8 @@ const schemaStatements = [
     target_module_specifier TEXT,
     edge_type TEXT NOT NULL,
     confidence TEXT NOT NULL,
-    line_number INTEGER NOT NULL
+    line_number INTEGER NOT NULL,
+    line_text TEXT NOT NULL DEFAULT ''
   )`,
   'CREATE INDEX IF NOT EXISTS idx_module_aliases_alias_key ON module_aliases(alias_key)',
   'CREATE INDEX IF NOT EXISTS idx_module_aliases_file_id ON module_aliases(file_id)',
@@ -121,7 +122,8 @@ const ftsStatements = [
 // v5 (4→5) is a deliberate rebuild trigger, not a shape-only oversight: files.indexed_at
 // switched from second-resolution ISO text to epoch-ms INTEGER, and the forced wipe closes
 // out the legacy identifier_terms token drift deferred by phase-2 Slice 9.
-const SCHEMA_VERSION = 5
+// v6 (5→6) adds symbol_references.line_text for impact source-line snippets (impact-source-snippet).
+const SCHEMA_VERSION = 6
 
 const DROP_ORDER = [
   'index_meta',

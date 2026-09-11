@@ -58,6 +58,7 @@ const makeConfigWithCallerOnly = (): Promise<CodeindexConfig> => {
 interface ImpactRow {
   readonly sourceFilePath: string
   readonly confidence: string
+  readonly snippet: string
 }
 
 const impactOn = (config: CodeindexConfig, qualifiedName: string): readonly ImpactRow[] => {
@@ -66,6 +67,7 @@ const impactOn = (config: CodeindexConfig, qualifiedName: string): readonly Impa
     return findIncomingReferences(db, { qualifiedName, limit: 20 }).map((row) => ({
       sourceFilePath: row.sourceFilePath,
       confidence: row.confidence,
+      snippet: row.snippet,
     }))
   } finally {
     db.close()
@@ -118,8 +120,16 @@ describe('reference graph durability through reindexes', () => {
     await indexCodebase({ config, mode: 'full' })
     // a.ts produces two resolved edges onto helper — the import binding and the call site.
     expect(impactOn(config, 'src/b#helper')).toEqual([
-      { sourceFilePath: 'src/a.ts', confidence: 'resolved' },
-      { sourceFilePath: 'src/a.ts', confidence: 'resolved' },
+      {
+        sourceFilePath: 'src/a.ts',
+        confidence: 'resolved',
+        snippet: "import { helper } from './b'",
+      },
+      {
+        sourceFilePath: 'src/a.ts',
+        confidence: 'resolved',
+        snippet: 'export const alpha = helper()',
+      },
     ])
 
     orphanTargetFileSymbols(config)
@@ -132,7 +142,14 @@ describe('reference graph durability through reindexes', () => {
     // binding rode the per-file import map, which repair does not reconstruct) stays unbound and
     // invisible to code_impact — honest degradation, measured by the edit fuzzer.
     expect(summary.referencesRepaired).toBe(1)
-    expect(impactOn(config, 'src/b#helper')).toEqual([{ sourceFilePath: 'src/a.ts', confidence: 'resolved' }])
+    expect(impactOn(config, 'src/b#helper')).toEqual([
+      {
+        sourceFilePath: 'src/a.ts',
+        confidence: 'resolved',
+        // Repair rematches target ids only — stored line_text survives without a re-extract.
+        snippet: "import { helper } from './b'",
+      },
+    ])
     expect(inDegreeOf(config, 'src/b#helper')).toBe(1)
   })
 
@@ -158,7 +175,13 @@ describe('reference graph durability through reindexes', () => {
 
     // The imports edge is uniquely re-matchable (specifier './b' now resolves to a module with a
     // unique local `helper`); its stored confidence rides through untouched.
-    expect(impactOn(config, 'src/b#helper')).toEqual([{ sourceFilePath: 'src/a.ts', confidence: 'name_only' }])
+    expect(impactOn(config, 'src/b#helper')).toEqual([
+      {
+        sourceFilePath: 'src/a.ts',
+        confidence: 'name_only',
+        snippet: "import { helper } from './b'",
+      },
+    ])
     expect(inDegreeOf(config, 'src/b#helper')).toBe(1)
     const after = withDb(config, (db) => ({
       userVersion: db.query<{ user_version: number }, []>('PRAGMA user_version').get()!.user_version,

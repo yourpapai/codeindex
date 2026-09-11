@@ -20,6 +20,7 @@ export const queryIncomingRows = (
         edge_type: string
         confidence: string
         line_number: number
+        line_text: string
       },
       [number, number]
     >(
@@ -27,7 +28,8 @@ export const queryIncomingRows = (
               source_files.file_path AS source_file_path,
               symbol_references.edge_type,
               symbol_references.confidence,
-              symbol_references.line_number
+              symbol_references.line_number,
+              symbol_references.line_text
        FROM symbol_references
        JOIN files AS source_files ON source_files.id = symbol_references.source_file_id
        LEFT JOIN symbols AS source_symbols ON source_symbols.id = symbol_references.source_symbol_id
@@ -42,6 +44,7 @@ export const queryIncomingRows = (
       edgeType: row.edge_type,
       confidence: row.confidence,
       lineNumber: row.line_number,
+      snippet: row.line_text,
     }))
 
 const findSymbolIdByKey = (db: Database, symbolKey: string): SymbolIdentityRow | null =>

@@ -21,7 +21,7 @@ export const persistResolvedReferences = (
   let referencesIndexed = 0
   let referencesUnresolved = 0
   const insertReference = db.query(
-    'INSERT INTO symbol_references (source_symbol_id, source_file_id, target_symbol_id, target_file_id, target_name, target_export_name, target_module_specifier, edge_type, confidence, line_number) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO symbol_references (source_symbol_id, source_file_id, target_symbol_id, target_file_id, target_name, target_export_name, target_module_specifier, edge_type, confidence, line_number, line_text) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
   )
 
   for (const parsedFile of parsedFiles) {
@@ -46,6 +46,7 @@ export const persistResolvedReferences = (
         reference.edgeType,
         reference.confidence,
         reference.lineNumber,
+        reference.lineText ?? '',
       )
       referencesIndexed += 1
       if (reference.targetSymbolId === null) {

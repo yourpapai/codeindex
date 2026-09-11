@@ -10,6 +10,7 @@ export interface ImpactResult {
   readonly edgeType: string
   readonly confidence: string
   readonly lineNumber: number
+  readonly snippet: string
 }
 
 export type ImpactIdentityMatchedBy = 'symbol_key' | 'qualified_name' | 'local_name' | 'module_name'

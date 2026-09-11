@@ -40,6 +40,8 @@ type ReferenceCandidate = {
   readonly targetModuleSpecifier: string | null
   readonly receiver?: 'this'
   readonly lineNumber: number
+  // Optional so pre-existing test fixtures that omit it still typecheck; extract always supplies it.
+  readonly lineText?: string
 }
 
 export interface ResolveReferenceCandidatesInput {
@@ -64,6 +66,7 @@ export interface ResolvedReference {
   readonly targetFileId: number | null
   readonly confidence: 'resolved' | 'file_resolved' | 'name_only'
   readonly lineNumber: number
+  readonly lineText?: string
 }
 
 export const normalizeRelativeModule = (fromModuleKey: string, specifier: string): string => {

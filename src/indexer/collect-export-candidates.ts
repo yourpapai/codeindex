@@ -17,7 +17,12 @@ export interface ReferenceCandidate {
   readonly targetModuleSpecifier: string | null
   readonly receiver?: 'this'
   readonly lineNumber: number
+  /** Clipped start-line source text captured at extract; empty when the line is missing. */
+  readonly lineText: string
 }
+
+/** Collection-time draft; extract decorates with `lineText` from the source lines. */
+export type ReferenceCandidateDraft = Omit<ReferenceCandidate, 'lineText'>
 
 export const normalizeSpecifier = (node: SyntaxNode | null | undefined): string | null => {
   const text = node?.text
@@ -32,7 +37,7 @@ const pushExportSpecifier = (
   child: SyntaxNode,
   sourceSpecifier: string | null,
   moduleExports: ModuleExportCandidate[],
-  references: ReferenceCandidate[],
+  references: ReferenceCandidateDraft[],
 ): void => {
   const localName = child.childForFieldName('name')?.text ?? null
   moduleExports.push({
@@ -128,7 +133,7 @@ const collectExportClauseSpecifiers = (
   clauseNode: SyntaxNode,
   sourceSpecifier: string | null,
   moduleExports: ModuleExportCandidate[],
-  references: ReferenceCandidate[],
+  references: ReferenceCandidateDraft[],
 ): void => {
   for (let i = 0; i < clauseNode.namedChildCount; i += 1) {
     const child = clauseNode.namedChild(i)
@@ -160,7 +165,7 @@ export const collectExportCandidates = (
   enclosingSymbol: string | null,
   moduleKey: string,
   moduleExports: ModuleExportCandidate[],
-  references: ReferenceCandidate[],
+  references: ReferenceCandidateDraft[],
   visit: (child: SyntaxNode, childEnclosingSymbol: string | null) => void,
 ): void => {
   const sourceSpecifier = normalizeSpecifier(node.childForFieldName('source'))
@@ -202,7 +207,7 @@ export const collectExportCandidates = (
 // targetExportName '*' marks the namespace form; the alias is an unnamed identifier child of
 // namespace_import (verified against the grammar — no name/alias field). Member access ns.m() is
 // obj.m()-adjacent and stays deferred.
-export const collectNamespaceImportReference = (node: SyntaxNode, references: ReferenceCandidate[]): void => {
+export const collectNamespaceImportReference = (node: SyntaxNode, references: ReferenceCandidateDraft[]): void => {
   let localName: string | undefined
   for (let index = 0; index < node.namedChildCount; index += 1) {
     const child = node.namedChild(index)

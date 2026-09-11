@@ -80,6 +80,7 @@ describe('output schemas', () => {
           edgeType: 'imports',
           confidence: 'resolved',
           lineNumber: 1,
+          snippet: "import { helper } from './helper.js'",
         },
       ],
     }

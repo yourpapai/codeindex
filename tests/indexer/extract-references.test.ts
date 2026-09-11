@@ -50,6 +50,77 @@ describe('extractReferenceCandidates', () => {
     expect(callHelper!.targetName).toBe('helper')
   })
 
+  test('carries clipped lineText for imports, calls, and long lines; empty when missing', async () => {
+    const loader = await createParserLoader()
+    const parsed = await loader.createParserForExtension('.ts')
+    const longLine = `import { longHelper } from './long-helper.js' // ${'x'.repeat(160)}`
+    expect(longLine.length).toBeGreaterThan(160)
+    const source = [
+      longLine,
+      "import { helper } from './helper.js'",
+      'export function runTask() {',
+      '  return helper(',
+      '    1,',
+      '  )',
+      '}',
+    ].join('\n')
+
+    const tree = parsed.parser.parse(source)
+    expect(tree).not.toBeNull()
+
+    const result = extractReferenceCandidates({
+      source,
+      tree: tree!,
+      relativeFilePath: 'src/run-task.ts',
+      moduleKey: 'src/run-task',
+    })
+
+    const importHelper = result.references.find((ref) => ref.edgeType === 'imports' && ref.targetName === 'helper')
+    expect(importHelper).toBeDefined()
+    expect(importHelper!.lineText).toBe("import { helper } from './helper.js'")
+
+    const callHelper = result.references.find((ref) => ref.edgeType === 'calls' && ref.targetName === 'helper')
+    expect(callHelper).toBeDefined()
+    // Multi-line call: start-line text only.
+    expect(callHelper!.lineText).toBe('  return helper(')
+
+    const longImport = result.references.find((ref) => ref.edgeType === 'imports' && ref.targetName === 'longHelper')
+    expect(longImport).toBeDefined()
+    expect(longImport!.lineText.length).toBe(160)
+    expect(longImport!.lineText.endsWith('…')).toBe(true)
+    expect(longImport!.lineText.startsWith("import { longHelper } from './long-helper.js' // ")).toBe(true)
+    expect(longImport!.lineText.includes('\n')).toBe(false)
+  })
+
+  test('reexport and type-ref candidates also carry lineText', async () => {
+    const loader = await createParserLoader()
+    const parsed = await loader.createParserForExtension('.ts')
+    const source = [
+      "export { helper as publicHelper } from './helper.js'",
+      'export function process(task: Task): Task {',
+      '  return task',
+      '}',
+    ].join('\n')
+
+    const tree = parsed.parser.parse(source)
+    expect(tree).not.toBeNull()
+
+    const result = extractReferenceCandidates({
+      source,
+      tree: tree!,
+      relativeFilePath: 'src/run-task.ts',
+      moduleKey: 'src/run-task',
+    })
+
+    const reexport = result.references.find((ref) => ref.edgeType === 'reexports')
+    expect(reexport).toBeDefined()
+    expect(reexport!.lineText).toBe("export { helper as publicHelper } from './helper.js'")
+
+    const typeRef = result.references.find((ref) => ref.edgeType === 'type_refs' && ref.targetName === 'Task')
+    expect(typeRef).toBeDefined()
+    expect(typeRef!.lineText).toBe('export function process(task: Task): Task {')
+  })
+
   test('aliased named import uses alias as targetName and original as targetExportName', async () => {
     const loader = await createParserLoader()
     const parsed = await loader.createParserForExtension('.ts')

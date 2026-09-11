@@ -6,7 +6,10 @@ import {
   normalizeSpecifier,
   type ModuleExportCandidate,
   type ReferenceCandidate,
+  type ReferenceCandidateDraft,
 } from './collect-export-candidates.js'
+import { collectTypeReference, occupiesNameField } from './collect-type-references.js'
+import { withLineText } from './line-text.js'
 import { isNamedScopeBoundary, nextEnclosingSymbol, pendingSegmentsFor } from './scope-path.js'
 
 export type { ModuleExportCandidate, ReferenceCandidate }
@@ -35,7 +38,7 @@ const visitChildren = (
   }
 }
 
-const collectImportReference = (node: SyntaxNode, references: ReferenceCandidate[]): void => {
+const collectImportReference = (node: SyntaxNode, references: ReferenceCandidateDraft[]): void => {
   const exportedName = node.childForFieldName('name')?.text ?? node.text
   const localName = node.childForFieldName('alias')?.text ?? exportedName
   const importStatement = node.parent?.parent?.parent
@@ -52,7 +55,7 @@ const collectImportReference = (node: SyntaxNode, references: ReferenceCandidate
 const collectCallReference = (
   node: SyntaxNode,
   enclosingSymbol: string | null,
-  references: ReferenceCandidate[],
+  references: ReferenceCandidateDraft[],
 ): void => {
   const functionNode = node.childForFieldName('function')
   // this.m() — receiver `this` resolves to the enclosing class's method (B2): emit the bare property
@@ -87,7 +90,7 @@ const collectCallReference = (
 const collectJsxReference = (
   node: SyntaxNode,
   enclosingSymbol: string | null,
-  references: ReferenceCandidate[],
+  references: ReferenceCandidateDraft[],
 ): void => {
   const nameNode = node.childForFieldName('name')
   // Only bare, capitalized identifiers are component references: lowercase tags are intrinsic
@@ -130,11 +133,6 @@ const NON_VALUE_REFERENCE_PARENTS: ReadonlySet<string> = new Set([
   'implements_clause',
 ])
 
-const occupiesNameField = (parent: SyntaxNode, node: SyntaxNode): boolean => {
-  const nameField = parent.childForFieldName('name')
-  return nameField !== null && nameField.startIndex === node.startIndex && nameField.endIndex === node.endIndex
-}
-
 // A bare value identifier used AS a value — argument (`f(target)`), initializer (`const g = target`),
 // array/return/assignment operand, member-expression object (`target.foo`): the "used as a value, not
 // called" form the graph missed entirely (B6) — the indexer only emitted calls / JSX / heritage /
@@ -145,7 +143,7 @@ const occupiesNameField = (parent: SyntaxNode, node: SyntaxNode): boolean => {
 const collectValueReference = (
   node: SyntaxNode,
   enclosingSymbol: string | null,
-  references: ReferenceCandidate[],
+  references: ReferenceCandidateDraft[],
 ): void => {
   const parent = node.parent
   if (parent === null || NON_VALUE_REFERENCE_PARENTS.has(parent.type)) return
@@ -164,7 +162,7 @@ const collectValueReference = (
 const collectHeritageReferences = (
   node: SyntaxNode,
   enclosingSymbol: string | null,
-  references: ReferenceCandidate[],
+  references: ReferenceCandidateDraft[],
 ): void => {
   // Only class heritage reaches here: a class's `extends` is an `extends_clause`, its `implements`
   // an `implements_clause`; an interface's `extends` is an `extends_type_clause` (type position) —
@@ -203,40 +201,11 @@ const collectHeritageReferences = (
   }
 }
 
-// B7: a `type_identifier` in type position is a named type reference (`: Task`, generic heads and arguments,
-// as-casts, call/new type args, interface `extends_type_clause`); builtins (`predefined_type`) stay out by
-// node type; heritage DIRECT children are excluded (collectHeritageReferences emits them — no double-count;
-// B3 takes bare children only, so nested clause type args still emit); exclusion under binder parents hits
-// ONLY the NAME field — the declared name (`type T = Q`: `T` stays out, its RHS `Q` occupies the value field
-// and emits; a class EXPRESSION's only direct type_identifier is its optional name); `generic_type`'s `name`
-// is the generic head, a USE (`Promise<T>` → `Promise`); `nested_type_identifier`'s leaf stays out.
-const BINDER_PARENT_TYPE_NAMES =
-  'interface_declaration class_declaration abstract_class_declaration type_alias_declaration enum_declaration type_parameter nested_type_identifier class'
-const TYPE_NAME_BINDER_PARENTS: ReadonlySet<string> = new Set(BINDER_PARENT_TYPE_NAMES.split(' '))
-
-const collectTypeReference = (
-  node: SyntaxNode,
-  enclosingSymbol: string | null,
-  references: ReferenceCandidate[],
-): void => {
-  const parent = node.parent
-  if (parent !== null && (parent.type === 'implements_clause' || parent.type === 'extends_clause')) return
-  if (parent !== null && TYPE_NAME_BINDER_PARENTS.has(parent.type) && occupiesNameField(parent, node)) return
-  references.push({
-    sourceQualifiedName: enclosingSymbol,
-    edgeType: 'type_refs',
-    targetName: node.text,
-    targetExportName: null,
-    targetModuleSpecifier: null,
-    lineNumber: node.startPosition.row + 1,
-  })
-}
-
 // Residue #7: a no-from `export { x }` re-exports an imported binding; x has no local symbol row, so the
 // row lands null-symbol AND null-specifier and the B4 chain dead-ends. Link to x's module (order-independent: post-walk).
 const linkImportedSpecifiers = (
   rawModuleExports: readonly ModuleExportCandidate[],
-  references: readonly ReferenceCandidate[],
+  references: readonly ReferenceCandidateDraft[],
 ): ModuleExportCandidate[] => {
   const specifierByImportedName = new Map<string, string>()
   for (const ref of references) {
@@ -258,7 +227,7 @@ export const extractReferenceCandidates = (
   input: Readonly<ExtractReferenceCandidatesInput>,
 ): ExtractReferenceCandidatesResult => {
   const rawModuleExports: ModuleExportCandidate[] = []
-  const references: ReferenceCandidate[] = []
+  const references: ReferenceCandidateDraft[] = []
   const visit = (node: SyntaxNode, enclosingSymbol: string | null, pending: readonly string[] = []): void => {
     if (node.type === 'export_statement') {
       collectExportCandidates(node, enclosingSymbol, input.moduleKey, rawModuleExports, references, visit)
@@ -296,5 +265,5 @@ export const extractReferenceCandidates = (
   visit(input.tree.rootNode, null)
 
   const moduleExports = linkImportedSpecifiers(rawModuleExports, references)
-  return { moduleExports, references }
+  return { moduleExports, references: withLineText(references, input.source) }
 }

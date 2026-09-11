@@ -161,6 +161,7 @@ const ImpactResultSchema = z.object({
   edgeType: z.string(),
   confidence: z.string(),
   lineNumber: z.number(),
+  snippet: z.string(),
   freshness: FreshnessSchema.optional(),
 })
 

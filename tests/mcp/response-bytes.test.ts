@@ -139,6 +139,7 @@ describe('response_bytes is recorded for successful tool calls', () => {
               edgeType: 'calls',
               confidence: 'resolved',
               lineNumber: 3,
+              snippet: '  return found()',
             },
           ],
         }),

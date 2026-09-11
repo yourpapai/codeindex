@@ -52,8 +52,8 @@ const buildSeededDb = (): Database => {
     qualifiedName: 'src/storage/db#openDatabase',
   })
   db.query(
-    `INSERT INTO symbol_references (source_symbol_id, source_file_id, target_symbol_id, target_file_id, target_name, target_export_name, target_module_specifier, edge_type, confidence, line_number)
-     VALUES (1, 1, 2, 2, 'openDatabase', NULL, '../storage/db', 'calls', 'resolved', 5)`,
+    `INSERT INTO symbol_references (source_symbol_id, source_file_id, target_symbol_id, target_file_id, target_name, target_export_name, target_module_specifier, edge_type, confidence, line_number, line_text)
+     VALUES (1, 1, 2, 2, 'openDatabase', NULL, '../storage/db', 'calls', 'resolved', 5, '  return openDatabase()')`,
   ).run()
   return db
 }
@@ -130,6 +130,29 @@ describe('MCP protocol boundary', () => {
     })
     const payload = CodeImpactOutputSchema.parse(result.structuredContent)
     expect(payload.results.some((row) => row.sourceQualifiedName === 'src/search/index#searchSymbols')).toBe(true)
+  })
+
+  test('code_impact structuredContent results include snippet; text stays a skim count summary', async () => {
+    const client = await connectClient(createCodeindexServer(makeInMemoryDeps(buildSeededDb())))
+    const result = await client.callTool({
+      name: 'code_impact',
+      arguments: { qualifiedName: 'src/storage/db#openDatabase' },
+    })
+    const payload = CodeImpactOutputSchema.parse(result.structuredContent)
+    expect(payload.results.length).toBeGreaterThan(0)
+    for (const row of payload.results) {
+      expect(typeof row.snippet).toBe('string')
+      expect(row.snippet).not.toContain('\n')
+    }
+    expect(payload.results[0]!.snippet).toBe('  return openDatabase()')
+
+    const parsed = CallToolResultSchema.parse(result)
+    const text = parsed.content
+      .filter((entry): entry is TextContent => entry.type === 'text')
+      .map((entry) => entry.text)
+      .join('\n')
+    expect(text).toContain('incoming reference')
+    expect(text).not.toContain('return openDatabase()')
   })
 
   test('code_impact with zero results carries guidance in structuredContent and the text payload', async () => {
