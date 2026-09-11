@@ -5,6 +5,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { CodeindexConfig } from '../config.js'
 import { indexCodebase } from '../indexer/index-codebase.js'
 import { findSymbolCandidates, resolveIncomingReferences, searchSymbols } from '../search/index.js'
+import { outlineFile } from '../search/outline.js'
 import { openDatabase } from '../storage/db.js'
 import { ensureSchema } from '../storage/schema.js'
 import { withFreshness, type IndexFreshnessState } from './freshness.js'
@@ -12,6 +13,7 @@ import { withQueryLogging } from './query-logging.js'
 import { withRefresh } from './refresh.js'
 import { createReindexScheduler, type ReindexScheduler } from './reindex-scheduler.js'
 import { createCodeindexServer } from './server.js'
+import type { OutlineToolOutcome } from './tools.js'
 import { createWatcher, type IndexWatcher } from './watcher.js'
 
 // Neutral until the watcher (§4) supplies live catch-up state; the wrapper's
@@ -32,6 +34,47 @@ const withDatabase = <T>(config: CodeindexConfig, callback: (db: Database) => T)
   }
 }
 
+const buildQueryDeps = (
+  config: CodeindexConfig,
+  scheduler: ReindexScheduler,
+): Omit<Parameters<typeof withFreshness>[0], 'getWatcherState' | 'logResponseBytes' | 'getIndexFreshness'> => ({
+  codeSearch: (input: {
+    query: string
+    limit: number
+    mode?: Parameters<typeof searchSymbols>[1]['mode']
+    kinds?: readonly string[]
+    scopeTiers?: Parameters<typeof searchSymbols>[1]['scopeTiers']
+    pathPrefix?: string
+    refresh?: 'background' | 'wait' | 'off'
+  }): Promise<ReturnType<typeof searchSymbols>> => {
+    const { refresh: _refresh, ...searchInput } = input
+    return Promise.resolve(withDatabase(config, (db) => searchSymbols(db, searchInput)))
+  },
+  codeSymbol: (query: string, limit: number): Promise<ReturnType<typeof findSymbolCandidates>> =>
+    Promise.resolve(withDatabase(config, (db) => findSymbolCandidates(db, query, limit))),
+  codeImpact: (
+    input: Parameters<typeof resolveIncomingReferences>[1] & {
+      refresh?: 'background' | 'wait' | 'off'
+    },
+  ): Promise<ReturnType<typeof resolveIncomingReferences>> => {
+    const { refresh: _refresh, ...impactInput } = input
+    return Promise.resolve(withDatabase(config, (db) => resolveIncomingReferences(db, impactInput)))
+  },
+  codeOutline: (input: {
+    filePath: string
+    mode: 'symbols' | 'exports'
+    limit: number
+    scopeTiers?: readonly ('exported' | 'module' | 'member' | 'local')[]
+    kinds?: readonly string[]
+    refresh?: 'background' | 'wait' | 'off'
+  }): Promise<OutlineToolOutcome> => {
+    const { refresh: _refresh, ...outlineInput } = input
+    return Promise.resolve(withDatabase(config, (db) => outlineFile(db, outlineInput)))
+  },
+  codeIndex: ({ mode }: { mode: 'full' | 'incremental' }): Promise<Awaited<ReturnType<typeof indexCodebase>>> =>
+    scheduler.submit({ mode }),
+})
+
 export const buildMcpDeps = (
   config: CodeindexConfig,
   components: Readonly<McpComponents> = {},
@@ -39,32 +82,7 @@ export const buildMcpDeps = (
   const scheduler = components.scheduler ?? createReindexScheduler(({ mode }) => indexCodebase({ config, mode }))
   const watcher = components.watcher
   const withDeps = withFreshness(
-    {
-      codeSearch: (input: {
-        query: string
-        limit: number
-        mode?: Parameters<typeof searchSymbols>[1]['mode']
-        kinds?: readonly string[]
-        scopeTiers?: Parameters<typeof searchSymbols>[1]['scopeTiers']
-        pathPrefix?: string
-        refresh?: 'background' | 'wait' | 'off'
-      }): Promise<ReturnType<typeof searchSymbols>> => {
-        const { refresh: _refresh, ...searchInput } = input
-        return Promise.resolve(withDatabase(config, (db) => searchSymbols(db, searchInput)))
-      },
-      codeSymbol: (query: string, limit: number): Promise<ReturnType<typeof findSymbolCandidates>> =>
-        Promise.resolve(withDatabase(config, (db) => findSymbolCandidates(db, query, limit))),
-      codeImpact: (
-        input: Parameters<typeof resolveIncomingReferences>[1] & {
-          refresh?: 'background' | 'wait' | 'off'
-        },
-      ): Promise<ReturnType<typeof resolveIncomingReferences>> => {
-        const { refresh: _refresh, ...impactInput } = input
-        return Promise.resolve(withDatabase(config, (db) => resolveIncomingReferences(db, impactInput)))
-      },
-      codeIndex: ({ mode }: { mode: 'full' | 'incremental' }): Promise<Awaited<ReturnType<typeof indexCodebase>>> =>
-        scheduler.submit({ mode }),
-    },
+    buildQueryDeps(config, scheduler),
     config,
     watcher === undefined
       ? (): IndexFreshnessState => neutralFreshnessState

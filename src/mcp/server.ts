@@ -9,6 +9,9 @@ import {
   type CodeIndexInput,
   CodeIndexInputSchema,
   CodeIndexOutputSchema,
+  type CodeOutlineInput,
+  CodeOutlineInputSchema,
+  CodeOutlineOutputSchema,
   type CodeSearchInput,
   CodeSearchInputSchema,
   CodeSearchOutputSchema,
@@ -155,11 +158,41 @@ const registerIndexTool = (server: McpServer, deps: Readonly<CodeindexToolDeps>)
   )
 }
 
+const registerOutlineTool = (server: McpServer, deps: Readonly<CodeindexToolDeps>): void => {
+  server.registerTool(
+    'code_outline',
+    {
+      description:
+        'List one file\'s structure by exact repo-relative path. mode=symbols: in-file symbols ordered by start line (defaults exclude local). mode=exports: module_exports surface (re-exports/barrels). Not for ranked name search — use code_search/code_symbol. Optional refresh: "background" (default), "wait", or "off".',
+      inputSchema: CodeOutlineInputSchema,
+      outputSchema: CodeOutlineOutputSchema,
+    },
+    async ({ filePath, mode, limit, scopeTiers, kinds, refresh }: CodeOutlineInput) => {
+      const outcome = await deps.codeOutline({ filePath, mode, limit, scopeTiers, kinds, refresh })
+      const indexFreshness = deps.getIndexFreshness?.()
+      const truncatedClause = outcome.truncated ? '; truncated' : ''
+      const guidanceClause = outcome.guidance === undefined ? '' : ` — ${outcome.guidance}`
+      const summary = `Outline ${outcome.resultCount} ${mode} row(s) for ${filePath}${truncatedClause}${guidanceClause}`
+      const toolResult = buildStructuredToolResult(
+        CodeOutlineOutputSchema,
+        {
+          ...outcome,
+          ...(indexFreshness === undefined ? {} : { indexFreshness }),
+        },
+        indexFreshness === undefined ? summary : summary + freshnessSuffix(outcome.results, indexFreshness),
+      )
+      deps.logResponseBytes?.('code_outline', toolResult.responseBytes)
+      return toolResult
+    },
+  )
+}
+
 export const createCodeindexServer = (deps: Readonly<CodeindexToolDeps>): McpServer => {
   const server = new McpServer({ name: 'codeindex', version: '0.1.0' })
   registerSearchTool(server, deps)
   registerSymbolTool(server, deps)
   registerImpactTool(server, deps)
+  registerOutlineTool(server, deps)
   registerIndexTool(server, deps)
   return server
 }

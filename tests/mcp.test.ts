@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import { createCodeindexServer } from '../src/mcp.js'
+import { emptyOutlineResult } from './mcp/harness.js'
 
 describe('createCodeindexServer', () => {
   test('registers the Tier 1 MCP tools', () => {
@@ -8,6 +9,7 @@ describe('createCodeindexServer', () => {
       codeSearch: () => Promise.resolve([]),
       codeSymbol: () => Promise.resolve([]),
       codeImpact: () => Promise.resolve({ resolution: { status: 'unresolved' as const }, results: [] }),
+      codeOutline: (input) => Promise.resolve(emptyOutlineResult(input)),
       codeIndex: () =>
         Promise.resolve({
           filesIndexed: 0,

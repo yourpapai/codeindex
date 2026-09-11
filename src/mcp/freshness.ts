@@ -116,6 +116,21 @@ export const withFreshness = (
       results: await decorateWithFreshness(outcome.results, (row) => row.sourceFilePath, config),
     }
   },
+  codeOutline: async (
+    input: Parameters<CodeindexToolDeps['codeOutline']>[0],
+  ): Promise<Awaited<ReturnType<CodeindexToolDeps['codeOutline']>>> => {
+    const outcome = await deps.codeOutline(input)
+    if (outcome.mode === 'symbols') {
+      return {
+        ...outcome,
+        results: await decorateWithFreshness(outcome.results, (row) => row.filePath, config),
+      }
+    }
+    return {
+      ...outcome,
+      results: await decorateWithFreshness(outcome.results, (row) => row.filePath, config),
+    }
+  },
   codeIndex: (
     input: Parameters<CodeindexToolDeps['codeIndex']>[0],
   ): Promise<Awaited<ReturnType<CodeindexToolDeps['codeIndex']>>> => deps.codeIndex(input),

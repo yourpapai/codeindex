@@ -85,6 +85,14 @@ export const withRefresh = (
     }
     return deps.codeImpact(input)
   },
+  codeOutline: async (
+    input: Parameters<CodeindexToolDeps['codeOutline']>[0],
+  ): Promise<Awaited<ReturnType<CodeindexToolDeps['codeOutline']>>> => {
+    if (input.refresh === 'wait') {
+      await catchUpIfDirty(config, options)
+    }
+    return deps.codeOutline(input)
+  },
   codeIndex: deps.codeIndex,
   getIndexFreshness: deps.getIndexFreshness,
   getWatcherState: deps.getWatcherState,

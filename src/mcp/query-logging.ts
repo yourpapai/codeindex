@@ -172,6 +172,38 @@ const wrapCodeImpact = (deps: Readonly<CodeindexToolDeps>, queriesPath: string):
   }
 }
 
+const wrapCodeOutline = (deps: Readonly<CodeindexToolDeps>, queriesPath: string): CodeindexToolDeps['codeOutline'] => {
+  return (
+    input: Parameters<CodeindexToolDeps['codeOutline']>[0],
+  ): Promise<Awaited<ReturnType<CodeindexToolDeps['codeOutline']>>> => {
+    return runLogged(
+      queriesPath,
+      {
+        tool: 'code_outline',
+        queryText: input.filePath,
+        filtersJson: JSON.stringify({
+          filePath: input.filePath,
+          scopeTiers: input.scopeTiers,
+          kinds: input.kinds,
+          limit: input.limit,
+        }),
+        limit: input.limit,
+        mode: input.mode,
+      },
+      () => deps.codeOutline(input),
+      (outcome) => ({
+        resultCount: outcome.resultCount,
+        topQualifiedNames:
+          outcome.mode === 'symbols'
+            ? topNames(outcome.results, 3)
+            : outcome.results.map((row) => row.exportName).slice(0, 3),
+        matchedBy: null,
+        limit: input.limit,
+      }),
+    )
+  }
+}
+
 export const withQueryLogging = (deps: Readonly<CodeindexToolDeps>, config: CodeindexConfig): CodeindexToolDeps => {
   if (!config.logQueries) {
     return deps
@@ -193,6 +225,7 @@ export const withQueryLogging = (deps: Readonly<CodeindexToolDeps>, config: Code
     codeSearch: wrapCodeSearch(deps, queriesPath),
     codeSymbol: wrapCodeSymbol(deps, queriesPath),
     codeImpact: wrapCodeImpact(deps, queriesPath),
+    codeOutline: wrapCodeOutline(deps, queriesPath),
     codeIndex: deps.codeIndex,
     getIndexFreshness: deps.getIndexFreshness,
     getWatcherState: deps.getWatcherState,

@@ -34,7 +34,7 @@ const connectStdio = async (cwd: string): Promise<Client> => {
 }
 
 describe('stdio protocol round-trip', () => {
-  test('listTools includes the four tools and code_search returns a structured payload', async () => {
+  test('listTools includes the five tools and code_search returns a structured payload', async () => {
     const repo = makeTempRepo({ prefix: 'codeindex-stdio-roundtrip-', symbolName: 'stdioBeacon' })
     repos.push(repo)
 
@@ -45,7 +45,7 @@ describe('stdio protocol round-trip', () => {
 
     const tools = await client.listTools()
     const names = tools.tools.map((tool) => tool.name).sort()
-    expect(names).toEqual(['code_impact', 'code_index', 'code_search', 'code_symbol'])
+    expect(names).toEqual(['code_impact', 'code_index', 'code_outline', 'code_search', 'code_symbol'])
 
     const search = await client.callTool({ name: 'code_search', arguments: { query: 'stdioBeacon' } })
     expect(search.isError).not.toBe(true)

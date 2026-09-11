@@ -6,7 +6,7 @@ import { createCodeindexServer } from '../../src/mcp/server.js'
 import { CodeSearchOutputSchema, CodeSymbolOutputSchema, type CodeindexToolDeps } from '../../src/mcp/tools.js'
 import { ensureSchema } from '../../src/storage/schema.js'
 import type { RankedSearchResult } from '../../src/types.js'
-import { connectClient, makeInMemoryDeps, seedFile, seedSymbol } from './harness.js'
+import { connectClient, emptyOutlineResult, makeInMemoryDeps, seedFile, seedSymbol } from './harness.js'
 
 const ANCHOR_MAX_CHARS = 160
 const SHORT_MAX_LINES = 10
@@ -42,6 +42,7 @@ const stubDeps = (results: readonly RankedSearchResult[]): CodeindexToolDeps => 
   codeSymbol: (): ReturnType<CodeindexToolDeps['codeSymbol']> => Promise.resolve(results),
   codeImpact: (): ReturnType<CodeindexToolDeps['codeImpact']> =>
     Promise.resolve({ resolution: { status: 'unresolved' as const }, results: [] }),
+  codeOutline: (input): ReturnType<CodeindexToolDeps['codeOutline']> => Promise.resolve(emptyOutlineResult(input)),
   codeIndex: (): ReturnType<CodeindexToolDeps['codeIndex']> =>
     Promise.resolve({
       filesIndexed: 0,

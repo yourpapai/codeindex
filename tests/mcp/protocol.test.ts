@@ -13,13 +13,14 @@ import { createCodeindexServer } from '../../src/mcp/server.js'
 import {
   CodeImpactOutputSchema,
   CodeIndexOutputSchema,
+  CodeOutlineOutputSchema,
   CodeSearchOutputSchema,
   CodeSymbolOutputSchema,
   type CodeindexToolDeps,
   type WatcherState,
 } from '../../src/mcp/tools.js'
 import { ensureSchema } from '../../src/storage/schema.js'
-import { connectClient, makeInMemoryDeps, seedFile, seedSymbol } from './harness.js'
+import { connectClient, emptyOutlineResult, makeInMemoryDeps, seedFile, seedSymbol } from './harness.js'
 
 const delay = (ms: number): Promise<void> =>
   new Promise<void>((resolve) => {
@@ -64,11 +65,11 @@ afterEach(() => {
 })
 
 describe('MCP protocol boundary', () => {
-  test('listTools exposes all four tools', async () => {
+  test('listTools exposes all five tools', async () => {
     const client = await connectClient(createCodeindexServer(makeInMemoryDeps(buildSeededDb())))
     const listed = await client.listTools()
     const names = listed.tools.map((tool) => tool.name).sort()
-    expect(names).toEqual(['code_impact', 'code_index', 'code_search', 'code_symbol'])
+    expect(names).toEqual(['code_impact', 'code_index', 'code_outline', 'code_search', 'code_symbol'])
   })
 
   test('code_search returns a structured hit for a known symbol', async () => {
@@ -500,6 +501,7 @@ describe('watcher state reporting', () => {
     codeSymbol: (): ReturnType<CodeindexToolDeps['codeSymbol']> => Promise.resolve([]),
     codeImpact: (): ReturnType<CodeindexToolDeps['codeImpact']> =>
       Promise.resolve({ resolution: { status: 'unresolved' as const }, results: [] }),
+    codeOutline: (input): ReturnType<CodeindexToolDeps['codeOutline']> => Promise.resolve(emptyOutlineResult(input)),
     codeIndex: (): ReturnType<CodeindexToolDeps['codeIndex']> => Promise.resolve(summary),
     getWatcherState: (): WatcherState => watcherState,
   })
@@ -557,6 +559,7 @@ describe('watcher state reporting', () => {
       codeSymbol: (): ReturnType<CodeindexToolDeps['codeSymbol']> => Promise.resolve([]),
       codeImpact: (): ReturnType<CodeindexToolDeps['codeImpact']> =>
         Promise.resolve({ resolution: { status: 'unresolved' as const }, results: [] }),
+      codeOutline: (input): ReturnType<CodeindexToolDeps['codeOutline']> => Promise.resolve(emptyOutlineResult(input)),
       codeIndex: ({ mode }): ReturnType<CodeindexToolDeps['codeIndex']> => scheduler.submit({ mode }),
       getWatcherState: (): WatcherState => watcherState,
     }
@@ -584,6 +587,7 @@ describe('code_index payload honesty', () => {
     codeSymbol: (): ReturnType<CodeindexToolDeps['codeSymbol']> => Promise.resolve([]),
     codeImpact: (): ReturnType<CodeindexToolDeps['codeImpact']> =>
       Promise.resolve({ resolution: { status: 'unresolved' as const }, results: [] }),
+    codeOutline: (input): ReturnType<CodeindexToolDeps['codeOutline']> => Promise.resolve(emptyOutlineResult(input)),
     codeIndex: (): ReturnType<CodeindexToolDeps['codeIndex']> => Promise.resolve(summary),
   })
 
@@ -703,5 +707,116 @@ describe('freshness protocol surface', () => {
     expect(payload.results.every((row) => row.freshness === 'possibly_stale')).toBe(true)
     const text = textBlockOf(CallToolResultSchema.parse(result))
     expect(text).toContain('(indexFreshness: possibly_stale')
+  })
+})
+
+describe('code_outline protocol', () => {
+  const buildOutlineDb = (): Database => {
+    const db = buildSeededDb()
+    // Dense file with mixed tiers for symbols mode.
+    seedFile(db, { id: 3, filePath: 'src/dense.ts', moduleKey: 'src/dense' })
+    db.query(
+      `INSERT INTO symbols (id, file_id, file_path, module_key, symbol_key, local_name, qualified_name, kind, scope_tier, parent_symbol_id, export_names, signature_text, doc_text, body_text, identifier_terms, start_line, end_line)
+       VALUES
+         (10, 3, 'src/dense.ts', 'src/dense', 'src/dense.ts#10-20', 'localHelper', 'src/dense#localHelper', 'function_declaration', 'local', NULL, '[]', 'function localHelper() {}', '', 'BODY', 'localhelper', 10, 20),
+         (11, 3, 'src/dense.ts', 'src/dense', 'src/dense.ts#1-3', 'exportedFn', 'src/dense#exportedFn', 'function_declaration', 'exported', NULL, '["exportedFn"]', 'export function exportedFn() {}', '', 'BODY', 'exportedfn', 1, 3),
+         (12, 3, 'src/dense.ts', 'src/dense', 'src/dense.ts#5-8', 'moduleFn', 'src/dense#moduleFn', 'function_declaration', 'module', NULL, '[]', 'function moduleFn() {}', '', 'BODY', 'modulefn', 5, 8)`,
+    ).run()
+    // Pure barrel with re-export rows only.
+    seedFile(db, { id: 4, filePath: 'src/barrel.ts', moduleKey: 'src/barrel' })
+    db.query(
+      `INSERT INTO module_exports (file_id, export_name, export_kind, symbol_id, target_module_specifier)
+       VALUES
+         (4, 'helper', 'reexport', NULL, './helper'),
+         (4, '*', 'star', NULL, './impl')`,
+    ).run()
+    return db
+  }
+
+  test('rejects a call that omits mode', async () => {
+    const client = await connectClient(createCodeindexServer(makeInMemoryDeps(buildOutlineDb())))
+    const result = await client.callTool({ name: 'code_outline', arguments: { filePath: 'src/dense.ts' } })
+    expect(result.isError).toBe(true)
+  })
+
+  test('symbols mode returns ordered compact rows without body text', async () => {
+    const client = await connectClient(createCodeindexServer(makeInMemoryDeps(buildOutlineDb())))
+    const result = await client.callTool({
+      name: 'code_outline',
+      arguments: { filePath: 'src/dense.ts', mode: 'symbols' },
+    })
+    expect(result.isError).not.toBe(true)
+    const payload = CodeOutlineOutputSchema.parse(result.structuredContent)
+    expect(payload.mode).toBe('symbols')
+    expect(payload.resultCount).toBe(2)
+    expect(payload.results.map((row) => ('localName' in row ? row.localName : ''))).toEqual(['exportedFn', 'moduleFn'])
+    for (const row of payload.results) {
+      expect(JSON.stringify(row)).not.toContain('BODY')
+      expect(row).not.toHaveProperty('rankScore')
+      expect(row).not.toHaveProperty('matchedBy')
+    }
+  })
+
+  test('exports mode returns barrel re-exports with nullable linkage', async () => {
+    const client = await connectClient(createCodeindexServer(makeInMemoryDeps(buildOutlineDb())))
+    const result = await client.callTool({
+      name: 'code_outline',
+      arguments: { filePath: 'src/barrel.ts', mode: 'exports' },
+    })
+    expect(result.isError).not.toBe(true)
+    const payload = CodeOutlineOutputSchema.parse(result.structuredContent)
+    expect(payload.mode).toBe('exports')
+    expect(payload.resultCount).toBe(2)
+    const first = payload.results[0]!
+    expect(first).toHaveProperty('exportName')
+    if (!('exportName' in first)) {
+      throw new Error('expected export row')
+    }
+    expect(first.exportName).toBe('helper')
+    expect(first.symbolId).toBeNull()
+    expect(first.targetModuleSpecifier).toBe('./helper')
+  })
+
+  test('unknown path returns empty results and guidance', async () => {
+    const client = await connectClient(createCodeindexServer(makeInMemoryDeps(buildOutlineDb())))
+    const result = await client.callTool({
+      name: 'code_outline',
+      arguments: { filePath: 'src/missing.ts', mode: 'symbols' },
+    })
+    expect(result.isError).not.toBe(true)
+    const payload = CodeOutlineOutputSchema.parse(result.structuredContent)
+    expect(payload.resultCount).toBe(0)
+    expect(typeof payload.guidance).toBe('string')
+    expect(payload.guidance).toContain('not indexed')
+  })
+
+  test('text is a skim summary, not the full row dump', async () => {
+    const client = await connectClient(createCodeindexServer(makeInMemoryDeps(buildOutlineDb())))
+    const result = CallToolResultSchema.parse(
+      await client.callTool({
+        name: 'code_outline',
+        arguments: { filePath: 'src/dense.ts', mode: 'symbols' },
+      }),
+    )
+    const text = textBlockOf(result)
+    expect(text).toContain('src/dense.ts')
+    expect(text).toContain('symbols')
+    expect(text).toContain('2')
+    expect(text).not.toContain('export function exportedFn() {}')
+  })
+
+  test('truncation is disclosed in the text summary', async () => {
+    const client = await connectClient(createCodeindexServer(makeInMemoryDeps(buildOutlineDb())))
+    const result = CallToolResultSchema.parse(
+      await client.callTool({
+        name: 'code_outline',
+        arguments: { filePath: 'src/dense.ts', mode: 'symbols', limit: 1 },
+      }),
+    )
+    const payload = CodeOutlineOutputSchema.parse(result.structuredContent)
+    expect(payload.truncated).toBe(true)
+    expect(payload.resultCount).toBe(1)
+    const text = textBlockOf(result)
+    expect(text.toLowerCase()).toContain('truncat')
   })
 })

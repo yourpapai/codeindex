@@ -20,7 +20,7 @@ import {
 import type { WatcherState } from '../../src/mcp/tools.js'
 import { findSymbolCandidates, searchSymbols } from '../../src/search/index.js'
 import { openDatabase } from '../../src/storage/db.js'
-import { connectClient } from './harness.js'
+import { connectClient, emptyOutlineResult } from './harness.js'
 
 const tempDirs: string[] = []
 
@@ -115,6 +115,7 @@ describe('default and off do not submit a reindex', () => {
       codeSearch: () => Promise.resolve([]),
       codeSymbol: () => Promise.resolve([]),
       codeImpact: () => Promise.resolve({ resolution: { status: 'unresolved' as const }, results: [] }),
+      codeOutline: (input) => Promise.resolve(emptyOutlineResult(input)),
       codeIndex: spy.run,
       getIndexFreshness: () => 'possibly_stale',
     })
@@ -131,6 +132,7 @@ describe('default and off do not submit a reindex', () => {
       codeSearch: () => Promise.resolve([]),
       codeSymbol: () => Promise.resolve([]),
       codeImpact: () => Promise.resolve({ resolution: { status: 'unresolved' as const }, results: [] }),
+      codeOutline: (input) => Promise.resolve(emptyOutlineResult(input)),
       codeIndex: spy.run,
       getIndexFreshness: () => 'possibly_stale',
     })
@@ -163,6 +165,7 @@ describe('default and off do not submit a reindex', () => {
         codeSearch: () => Promise.resolve([]),
         codeSymbol: () => Promise.resolve([]),
         codeImpact: () => Promise.resolve({ resolution: { status: 'unresolved' as const }, results: [] }),
+        codeOutline: (input) => Promise.resolve(emptyOutlineResult(input)),
         codeIndex: spy.run,
       },
       config,
@@ -226,6 +229,7 @@ const makeIndexedRepo = async (): Promise<WaitFixture> => {
           }
         },
         codeImpact: () => Promise.resolve({ resolution: { status: 'unresolved' as const }, results: [] }),
+        codeOutline: (input) => Promise.resolve(emptyOutlineResult(input)),
         codeIndex: (input) => scheduler.submit(input),
       },
       config,
@@ -330,6 +334,7 @@ describe('refresh wait', () => {
         codeSearch: (): Promise<readonly never[]> => Promise.resolve([]),
         codeSymbol: (): Promise<readonly never[]> => Promise.resolve([]),
         codeImpact: () => Promise.resolve({ resolution: { status: 'unresolved' as const }, results: [] }),
+        codeOutline: (input) => Promise.resolve(emptyOutlineResult(input)),
         codeIndex: (input) => scheduler.submit(input),
       },
       config,
@@ -370,6 +375,7 @@ describe('wait timeout honesty', () => {
         codeSearch: (): Promise<readonly never[]> => Promise.resolve([]),
         codeSymbol: (): Promise<readonly never[]> => Promise.resolve([]),
         codeImpact: () => Promise.resolve({ resolution: { status: 'unresolved' as const }, results: [] }),
+        codeOutline: (input) => Promise.resolve(emptyOutlineResult(input)),
         codeIndex: (input) => {
           modes.push(input.mode)
           return new Promise<IndexSummary>((resolve) => {

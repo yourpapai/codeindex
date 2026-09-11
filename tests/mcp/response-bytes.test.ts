@@ -15,7 +15,7 @@ import { buildStructuredToolResult, type CodeindexToolDeps, CodeSearchOutputSche
 import { ensureQueryLogSchema, insertQueryLogEntry, openQueryLog } from '../../src/storage/query-log.js'
 import type { QueryLogEntry } from '../../src/storage/query-log.js'
 import type { RankedSearchResult } from '../../src/types.js'
-import { connectClient } from './harness.js'
+import { connectClient, emptyOutlineResult } from './harness.js'
 
 const tempDirs: string[] = []
 
@@ -47,6 +47,7 @@ const stubDeps = (): CodeindexToolDeps => ({
   codeSymbol: (): ReturnType<CodeindexToolDeps['codeSymbol']> => Promise.resolve([fakeResult('src/x#found')]),
   codeImpact: (): ReturnType<CodeindexToolDeps['codeImpact']> =>
     Promise.resolve({ resolution: { status: 'unresolved' as const }, results: [] }),
+  codeOutline: (input): ReturnType<CodeindexToolDeps['codeOutline']> => Promise.resolve(emptyOutlineResult(input)),
   codeIndex: (): ReturnType<CodeindexToolDeps['codeIndex']> =>
     Promise.resolve({
       filesIndexed: 0,

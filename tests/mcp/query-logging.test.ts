@@ -11,7 +11,7 @@ import { createCodeindexServer } from '../../src/mcp/server.js'
 import type { CodeindexToolDeps } from '../../src/mcp/tools.js'
 import { readQueryLogStats } from '../../src/storage/query-log.js'
 import type { RankedSearchResult } from '../../src/types.js'
-import { connectClient } from './harness.js'
+import { connectClient, emptyOutlineResult } from './harness.js'
 
 const tempDirs: string[] = []
 
@@ -36,6 +36,7 @@ const stubDeps = (): CodeindexToolDeps => ({
   codeSymbol: (): ReturnType<CodeindexToolDeps['codeSymbol']> => Promise.resolve([]),
   codeImpact: (): ReturnType<CodeindexToolDeps['codeImpact']> =>
     Promise.resolve({ resolution: { status: 'unresolved' as const }, results: [] }),
+  codeOutline: (input): ReturnType<CodeindexToolDeps['codeOutline']> => Promise.resolve(emptyOutlineResult(input)),
   codeIndex: (): ReturnType<CodeindexToolDeps['codeIndex']> =>
     Promise.resolve({
       filesIndexed: 0,
@@ -259,6 +260,21 @@ describe('withQueryLogging', () => {
     } finally {
       db.close()
     }
+  })
+
+  test('logs code_outline with filePath as query_text and mode symbols|exports', async () => {
+    const config = configWith(true)
+    const wrapped = withQueryLogging(stubDeps(), config)
+    await wrapped.codeOutline({ filePath: 'src/foo.ts', mode: 'symbols', limit: 200 })
+    let row = readLatestRow(config.queriesPath)
+    expect(row.query_text).toBe('src/foo.ts')
+    expect(row.query_shape).toBe('identifier')
+    expect(row.mode).toBe('symbols')
+
+    await wrapped.codeOutline({ filePath: 'src/index.ts', mode: 'exports', limit: 200 })
+    row = readLatestRow(config.queriesPath)
+    expect(row.query_text).toBe('src/index.ts')
+    expect(row.mode).toBe('exports')
   })
 })
 

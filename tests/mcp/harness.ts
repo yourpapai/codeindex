@@ -7,6 +7,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { IndexSummary } from '../../src/indexer/index-codebase.js'
 import type { CodeindexToolDeps } from '../../src/mcp/tools.js'
 import { resolveIncomingReferences, findSymbolCandidates, searchSymbols } from '../../src/search/index.js'
+import { outlineFile } from '../../src/search/outline.js'
 
 export const connectClient = async (server: McpServer): Promise<Client> => {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
@@ -28,6 +29,13 @@ const emptySummary: IndexSummary = {
   elapsedMs: 0,
 }
 
+export const emptyOutlineResult = (
+  input: Readonly<{ filePath: string; mode: 'symbols' | 'exports' }>,
+): Awaited<ReturnType<CodeindexToolDeps['codeOutline']>> =>
+  input.mode === 'symbols'
+    ? { mode: 'symbols', filePath: input.filePath, resultCount: 0, truncated: false, results: [] }
+    : { mode: 'exports', filePath: input.filePath, resultCount: 0, truncated: false, results: [] }
+
 export const makeInMemoryDeps = (db: Database): CodeindexToolDeps => ({
   codeSearch: (input: Parameters<typeof searchSymbols>[1]): Promise<ReturnType<typeof searchSymbols>> =>
     Promise.resolve(searchSymbols(db, input)),
@@ -36,6 +44,13 @@ export const makeInMemoryDeps = (db: Database): CodeindexToolDeps => ({
   codeImpact: (
     input: Parameters<typeof resolveIncomingReferences>[1],
   ): Promise<ReturnType<typeof resolveIncomingReferences>> => Promise.resolve(resolveIncomingReferences(db, input)),
+  codeOutline: (input: {
+    filePath: string
+    mode: 'symbols' | 'exports'
+    limit: number
+    scopeTiers?: readonly ('exported' | 'module' | 'member' | 'local')[]
+    kinds?: readonly string[]
+  }): Promise<Awaited<ReturnType<CodeindexToolDeps['codeOutline']>>> => Promise.resolve(outlineFile(db, input)),
   codeIndex: (): Promise<IndexSummary> => Promise.resolve(emptySummary),
 })
 

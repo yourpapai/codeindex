@@ -45,7 +45,7 @@ describe('http protocol round-trip', () => {
 
     const tools = await client.listTools()
     const names = tools.tools.map((tool) => tool.name).sort()
-    expect(names).toEqual(['code_impact', 'code_index', 'code_search', 'code_symbol'])
+    expect(names).toEqual(['code_impact', 'code_index', 'code_outline', 'code_search', 'code_symbol'])
 
     const search = await client.callTool({ name: 'code_search', arguments: { query: 'httpBeacon' } })
     expect(search.isError).not.toBe(true)

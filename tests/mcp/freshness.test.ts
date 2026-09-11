@@ -156,6 +156,32 @@ describe('withFreshness per-hit rules', () => {
     expect(outcome.results.length).toBeGreaterThanOrEqual(1)
     expect(outcome.results[0]!.freshness).toBe('possibly_stale')
   })
+
+  test('code_outline symbols rows are decorated by file freshness', async () => {
+    const deps = withFreshness(makeInMemoryDeps(fixture.db), { repoRoot: fixture.dir, dbPath: fixture.dbPath }, () => ({
+      indexFreshness: 'fresh',
+    }))
+    touchFile('src/a.ts', readIndexedAt('src/a.ts') - 10_000)
+    const outcome = await deps.codeOutline({ filePath: 'src/a.ts', mode: 'symbols', limit: 200 })
+    expect(outcome.resultCount).toBeGreaterThanOrEqual(1)
+    for (const row of outcome.results) {
+      expect(row.freshness).toBe('fresh')
+    }
+  })
+
+  test('code_outline marks rows possibly_stale when the file content changed', async () => {
+    const deps = withFreshness(makeInMemoryDeps(fixture.db), { repoRoot: fixture.dir, dbPath: fixture.dbPath }, () => ({
+      indexFreshness: 'fresh',
+    }))
+    const newerThanIndexedAt = readIndexedAt('src/a.ts') + 10_000
+    writeFileSync(path.join(fixture.dir, 'src/a.ts'), 'export const alpha = (): number => 999\n')
+    touchFile('src/a.ts', newerThanIndexedAt)
+    const outcome = await deps.codeOutline({ filePath: 'src/a.ts', mode: 'symbols', limit: 200 })
+    expect(outcome.resultCount).toBeGreaterThanOrEqual(1)
+    for (const row of outcome.results) {
+      expect(row.freshness).toBe('possibly_stale')
+    }
+  })
 })
 
 describe('withFreshness response-level state', () => {

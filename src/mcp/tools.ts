@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import type { IndexSummary } from '../indexer/index-codebase.js'
 import type { ImpactIdentityResolution, ImpactLookupInput, ImpactResult } from '../search/index.js'
+import type { OutlineExport, OutlineMode, OutlineSymbol } from '../search/outline.js'
 import type { RankedSearchResult, SearchMode, SearchResult } from '../types.js'
 
 export const FreshnessSchema = z.enum(['fresh', 'possibly_stale'])
@@ -11,6 +12,27 @@ export const RefreshModeSchema = z.enum(['background', 'wait', 'off'])
 export type RefreshMode = z.infer<typeof RefreshModeSchema>
 
 export type FreshnessMark = Readonly<{ freshness?: Freshness }>
+
+export type OutlineSymbolResult = OutlineSymbol & FreshnessMark
+export type OutlineExportResult = OutlineExport & FreshnessMark
+
+export type OutlineToolOutcome =
+  | Readonly<{
+      mode: 'symbols'
+      filePath: string
+      resultCount: number
+      truncated: boolean
+      results: readonly OutlineSymbolResult[]
+      guidance?: string
+    }>
+  | Readonly<{
+      mode: 'exports'
+      filePath: string
+      resultCount: number
+      truncated: boolean
+      results: readonly OutlineExportResult[]
+      guidance?: string
+    }>
 
 export interface CodeindexToolDeps {
   readonly codeSearch: (input: {
@@ -31,6 +53,14 @@ export interface CodeindexToolDeps {
     resolution: ImpactIdentityResolution
     results: readonly (ImpactResult & FreshnessMark)[]
   }>
+  readonly codeOutline: (input: {
+    filePath: string
+    mode: OutlineMode
+    limit: number
+    scopeTiers?: readonly SearchResult['scopeTier'][]
+    kinds?: readonly string[]
+    refresh?: RefreshMode
+  }) => Promise<OutlineToolOutcome>
   readonly codeIndex: (input: { mode: 'full' | 'incremental' }) => Promise<IndexSummary>
   readonly getIndexFreshness?: () => Freshness
   readonly getWatcherState?: () => WatcherState
@@ -73,6 +103,16 @@ export const CodeIndexInputSchema = z.object({
   mode: z.enum(['full', 'incremental']).default('incremental'),
 })
 export type CodeIndexInput = z.infer<typeof CodeIndexInputSchema>
+
+export const CodeOutlineInputSchema = z.object({
+  filePath: z.string().min(1),
+  mode: z.enum(['symbols', 'exports']),
+  limit: z.number().int().positive().max(500).default(200),
+  scopeTiers: z.array(z.enum(['exported', 'module', 'member', 'local'])).optional(),
+  kinds: z.array(z.string().min(1)).optional(),
+  refresh: RefreshModeSchema.default('background'),
+})
+export type CodeOutlineInput = z.infer<typeof CodeOutlineInputSchema>
 
 export const WatcherStatusSchema = z.enum(['idle', 'catching_up', 'error'])
 export type WatcherStatus = z.infer<typeof WatcherStatusSchema>
@@ -158,6 +198,42 @@ export const CodeIndexOutputSchema = z.object({
   referencesUnresolved: z.number(),
   elapsedMs: z.number(),
   watcher: WatcherStateSchema.optional(),
+})
+
+const OutlineSymbolResultSchema = z.object({
+  symbolKey: z.string(),
+  qualifiedName: z.string(),
+  localName: z.string(),
+  kind: z.string(),
+  scopeTier: z.enum(['exported', 'module', 'member', 'local']),
+  filePath: z.string(),
+  startLine: z.number(),
+  endLine: z.number(),
+  signatureText: z.string(),
+  exportNames: z.array(z.string()),
+  freshness: FreshnessSchema.optional(),
+})
+
+const OutlineExportResultSchema = z.object({
+  exportName: z.string(),
+  exportKind: z.enum(['named', 'default', 'namespace', 'reexport', 'star']),
+  symbolId: z.number().nullable(),
+  qualifiedName: z.string().nullable(),
+  targetModuleSpecifier: z.string().nullable(),
+  filePath: z.string(),
+  freshness: FreshnessSchema.optional(),
+})
+
+export const CodeOutlineOutputSchema = z.object({
+  mode: z.enum(['symbols', 'exports']),
+  filePath: z.string(),
+  resultCount: z.number(),
+  truncated: z.boolean(),
+  // Row shape follows `mode`: symbols rows vs export rows. A single object
+  // (not discriminatedUnion) keeps MCP SDK outputSchema conversion working.
+  results: z.array(z.union([OutlineSymbolResultSchema, OutlineExportResultSchema])),
+  guidance: z.string().optional(),
+  indexFreshness: FreshnessSchema.optional(),
 })
 
 export const buildStructuredToolResult = <S extends z.ZodType>(

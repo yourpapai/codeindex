@@ -6,6 +6,8 @@ import {
   buildStructuredToolResult,
   CodeIndexOutputSchema,
   CodeImpactOutputSchema,
+  CodeOutlineInputSchema,
+  CodeOutlineOutputSchema,
   CodeSearchOutputSchema,
   CodeSymbolOutputSchema,
 } from '../../src/mcp/tools.js'
@@ -98,6 +100,81 @@ describe('output schemas', () => {
       elapsedMs: 1234,
     }
     expect(CodeIndexOutputSchema.safeParse(data).success).toBe(true)
+  })
+})
+
+describe('CodeOutlineInputSchema', () => {
+  test('requires filePath and mode', () => {
+    expect(CodeOutlineInputSchema.safeParse({ filePath: 'src/foo.ts', mode: 'symbols' }).success).toBe(true)
+    expect(CodeOutlineInputSchema.safeParse({ mode: 'symbols' }).success).toBe(false)
+    expect(CodeOutlineInputSchema.safeParse({ filePath: 'src/foo.ts' }).success).toBe(false)
+    expect(CodeOutlineInputSchema.safeParse({ filePath: 'src/foo.ts', mode: 'both' }).success).toBe(false)
+  })
+
+  test('defaults limit to 200 and caps at 500', () => {
+    const parsed = CodeOutlineInputSchema.parse({ filePath: 'src/foo.ts', mode: 'symbols' })
+    expect(parsed.limit).toBe(200)
+    expect(CodeOutlineInputSchema.safeParse({ filePath: 'src/foo.ts', mode: 'symbols', limit: 500 }).success).toBe(true)
+    expect(CodeOutlineInputSchema.safeParse({ filePath: 'src/foo.ts', mode: 'symbols', limit: 501 }).success).toBe(
+      false,
+    )
+  })
+
+  test('accepts optional scopeTiers and kinds', () => {
+    const parsed = CodeOutlineInputSchema.parse({
+      filePath: 'src/foo.ts',
+      mode: 'symbols',
+      scopeTiers: ['exported', 'module'],
+      kinds: ['function_declaration'],
+    })
+    expect(parsed.scopeTiers).toEqual(['exported', 'module'])
+    expect(parsed.kinds).toEqual(['function_declaration'])
+  })
+})
+
+describe('CodeOutlineOutputSchema', () => {
+  test('validates symbols-mode envelope without body fields', () => {
+    const data = {
+      filePath: 'src/foo.ts',
+      mode: 'symbols',
+      resultCount: 1,
+      truncated: false,
+      results: [
+        {
+          symbolKey: 'src/foo.ts#1-3',
+          qualifiedName: 'src/foo#helper',
+          localName: 'helper',
+          kind: 'function_declaration',
+          scopeTier: 'exported',
+          filePath: 'src/foo.ts',
+          startLine: 1,
+          endLine: 3,
+          signatureText: 'export function helper() {}',
+          exportNames: ['helper'],
+        },
+      ],
+    }
+    expect(CodeOutlineOutputSchema.safeParse(data).success).toBe(true)
+  })
+
+  test('validates exports-mode barrel rows with nullable linkage', () => {
+    const data = {
+      filePath: 'src/index.ts',
+      mode: 'exports',
+      resultCount: 1,
+      truncated: false,
+      results: [
+        {
+          exportName: 'helper',
+          exportKind: 'reexport',
+          symbolId: null,
+          qualifiedName: null,
+          targetModuleSpecifier: './helper',
+          filePath: 'src/index.ts',
+        },
+      ],
+    }
+    expect(CodeOutlineOutputSchema.safeParse(data).success).toBe(true)
   })
 })
 
