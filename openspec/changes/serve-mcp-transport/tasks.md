@@ -28,5 +28,5 @@
 
 ## 6. Full gates
 
-- [ ] 6.1 Run `bun run check` (lint, typecheck, format:check, test, check:bench). Search/index behavior must stay flat — no baseline re-stamp. Verify: `bun run check`
-- [ ] 6.2 Confirm stdio dogfood path unchanged: `bun run mcp` still starts; no config schema migration. Verify: `bun run typecheck && bun test tests/mcp/wiring.test.ts tests/mcp/stdio-roundtrip.test.ts`
+- [x] 6.1 Run `bun run check` (lint, typecheck, format:check, test, check:bench). Search/index behavior must stay flat — no baseline re-stamp. Verify: `bun run check`
+- [x] 6.2 Confirm stdio dogfood path unchanged: `bun run mcp` still starts; no config schema migration. Verify: `bun run typecheck && bun test tests/mcp/wiring.test.ts tests/mcp/stdio-roundtrip.test.ts`
