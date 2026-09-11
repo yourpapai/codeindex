@@ -13,8 +13,8 @@
 
 ## 3. CLI `serve` command
 
-- [ ] 3.1 RED — write `tests/cli-serve.test.ts` (or extend existing cli tests): `--port` zod validation (reject 0 / 65536 / non-int); default port constant is 3456; EADDRINUSE path names `repoRoot` and suggests `--port`. Watch it fail. Verify: `bun test tests/cli-serve.test.ts`
-- [ ] 3.2 GREEN — add `serve` to `src/cli.ts` main switch: `loadConfigForPath`, `--port` parse, call `runServeCommand`; bind `127.0.0.1` default 3456. Verify: `bun test tests/cli-serve.test.ts && bun run typecheck`
+- [x] 3.1 RED — write `tests/cli-serve.test.ts` (or extend existing cli tests): `--port` zod validation (reject 0 / 65536 / non-int); default port constant is 3456; EADDRINUSE path names `repoRoot` and suggests `--port`. Watch it fail. Verify: `bun test tests/cli-serve.test.ts`
+- [x] 3.2 GREEN — add `serve` to `src/cli.ts` main switch: `loadConfigForPath`, `--port` parse, call `runServeCommand`; bind `127.0.0.1` default 3456. Verify: `bun test tests/cli-serve.test.ts && bun run typecheck`
 
 ## 4. Optional bearer auth
 

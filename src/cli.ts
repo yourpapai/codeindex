@@ -162,7 +162,19 @@ export const runLogStatsCommand = (config: CodeindexConfig): QueryLogStats => {
 }
 
 const main = async (): Promise<void> => {
-  const [, , command = 'index', rawArg] = process.argv
+  const argv = process.argv.slice(2)
+  const command = argv[0] ?? 'index'
+  const rest = argv.slice(1)
+
+  if (command === 'serve') {
+    const { parseServeArgs, runServeCommand } = await import('./mcp/serve.js')
+    const { port, path: servePath } = parseServeArgs(rest)
+    const serveConfig = await loadConfigForPath(servePath)
+    await runServeCommand(serveConfig, { port })
+    return
+  }
+
+  const rawArg = rest[0]
   const positional = command === 'index' || command === 'reindex' ? rawArg : undefined
   const config = await loadConfigForPath(positional)
 

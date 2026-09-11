@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
+import { z } from 'zod'
+
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 
 import { createMcpRuntime } from '../cli.js'
@@ -8,6 +10,45 @@ import type { CodeindexConfig } from '../config.js'
 export const DEFAULT_SERVE_PORT = 3456
 export const SERVE_HOST = '127.0.0.1'
 export const SERVE_PATH = '/mcp'
+
+export const ServePortSchema = z.number().int().min(1).max(65535)
+
+export interface ServeCliArgs {
+  readonly port: number
+  readonly path?: string
+}
+
+export const parseServeArgs = (argv: readonly string[]): ServeCliArgs => {
+  let port: number | undefined
+  let path: string | undefined
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]
+    if (arg === undefined) continue
+    if (arg === '--port') {
+      const raw = argv[i + 1]
+      i += 1
+      if (raw === undefined) {
+        throw new Error('--port requires a value')
+      }
+      const parsedNumber = Number(raw)
+      const result = ServePortSchema.safeParse(parsedNumber)
+      if (!result.success) {
+        throw new Error(`Invalid --port: ${raw} (expected an integer between 1 and 65535)`)
+      }
+      port = result.data
+      continue
+    }
+    if (arg === '--host') {
+      // Reserved; bind address is always loopback.
+      if (argv[i + 1] !== undefined) i += 1
+      continue
+    }
+    if (!arg.startsWith('--') && path === undefined) {
+      path = arg
+    }
+  }
+  return { port: port ?? DEFAULT_SERVE_PORT, path }
+}
 
 export interface StartServeOptions {
   readonly port?: number
@@ -107,7 +148,7 @@ export const startServe = async (
     throw error
   }
 
-  void watcher.start()
+  await watcher.start()
 
   const stop = async (): Promise<void> => {
     watcher.stop()
