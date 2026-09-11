@@ -24,8 +24,8 @@ failures. The measure-and-decide task is mandatory before archive.
 
 ## 4. Third-party-shaped fixture + optional external check
 
-- [ ] 4.1 Add `bench/fixtures/impact-ambiguity/` (hand-picked tiny tree: one export+member name collision, two same-name exports, one `Module#Name`-style pair) plus a small runner or unit harness that scores unique-export accept / multi-export refuse+candidates / partial accept. Verify: `bun test tests/bench/impact-ambiguity.test.ts` (or equivalent) green
-- [ ] 4.2 Optional env-gated path: if `CODEINDEX_BENCH_REPO` is set, score bare unique-export names on that repo’s index and print keep/throw metrics (do not fail CI when unset). Verify: script runs locally with env set; skipped cleanly when unset
+- [x] 4.1 Add `bench/fixtures/impact-ambiguity/` (hand-picked tiny tree: one export+member name collision, two same-name exports, one `Module#Name`-style pair) plus a small runner or unit harness that scores unique-export accept / multi-export refuse+candidates / partial accept. Verify: `bun test tests/bench/impact-ambiguity.test.ts` (or equivalent) green
+- [x] 4.2 Optional env-gated path: if `CODEINDEX_BENCH_REPO` is set, score bare unique-export names on that repo’s index and print keep/throw metrics (do not fail CI when unset). Verify: script runs locally with env set; skipped cleanly when unset
 
 ## 5. Measure and decide — keep or throw
 

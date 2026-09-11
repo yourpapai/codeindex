@@ -1,0 +1,5 @@
+{
+  "roots": ["src"],
+  "languages": ["ts", "tsx"],
+  "logQueries": false
+}
