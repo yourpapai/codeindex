@@ -6,6 +6,7 @@ import path from 'node:path'
 
 import type { CodeindexConfig } from '../../src/config.js'
 import { withQueryLogging } from '../../src/mcp/query-logging.js'
+import { classifyQueryShape, isZeroOrWeakResult } from '../../src/mcp/query-shape.js'
 import { createCodeindexServer } from '../../src/mcp/server.js'
 import type { CodeindexToolDeps } from '../../src/mcp/tools.js'
 import { readQueryLogStats } from '../../src/storage/query-log.js'
@@ -77,6 +78,78 @@ afterAll(() => {
   }
 })
 
+interface LatestQueryRow {
+  readonly query_text: string | null
+  readonly query_shape: string | null
+  readonly zero_or_weak: number | null
+  readonly mode: string | null
+  readonly matched_by: string | null
+  readonly result_count: number
+}
+
+const readLatestRow = (queriesPath: string): LatestQueryRow => {
+  const db = new Database(queriesPath)
+  try {
+    return db
+      .query<LatestQueryRow, []>(
+        `SELECT query_text, query_shape, zero_or_weak, mode, matched_by, result_count
+         FROM query_log ORDER BY id DESC LIMIT 1`,
+      )
+      .get()!
+  } finally {
+    db.close()
+  }
+}
+
+describe('classifyQueryShape', () => {
+  test('empty and blank queries are empty', () => {
+    expect(classifyQueryShape(null)).toBe('empty')
+    expect(classifyQueryShape(undefined)).toBe('empty')
+    expect(classifyQueryShape('')).toBe('empty')
+    expect(classifyQueryShape('   ')).toBe('empty')
+  })
+
+  test('identifier-shaped queries are identifiers', () => {
+    expect(classifyQueryShape('openDatabase')).toBe('identifier')
+    expect(classifyQueryShape('src/storage/db#openDatabase')).toBe('identifier')
+    expect(classifyQueryShape('parent>name')).toBe('identifier')
+    expect(classifyQueryShape('searchSymbols')).toBe('identifier')
+  })
+
+  test('multi-token lexical queries stay lexical, not identifier', () => {
+    expect(classifyQueryShape('index command')).toBe('multi_token_lexical')
+    expect(classifyQueryShape('query log')).toBe('multi_token_lexical')
+  })
+
+  test('natural-language-ish multi-word queries are nl', () => {
+    expect(classifyQueryShape('rerank search results relevance')).toBe('nl')
+    expect(classifyQueryShape('index command CLI')).toBe('nl')
+    expect(classifyQueryShape('how do I find who calls a function')).toBe('nl')
+  })
+})
+
+describe('isZeroOrWeakResult', () => {
+  test('zero results are always weak', () => {
+    expect(isZeroOrWeakResult(0, 10)).toBe(true)
+    expect(isZeroOrWeakResult(0, undefined)).toBe(true)
+  })
+
+  test('a full page matching the requested limit is not weak', () => {
+    expect(isZeroOrWeakResult(10, 10)).toBe(false)
+    expect(isZeroOrWeakResult(5, 5)).toBe(false)
+  })
+
+  test('fewer results than the requested limit is weak', () => {
+    expect(isZeroOrWeakResult(3, 10)).toBe(true)
+  })
+
+  test('without a limit, the absolute floor is three', () => {
+    expect(isZeroOrWeakResult(2, undefined)).toBe(true)
+    expect(isZeroOrWeakResult(3, undefined)).toBe(false)
+    expect(isZeroOrWeakResult(7, undefined)).toBe(false)
+  })
+})
+
 describe('withQueryLogging', () => {
   test('logs a code_search call to the queries db', async () => {
     const config = configWith(true)
@@ -92,6 +165,27 @@ describe('withQueryLogging', () => {
     } finally {
       db.close()
     }
+  })
+
+  test('logs query_shape, zero_or_weak, mode, and matched_by ride-along fields', async () => {
+    const config = configWith(true)
+    const wrapped = withQueryLogging(stubDeps(), config)
+    await wrapped.codeSearch({ query: 'openDatabase', limit: 10, mode: 'exact' })
+    const row = readLatestRow(config.queriesPath)
+    expect(row.query_text).toBe('openDatabase')
+    expect(row.query_shape).toBe('identifier')
+    expect(row.zero_or_weak).toBe(1)
+    expect(row.mode).toBe('exact')
+    expect(row.matched_by).toBe('exact_export')
+  })
+
+  test('does not invent a mode when the caller omitted it', async () => {
+    const config = configWith(true)
+    const wrapped = withQueryLogging(stubDeps(), config)
+    await wrapped.codeSearch({ query: 'openDatabase', limit: 10 })
+    const row = readLatestRow(config.queriesPath)
+    expect(row.mode).toBeNull()
+    expect(row.matched_by).toBe('exact_export')
   })
 
   test('does not log when logQueries is false', async () => {

@@ -257,6 +257,19 @@ describe('MCP protocol boundary', () => {
     expect(description).toContain('symbol_key')
     expect(description).toContain('qualified_name')
     expect(description).toContain('local name')
+    expect(description.toLowerCase()).toContain('unique')
+    expect(description.toLowerCase()).toContain('ambig')
+  })
+
+  test('unresolved guidance names uniqueness/ambiguity rather than a fuzzy guess', async () => {
+    const client = await connectClient(createCodeindexServer(makeInMemoryDeps(buildSeededDb())))
+    const result = await client.callTool({
+      name: 'code_impact',
+      arguments: { qualifiedName: 'zzz_nonexistent_symbol' },
+    })
+    const payload = CodeImpactOutputSchema.parse(result.structuredContent)
+    expect(payload.guidance?.toLowerCase()).toContain('unique')
+    expect(payload.guidance?.toLowerCase()).toContain('ambigu')
   })
 
   test('code_search with an invalid mode is rejected at the boundary', async () => {

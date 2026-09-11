@@ -13,6 +13,10 @@ export interface QueryLogEntry {
   readonly topQualifiedNames: readonly string[]
   readonly error: string | null
   readonly responseBytes?: number | null
+  readonly queryShape?: string | null
+  readonly zeroOrWeak?: boolean | null
+  readonly mode?: string | null
+  readonly matchedBy?: string | null
 }
 
 export interface TopQuery {
@@ -41,13 +45,20 @@ const CREATE_QUERY_LOG = `CREATE TABLE IF NOT EXISTS query_log (
   latency_ms INTEGER NOT NULL,
   top_qualified_names TEXT NOT NULL,
   error TEXT,
-  response_bytes INTEGER
+  response_bytes INTEGER,
+  query_shape TEXT,
+  zero_or_weak INTEGER,
+  mode TEXT,
+  matched_by TEXT
 )`
 
 // v1 (0→1) added the user_version convention and error column (wipe-and-rebuild).
 // v2 (1→2) adds response_bytes in place — dogfood history is the S3 study corpus
 // and must not be wiped.
-const QUERY_LOG_SCHEMA_VERSION = 2
+// v3 (2→3) adds study telemetry columns in place: query_shape, zero_or_weak, mode, matched_by.
+const QUERY_LOG_SCHEMA_VERSION = 3
+
+const V3_COLUMNS: readonly string[] = ['query_shape', 'zero_or_weak', 'mode', 'matched_by']
 
 export const ensureQueryLogSchema = (db: Database): void => {
   const row = db.query<{ user_version: number }, []>('PRAGMA user_version').get()!
@@ -62,6 +73,20 @@ export const ensureQueryLogSchema = (db: Database): void => {
       // Column already present.
     }
   }
+  if (row.user_version < 3) {
+    const existing = new Set(
+      db
+        .query<{ name: string }, []>('PRAGMA table_info(query_log)')
+        .all()
+        .map((column) => column.name),
+    )
+    for (const column of V3_COLUMNS) {
+      if (!existing.has(column)) {
+        const sqlType = column === 'zero_or_weak' ? 'INTEGER' : 'TEXT'
+        db.run(`ALTER TABLE query_log ADD COLUMN ${column} ${sqlType}`)
+      }
+    }
+  }
   db.run(`PRAGMA user_version = ${QUERY_LOG_SCHEMA_VERSION}`)
 }
 
@@ -73,8 +98,11 @@ export const openQueryLog = (queriesPath: string): Database => {
 
 export const insertQueryLogEntry = (db: Database, entry: QueryLogEntry): void => {
   db.query(
-    `INSERT INTO query_log (timestamp, tool, query_text, filters_json, result_count, hit, latency_ms, top_qualified_names, error, response_bytes)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO query_log (
+       timestamp, tool, query_text, filters_json, result_count, hit, latency_ms, top_qualified_names, error,
+       response_bytes, query_shape, zero_or_weak, mode, matched_by
+     )
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     entry.timestamp,
     entry.tool,
@@ -86,6 +114,10 @@ export const insertQueryLogEntry = (db: Database, entry: QueryLogEntry): void =>
     JSON.stringify(entry.topQualifiedNames),
     entry.error,
     entry.responseBytes ?? null,
+    entry.queryShape ?? null,
+    entry.zeroOrWeak === null || entry.zeroOrWeak === undefined ? null : entry.zeroOrWeak ? 1 : 0,
+    entry.mode ?? null,
+    entry.matchedBy ?? null,
   )
 }
 

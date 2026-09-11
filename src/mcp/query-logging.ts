@@ -1,6 +1,7 @@
 import type { CodeindexConfig } from '../config.js'
 import { insertQueryLogEntry, openQueryLog, updateLatestResponseBytes } from '../storage/query-log.js'
 import type { QueryLogEntry } from '../storage/query-log.js'
+import { classifyQueryShape, isZeroOrWeakResult } from './query-shape.js'
 import type { CodeindexToolDeps } from './tools.js'
 
 interface RecordInput {
@@ -11,6 +12,9 @@ interface RecordInput {
   readonly latencyMs: number
   readonly topQualifiedNames: readonly string[]
   readonly error: string | null
+  readonly limit?: number | null
+  readonly mode?: string | null
+  readonly matchedBy?: string | null
 }
 
 const record = (queriesPath: string, input: RecordInput): void => {
@@ -24,6 +28,10 @@ const record = (queriesPath: string, input: RecordInput): void => {
     latencyMs: input.latencyMs,
     topQualifiedNames: input.topQualifiedNames,
     error: input.error,
+    queryShape: classifyQueryShape(input.queryText),
+    zeroOrWeak: isZeroOrWeakResult(input.resultCount, input.limit),
+    mode: input.mode ?? null,
+    matchedBy: input.matchedBy ?? null,
   }
   try {
     const db = openQueryLog(queriesPath)
@@ -56,14 +64,24 @@ const errorMessage = (err: unknown): string => (err instanceof Error ? err.messa
 
 const runLogged = async <T>(
   queriesPath: string,
-  base: Readonly<RecordBase>,
+  base: Readonly<RecordBase & { limit?: number | null; mode?: string | null }>,
   attempt: () => Promise<T>,
-  toResultFields: (result: T) => ResultFields,
+  toResultFields: (result: T) => ResultFields & { matchedBy?: string | null; limit?: number | null },
 ): Promise<T> => {
   const started = Date.now()
   try {
     const result = await attempt()
-    record(queriesPath, { ...base, ...toResultFields(result), latencyMs: Date.now() - started, error: null })
+    const fields = toResultFields(result)
+    record(queriesPath, {
+      ...base,
+      resultCount: fields.resultCount,
+      topQualifiedNames: fields.topQualifiedNames,
+      latencyMs: Date.now() - started,
+      error: null,
+      limit: fields.limit ?? base.limit ?? null,
+      mode: base.mode ?? null,
+      matchedBy: fields.matchedBy ?? null,
+    })
     return result
   } catch (err) {
     record(queriesPath, {
@@ -72,6 +90,9 @@ const runLogged = async <T>(
       topQualifiedNames: [],
       latencyMs: Date.now() - started,
       error: errorMessage(err),
+      limit: base.limit ?? null,
+      mode: base.mode ?? null,
+      matchedBy: null,
     })
     throw err
   }
@@ -92,9 +113,16 @@ const wrapCodeSearch = (deps: Readonly<CodeindexToolDeps>, queriesPath: string):
           pathPrefix: input.pathPrefix,
           limit: input.limit,
         }),
+        limit: input.limit,
+        mode: input.mode ?? null,
       },
       () => deps.codeSearch(input),
-      (results) => ({ resultCount: results.length, topQualifiedNames: topNames(results, 3) }),
+      (results) => ({
+        resultCount: results.length,
+        topQualifiedNames: topNames(results, 3),
+        matchedBy: results[0]?.matchedBy ?? null,
+        limit: input.limit,
+      }),
     )
   }
 }
@@ -106,9 +134,14 @@ const wrapCodeSymbol = (deps: Readonly<CodeindexToolDeps>, queriesPath: string):
   ): Promise<Awaited<ReturnType<CodeindexToolDeps['codeSymbol']>>> => {
     return runLogged(
       queriesPath,
-      { tool: 'code_symbol', queryText: query, filtersJson: JSON.stringify({ limit }) },
+      { tool: 'code_symbol', queryText: query, filtersJson: JSON.stringify({ limit }), limit },
       () => deps.codeSymbol(query, limit),
-      (results) => ({ resultCount: results.length, topQualifiedNames: topNames(results, 3) }),
+      (results) => ({
+        resultCount: results.length,
+        topQualifiedNames: topNames(results, 3),
+        matchedBy: results[0]?.matchedBy ?? null,
+        limit,
+      }),
     )
   }
 }
@@ -123,6 +156,7 @@ const wrapCodeImpact = (deps: Readonly<CodeindexToolDeps>, queriesPath: string):
         tool: 'code_impact',
         queryText: input.qualifiedName ?? input.symbolKey ?? null,
         filtersJson: JSON.stringify({ limit: input.limit }),
+        limit: input.limit,
       },
       () => deps.codeImpact(input),
       (outcome) => ({
@@ -131,6 +165,8 @@ const wrapCodeImpact = (deps: Readonly<CodeindexToolDeps>, queriesPath: string):
           .map((row) => row.sourceQualifiedName)
           .filter((name): name is string => name !== null)
           .slice(0, 3),
+        matchedBy: outcome.resolution.status === 'unresolved' ? null : (outcome.resolution.matchedBy ?? null),
+        limit: input.limit,
       }),
     )
   }

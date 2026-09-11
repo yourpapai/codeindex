@@ -1,0 +1,124 @@
+{
+  "frozenAt": "2026-09-11",
+  "purpose": "Two-repo dogfood evidence for the P3-S3 semantic gate (semantic-gate-study). Reproduce with: bun run docs/research/aggregate-query-log.ts <paths>",
+  "classifier": "src/mcp/query-shape.ts (classifyQueryShape / isZeroOrWeakResult); historical rows classified on the fly because query_shape is NULL pre-v3",
+  "databases": [
+    {
+      "id": "self",
+      "repo": "codeindex",
+      "path": "/Users/ki/Projects/yourpapai/codeindex/.codeindex/queries.db",
+      "dateRange": {
+        "min": "2026-09-09T07:29:05.006Z",
+        "max": "2026-09-10T11:25:03.081Z"
+      },
+      "total": 216,
+      "zeros": 54,
+      "weak": 121,
+      "byTool": {
+        "code_search": { "total": 88, "zeros": 6, "weak": 12 },
+        "code_symbol": { "total": 80, "zeros": 4, "weak": 64 },
+        "code_impact": { "total": 48, "zeros": 44, "weak": 45 }
+      },
+      "byShape": {
+        "identifier": 168,
+        "nl": 33,
+        "multi_token_lexical": 15
+      }
+    },
+    {
+      "id": "papai-memory-vector-graph-research",
+      "repo": "papai",
+      "path": "/Users/ki/Projects/yourpapai/papai/.worktrees/memory-vector-graph-research/.codeindex/queries.db",
+      "dateRange": {
+        "min": "2026-07-22T17:47:30.233Z",
+        "max": "2026-07-26T17:34:29.943Z"
+      },
+      "total": 247,
+      "zeros": 43,
+      "weak": 109,
+      "byTool": {
+        "code_search": { "total": 173, "zeros": 34, "weak": 45 },
+        "code_symbol": { "total": 29, "zeros": 7, "weak": 29 },
+        "code_impact": { "total": 45, "zeros": 2, "weak": 35 }
+      },
+      "byShape": {
+        "identifier": 111,
+        "nl": 102,
+        "multi_token_lexical": 34
+      },
+      "notes": "NL-heavy search traffic (memory/conversation concept queries)."
+    },
+    {
+      "id": "papai-analytics-metrics-research-plan",
+      "repo": "papai",
+      "path": "/Users/ki/Projects/yourpapai/papai/.worktrees/analytics-metrics-research-plan/.codeindex/queries.db",
+      "dateRange": {
+        "min": "2026-07-23T18:04:23.530Z",
+        "max": "2026-07-23T20:53:31.879Z"
+      },
+      "total": 236,
+      "zeros": 51,
+      "weak": 138,
+      "byTool": {
+        "code_search": { "total": 142, "zeros": 30, "weak": 52 },
+        "code_symbol": { "total": 77, "zeros": 18, "weak": 77 },
+        "code_impact": { "total": 17, "zeros": 3, "weak": 9 }
+      },
+      "byShape": {
+        "identifier": 112,
+        "nl": 116,
+        "multi_token_lexical": 8
+      }
+    },
+    {
+      "id": "papai-codeindex-integration",
+      "repo": "papai",
+      "path": "/Users/ki/Projects/yourpapai/papai/.worktrees/codeindex-integration/.codeindex/queries.db",
+      "dateRange": {
+        "min": "2026-09-10T05:17:42.837Z",
+        "max": "2026-09-10T05:30:29.681Z"
+      },
+      "total": 9,
+      "zeros": 2,
+      "weak": 7,
+      "byTool": {
+        "code_search": { "total": 2, "zeros": 0, "weak": 0 },
+        "code_symbol": { "total": 6, "zeros": 1, "weak": 6 },
+        "code_impact": { "total": 1, "zeros": 1, "weak": 1 }
+      },
+      "byShape": {
+        "identifier": 7,
+        "nl": 2
+      }
+    }
+  ],
+  "combined": {
+    "total": 708,
+    "zeros": 150,
+    "weak": 375,
+    "byTool": {
+      "code_search": { "total": 405, "zeros": 70, "weak": 109 },
+      "code_symbol": { "total": 192, "zeros": 30, "weak": 176 },
+      "code_impact": { "total": 111, "zeros": 50, "weak": 90 }
+    },
+    "byShape": {
+      "identifier": 398,
+      "nl": 253,
+      "multi_token_lexical": 57
+    }
+  },
+  "papaiIndexSnapshot": {
+    "path": "/Users/ki/Projects/yourpapai/papai/.codeindex/index.db",
+    "totalSymbols": 16465,
+    "exportedSymbols": 4669,
+    "uniqueExportLocalNames": 4380,
+    "uniqueExportLocalNameRate": 0.938,
+    "notes": "93.8% of exported symbols have a repo-unique local_name — the identity fix (exact SQL uniqueness) is the high-leverage accuracy win, not embeddings."
+  },
+  "excludedDatabases": [
+    {
+      "path": "/Users/ki/Projects/yourpapai/papai/.codeindex/queries.db",
+      "reason": "empty (0 rows)"
+    }
+  ]
+}

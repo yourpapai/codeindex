@@ -163,7 +163,45 @@ describe('resolveIncomingReferences', () => {
     })
   })
 
-  test('shared local name resolves to the rank-first candidate and echoes identity', () => {
+  test('repo-unique bare local name resolves via exact local_name, not FTS cardinality', () => {
+    const db = new Database(':memory:')
+    ensureSchema(db)
+    seedOpenDatabaseFixture(db)
+    // Extra unrelated symbols must not steal uniqueness; the bare name is still exact-SQL unique.
+    seedFile(db, 3, 'src/other.ts', 'src/other')
+    seedSymbol(db, {
+      id: 5,
+      fileId: 3,
+      filePath: 'src/other.ts',
+      moduleKey: 'src/other',
+      symbolKey: 'src/other.ts#0-9',
+      localName: 'openDatabaseHelper',
+      qualifiedName: 'src/other#openDatabaseHelper',
+      scopeTier: 'module',
+    })
+    seedSymbol(db, {
+      id: 6,
+      fileId: 3,
+      filePath: 'src/other.ts',
+      moduleKey: 'src/other',
+      symbolKey: 'src/other.ts#10-20',
+      localName: 'closeDatabase',
+      qualifiedName: 'src/other#closeDatabase',
+      scopeTier: 'module',
+    })
+
+    expect(resolveIncomingReferences(db, { qualifiedName: 'openDatabase', limit: 10 })).toEqual({
+      resolution: {
+        status: 'resolved',
+        matchedBy: 'local_name',
+        symbolKey: 'src/storage/db.ts#120-190',
+        qualifiedName: 'src/storage/db#openDatabase',
+      },
+      results: findIncomingReferences(db, { qualifiedName: 'src/storage/db#openDatabase', limit: 10 }),
+    })
+  })
+
+  test('ambiguous bare local name is unresolved with no rank-order guess', () => {
     const db = new Database(':memory:')
     ensureSchema(db)
     seedFile(db, 1, 'src/a.ts', 'src/a')
@@ -189,14 +227,26 @@ describe('resolveIncomingReferences', () => {
       scopeTier: 'exported',
     })
 
+    // Must not pick the rank-first candidate even when one is exported and one is module-scoped.
     expect(resolveIncomingReferences(db, { qualifiedName: 'dup', limit: 10 })).toEqual({
+      resolution: { status: 'unresolved' },
+      results: [],
+    })
+  })
+
+  test('bare local name also resolves when passed as symbolKey', () => {
+    const db = new Database(':memory:')
+    ensureSchema(db)
+    seedOpenDatabaseFixture(db)
+
+    expect(resolveIncomingReferences(db, { symbolKey: 'openDatabase', limit: 10 })).toEqual({
       resolution: {
         status: 'resolved',
         matchedBy: 'local_name',
-        symbolKey: 'src/b.ts#0-9',
-        qualifiedName: 'src/b#dup',
+        symbolKey: 'src/storage/db.ts#120-190',
+        qualifiedName: 'src/storage/db#openDatabase',
       },
-      results: [],
+      results: findIncomingReferences(db, { qualifiedName: 'src/storage/db#openDatabase', limit: 10 }),
     })
   })
 

@@ -38,6 +38,7 @@ Findings were gathered by:
 | `03-mcp-cli-config-testing.md` | Full inventory of the user-facing surface: the 4 MCP tools, CLI commands, `.codeindex.json` config, and the test suite. |
 | `04-gaps-and-opportunities.md` | A **consolidated, categorized catalog** of every concrete gap, bug, and limitation found across all three inventories, plus cross-cutting risks/blind spots. The actionable synthesis. |
 | `05-research-agenda.md` | The prioritized, forward-looking **research agenda** — tracks, benefit/effort/risk comparison matrix, phased sequencing, additional scenarios, and how each direction improves the core goals. |
+| `06-semantic-gate-decision.md` | **P3-S3 semantic gate closed.** Two-repo dogfood miss taxonomy (708 queries), semantic route **no-go** as default, reopen criteria, and the primary actionable finding: repo-unique local-name impact identity. Corpus freeze: [`corpus/semantic-gate-evidence.json`](./corpus/semantic-gate-evidence.json); aggregate: `bun run docs/research/aggregate-query-log.ts`. |
 
 ## The core goal (the lens everything is evaluated against)
 

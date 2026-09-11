@@ -274,7 +274,7 @@ describe('query_log schema migration preserves history', () => {
       expect(row).not.toBeNull()
       expect(row!.response_bytes).toBeNull()
       const version = db.query<{ user_version: number }, []>('PRAGMA user_version').get()
-      expect(version!.user_version).toBe(2)
+      expect(version!.user_version).toBe(3)
     } finally {
       db.close()
     }

@@ -80,6 +80,11 @@ const findSymbolIdByQualifiedName = (db: Database, qualifiedName: string): Symbo
     .query<SymbolIdentityRow, [string]>('SELECT id, symbol_key, qualified_name FROM symbols WHERE qualified_name = ?')
     .get(qualifiedName)
 
+const findSymbolsByLocalName = (db: Database, localName: string): readonly SymbolIdentityRow[] =>
+  db
+    .query<SymbolIdentityRow, [string]>('SELECT id, symbol_key, qualified_name FROM symbols WHERE local_name = ?')
+    .all(localName)
+
 const queryIncomingRows = (db: Database, targetSymbolId: number, limit: number): readonly ImpactResult[] =>
   db
     .query<
@@ -166,29 +171,38 @@ const resolveCanonicalTarget = (db: Database, input: Readonly<ImpactLookupInput>
   return undefined
 }
 
-// Spec stage 2: the exact stage of the candidate router (runExactSearch + rerank) — no FTS
-// fallback. Only exact-name identity forms count: exact_qualified / exact_local. Path-prefix
-// and export-name matches are deliberately not accepted identity forms.
-const resolveExactCandidate = (db: Database, identity: string, limit: number): ResolvedImpactTarget | undefined => {
-  const top = rerankSearchResults(runExactSearch(db, identity, limit, {})).find(
-    (candidate) => candidate.matchedBy === 'exact_qualified' || candidate.matchedBy === 'exact_local',
-  )
-  if (top === undefined) {
-    return undefined
+// Spec stage 2: exact identity columns only — no FTS candidacy, no rank-order pick.
+// qualified_name is accepted as-is (canonical uniqueness is the schema contract).
+// A bare local name is accepted iff exactly one indexed symbol has that local_name;
+// zero or multiple matches both stay unresolved so agents never get a wrong caller list.
+const resolveExactCandidate = (db: Database, identity: string): ResolvedImpactTarget | undefined => {
+  const byQualified = findSymbolIdByQualifiedName(db, identity)
+  if (byQualified !== null) {
+    return {
+      id: byQualified.id,
+      resolution: {
+        status: 'resolved',
+        matchedBy: 'qualified_name',
+        symbolKey: byQualified.symbol_key,
+        qualifiedName: byQualified.qualified_name,
+      },
+    }
   }
-  const row = findSymbolIdByKey(db, top.symbolKey)
-  if (row === null) {
-    return undefined
+
+  const byLocalName = findSymbolsByLocalName(db, identity)
+  if (byLocalName.length === 1) {
+    const row = byLocalName[0]!
+    return {
+      id: row.id,
+      resolution: {
+        status: 'resolved',
+        matchedBy: 'local_name',
+        symbolKey: row.symbol_key,
+        qualifiedName: row.qualified_name,
+      },
+    }
   }
-  return {
-    id: row.id,
-    resolution: {
-      status: 'resolved',
-      matchedBy: top.matchedBy === 'exact_qualified' ? 'qualified_name' : 'local_name',
-      symbolKey: row.symbol_key,
-      qualifiedName: row.qualified_name,
-    },
-  }
+  return undefined
 }
 
 export const resolveIncomingReferences = (db: Database, input: Readonly<ImpactLookupInput>): ImpactLookupOutcome => {
@@ -205,7 +219,7 @@ export const resolveIncomingReferences = (db: Database, input: Readonly<ImpactLo
     (value): value is string => value !== undefined,
   )
   for (const identity of identityInputs) {
-    const resolved = resolveExactCandidate(db, identity, input.limit)
+    const resolved = resolveExactCandidate(db, identity)
     if (resolved !== undefined) {
       return { resolution: resolved.resolution, results: queryIncomingRows(db, resolved.id, input.limit) }
     }

@@ -92,7 +92,7 @@ const registerImpactTool = (server: McpServer, deps: Readonly<CodeindexToolDeps>
     'code_impact',
     {
       description:
-        'Find incoming references for a symbol. Identity forms: exact symbol_key (file#start-end), exact qualified_name (module#name or parent>name), or exact local name — resolved exact-first; an identity matching no indexed symbol returns unresolved guidance instead of a fuzzy guess.',
+        'Find incoming references for a symbol. Identity forms: exact symbol_key (file#start-end), exact qualified_name (module#name or parent>name), or exact repo-unique local name. Ambiguous local names (more than one indexed symbol shares the name) return unresolved guidance rather than a rank-order guess; unknown identities return unresolved instead of fuzzy matches.',
       inputSchema: CodeImpactInputSchema,
       outputSchema: CodeImpactOutputSchema,
     },
@@ -103,7 +103,7 @@ const registerImpactTool = (server: McpServer, deps: Readonly<CodeindexToolDeps>
       // fine, so never advise a reindex there. A resolved symbol with zero rows can legitimately
       // mean an orphan-prone graph, so the code_symbol confirmation + full code_index advice
       // survives only for that case.
-      const unresolvedGuidance = `Identity "${symbolKey ?? qualifiedName ?? ''}" did not resolve to an indexed symbol by symbol_key, qualified_name, or exact local name. Use code_symbol to find the exact identity, then retry with its symbolKey or qualifiedName.`
+      const unresolvedGuidance = `Identity "${symbolKey ?? qualifiedName ?? ''}" did not resolve to an indexed symbol by exact symbol_key, exact qualified_name, or repo-unique local name (unknown or ambiguous). Ambiguous bare local names are never rank-order guessed. Use code_symbol to find the exact identity, then retry with its symbolKey or qualifiedName.`
       const guidance =
         resolution.status === 'unresolved'
           ? unresolvedGuidance
