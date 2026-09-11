@@ -32,7 +32,7 @@ interface SeedSymbolInput {
   readonly symbolKey: string
   readonly localName: string
   readonly qualifiedName: string
-  readonly scopeTier: 'exported' | 'module'
+  readonly scopeTier: 'exported' | 'module' | 'member'
 }
 
 const seedFile = (db: Database, id: number, filePath: string, moduleKey: string): void => {
@@ -201,7 +201,86 @@ describe('resolveIncomingReferences', () => {
     })
   })
 
-  test('ambiguous bare local name is unresolved with no rank-order guess', () => {
+  test('bare name unique among exports resolves despite member/local noise', () => {
+    const db = new Database(':memory:')
+    ensureSchema(db)
+    seedFile(db, 1, 'src/colors.ts', 'src/colors')
+    seedFile(db, 2, 'src/theme.ts', 'src/theme')
+    seedSymbol(db, {
+      id: 1,
+      fileId: 1,
+      filePath: 'src/colors.ts',
+      moduleKey: 'src/colors',
+      symbolKey: 'src/colors.ts#0-9',
+      localName: 'alpha',
+      qualifiedName: 'src/colors#alpha',
+      scopeTier: 'exported',
+    })
+    seedSymbol(db, {
+      id: 2,
+      fileId: 2,
+      filePath: 'src/theme.ts',
+      moduleKey: 'src/theme',
+      symbolKey: 'src/theme.ts#10-20',
+      localName: 'alpha',
+      qualifiedName: 'src/theme#ColorObject>alpha',
+      scopeTier: 'member',
+    })
+    seedSymbol(db, {
+      id: 3,
+      fileId: 2,
+      filePath: 'src/theme.ts',
+      moduleKey: 'src/theme',
+      symbolKey: 'src/theme.ts#21-30',
+      localName: 'alpha',
+      qualifiedName: 'src/theme#alpha',
+      scopeTier: 'module',
+    })
+
+    expect(resolveIncomingReferences(db, { qualifiedName: 'alpha', limit: 10 })).toEqual({
+      resolution: {
+        status: 'resolved',
+        matchedBy: 'local_name',
+        symbolKey: 'src/colors.ts#0-9',
+        qualifiedName: 'src/colors#alpha',
+      },
+      results: [],
+    })
+  })
+
+  test('two exports sharing a bare name stay unresolved with no rank-order guess', () => {
+    const db = new Database(':memory:')
+    ensureSchema(db)
+    seedFile(db, 1, 'src/a.ts', 'src/a')
+    seedFile(db, 2, 'src/b.ts', 'src/b')
+    seedSymbol(db, {
+      id: 1,
+      fileId: 1,
+      filePath: 'src/a.ts',
+      moduleKey: 'src/a',
+      symbolKey: 'src/a.ts#0-9',
+      localName: 'Helper',
+      qualifiedName: 'src/a#Helper',
+      scopeTier: 'exported',
+    })
+    seedSymbol(db, {
+      id: 2,
+      fileId: 2,
+      filePath: 'src/b.ts',
+      moduleKey: 'src/b',
+      symbolKey: 'src/b.ts#0-9',
+      localName: 'Helper',
+      qualifiedName: 'src/b#Helper',
+      scopeTier: 'exported',
+    })
+
+    expect(resolveIncomingReferences(db, { qualifiedName: 'Helper', limit: 10 })).toEqual({
+      resolution: { status: 'unresolved' },
+      results: [],
+    })
+  })
+
+  test('ambiguous bare local name with zero exports stays unresolved', () => {
     const db = new Database(':memory:')
     ensureSchema(db)
     seedFile(db, 1, 'src/a.ts', 'src/a')
@@ -224,10 +303,9 @@ describe('resolveIncomingReferences', () => {
       symbolKey: 'src/b.ts#0-9',
       localName: 'dup',
       qualifiedName: 'src/b#dup',
-      scopeTier: 'exported',
+      scopeTier: 'module',
     })
 
-    // Must not pick the rank-first candidate even when one is exported and one is module-scoped.
     expect(resolveIncomingReferences(db, { qualifiedName: 'dup', limit: 10 })).toEqual({
       resolution: { status: 'unresolved' },
       results: [],

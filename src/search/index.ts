@@ -68,21 +68,30 @@ interface SymbolIdentityRow {
   readonly id: number
   readonly symbol_key: string
   readonly qualified_name: string
+  readonly scope_tier: string
+  readonly module_key: string
+  readonly file_path: string
 }
 
 const findSymbolIdByKey = (db: Database, symbolKey: string): SymbolIdentityRow | null =>
   db
-    .query<SymbolIdentityRow, [string]>('SELECT id, symbol_key, qualified_name FROM symbols WHERE symbol_key = ?')
+    .query<SymbolIdentityRow, [string]>(
+      'SELECT id, symbol_key, qualified_name, scope_tier, module_key, file_path FROM symbols WHERE symbol_key = ?',
+    )
     .get(symbolKey)
 
 const findSymbolIdByQualifiedName = (db: Database, qualifiedName: string): SymbolIdentityRow | null =>
   db
-    .query<SymbolIdentityRow, [string]>('SELECT id, symbol_key, qualified_name FROM symbols WHERE qualified_name = ?')
+    .query<SymbolIdentityRow, [string]>(
+      'SELECT id, symbol_key, qualified_name, scope_tier, module_key, file_path FROM symbols WHERE qualified_name = ?',
+    )
     .get(qualifiedName)
 
 const findSymbolsByLocalName = (db: Database, localName: string): readonly SymbolIdentityRow[] =>
   db
-    .query<SymbolIdentityRow, [string]>('SELECT id, symbol_key, qualified_name FROM symbols WHERE local_name = ?')
+    .query<SymbolIdentityRow, [string]>(
+      'SELECT id, symbol_key, qualified_name, scope_tier, module_key, file_path FROM symbols WHERE local_name = ?',
+    )
     .all(localName)
 
 const queryIncomingRows = (db: Database, targetSymbolId: number, limit: number): readonly ImpactResult[] =>
@@ -173,8 +182,9 @@ const resolveCanonicalTarget = (db: Database, input: Readonly<ImpactLookupInput>
 
 // Spec stage 2: exact identity columns only — no FTS candidacy, no rank-order pick.
 // qualified_name is accepted as-is (canonical uniqueness is the schema contract).
-// A bare local name is accepted iff exactly one indexed symbol has that local_name;
-// zero or multiple matches both stay unresolved so agents never get a wrong caller list.
+// A bare local name is accepted iff exactly one indexed symbol has that local_name,
+// or (among multi-matches) exactly one of them is scope_tier='exported'.
+// Zero or multiple exports both stay unresolved so agents never get a wrong caller list.
 const resolveExactCandidate = (db: Database, identity: string): ResolvedImpactTarget | undefined => {
   const byQualified = findSymbolIdByQualifiedName(db, identity)
   if (byQualified !== null) {
@@ -202,6 +212,24 @@ const resolveExactCandidate = (db: Database, identity: string): ResolvedImpactTa
       },
     }
   }
+
+  // Lever A: unique-export cardinality. Never pick among two+ exports.
+  if (byLocalName.length > 1) {
+    const exported = byLocalName.filter((row) => row.scope_tier === 'exported')
+    if (exported.length === 1) {
+      const row = exported[0]!
+      return {
+        id: row.id,
+        resolution: {
+          status: 'resolved',
+          matchedBy: 'local_name',
+          symbolKey: row.symbol_key,
+          qualifiedName: row.qualified_name,
+        },
+      }
+    }
+  }
+
   return undefined
 }
 
