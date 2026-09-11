@@ -1,106 +1,31 @@
 import type { Database } from 'bun:sqlite'
 import path from 'node:path'
 
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 
 import { loadCodeindexConfig, type CodeindexConfig } from './config.js'
 import { indexCodebase } from './indexer/index-codebase.js'
-import { withFreshness, type IndexFreshnessState } from './mcp/freshness.js'
-import { withQueryLogging } from './mcp/query-logging.js'
-import { createReindexScheduler, type ReindexScheduler } from './mcp/reindex-scheduler.js'
-import { createCodeindexServer } from './mcp/server.js'
-import { createWatcher, type IndexWatcher } from './mcp/watcher.js'
 import {
-  findIncomingReferences,
-  findSymbolCandidates,
-  resolveIncomingReferences,
-  searchSymbols,
-} from './search/index.js'
+  buildMcpDeps,
+  createMcpRuntime,
+  createMcpSession,
+  type CreateMcpRuntimeOptions,
+  type McpComponents,
+  type McpRuntime,
+} from './mcp/runtime.js'
+import { loadServeToken, parseServeArgs, runServeCommand } from './mcp/serve.js'
+import { findIncomingReferences, findSymbolCandidates, searchSymbols } from './search/index.js'
 import { openDatabase } from './storage/db.js'
 import { openQueryLog, readQueryLogStats } from './storage/query-log.js'
 import type { QueryLogStats } from './storage/query-log.js'
-import { ensureSchema } from './storage/schema.js'
 
-// Neutral until the watcher (§4) supplies live catch-up state; the wrapper's
-// per-hit marks work identically either way.
-const neutralFreshnessState: IndexFreshnessState = { indexFreshness: 'fresh' }
-
-export interface McpComponents {
-  readonly scheduler?: ReindexScheduler
-  readonly watcher?: IndexWatcher
-}
-
-export const buildMcpDeps = (
-  config: CodeindexConfig,
-  components: Readonly<McpComponents> = {},
-): Parameters<typeof createCodeindexServer>[0] => {
-  const scheduler = components.scheduler ?? createReindexScheduler(({ mode }) => indexCodebase({ config, mode }))
-  const watcher = components.watcher
-  return withFreshness(
-    {
-      codeSearch: (input: Parameters<typeof searchSymbols>[1]): Promise<ReturnType<typeof searchSymbols>> =>
-        Promise.resolve(withDatabase(config, (db) => searchSymbols(db, input))),
-      codeSymbol: (query: string, limit: number): Promise<ReturnType<typeof findSymbolCandidates>> =>
-        Promise.resolve(withDatabase(config, (db) => findSymbolCandidates(db, query, limit))),
-      codeImpact: (
-        input: Parameters<typeof resolveIncomingReferences>[1],
-      ): Promise<ReturnType<typeof resolveIncomingReferences>> =>
-        Promise.resolve(withDatabase(config, (db) => resolveIncomingReferences(db, input))),
-      codeIndex: ({ mode }: { mode: 'full' | 'incremental' }): Promise<Awaited<ReturnType<typeof indexCodebase>>> =>
-        scheduler.submit({ mode }),
-    },
-    config,
-    watcher === undefined
-      ? (): IndexFreshnessState => neutralFreshnessState
-      : (): IndexFreshnessState => watcher.getIndexFreshness(),
-  )
-}
-
-export interface McpRuntime {
-  readonly createServer: () => McpServer
-  readonly watcher: IndexWatcher
-}
-
-export interface CreateMcpRuntimeOptions {
-  /** Test seam: replace the reindex runner. Defaults to indexCodebase for config. */
-  readonly indexRunner?: (
-    input: Readonly<{ mode: 'full' | 'incremental' }>,
-  ) => Promise<Awaited<ReturnType<typeof indexCodebase>>>
-}
-
-// Shared process-level assembly: one serialized writer (scheduler), one watcher
-// feeding freshness state, and a boot-time ensureSchema so queries serve immediately
-// even on a fresh worktree. createServer can be called per transport/session; every
-// server instance closes over the same deps object.
-export const createMcpRuntime = (
-  config: CodeindexConfig,
-  options: Readonly<CreateMcpRuntimeOptions> = {},
-): McpRuntime => {
-  const db = openDatabase(config.dbPath)
-  try {
-    ensureSchema(db)
-  } finally {
-    db.close()
-  }
-  const indexRunner =
-    options.indexRunner ??
-    (({ mode }: Readonly<{ mode: 'full' | 'incremental' }>): Promise<Awaited<ReturnType<typeof indexCodebase>>> =>
-      indexCodebase({ config, mode }))
-  const scheduler = createReindexScheduler(indexRunner)
-  const watcher = createWatcher(config, (input) => scheduler.submit(input))
-  const deps = withQueryLogging(buildMcpDeps(config, { scheduler, watcher }), config)
-  return {
-    createServer: () => createCodeindexServer(deps),
-    watcher,
-  }
-}
-
-export const createMcpSession = (
-  config: CodeindexConfig,
-): Readonly<{ readonly server: McpServer; readonly watcher: IndexWatcher }> => {
-  const { createServer, watcher } = createMcpRuntime(config)
-  return { server: createServer(), watcher }
+export {
+  buildMcpDeps,
+  createMcpRuntime,
+  createMcpSession,
+  type CreateMcpRuntimeOptions,
+  type McpComponents,
+  type McpRuntime,
 }
 
 const runMcpCommand = async (config: CodeindexConfig): Promise<void> => {
@@ -175,16 +100,19 @@ export const runLogStatsCommand = (config: CodeindexConfig): QueryLogStats => {
   }
 }
 
+const runServeCli = async (rest: readonly string[]): Promise<void> => {
+  const { port, path: servePath } = parseServeArgs(rest)
+  const serveConfig = await loadConfigForPath(servePath)
+  await runServeCommand(serveConfig, { port, token: loadServeToken() })
+}
+
 const main = async (): Promise<void> => {
   const argv = process.argv.slice(2)
   const command = argv[0] ?? 'index'
   const rest = argv.slice(1)
 
   if (command === 'serve') {
-    const { loadServeToken, parseServeArgs, runServeCommand } = await import('./mcp/serve.js')
-    const { port, path: servePath } = parseServeArgs(rest)
-    const serveConfig = await loadConfigForPath(servePath)
-    await runServeCommand(serveConfig, { port, token: loadServeToken() })
+    await runServeCli(rest)
     return
   }
 

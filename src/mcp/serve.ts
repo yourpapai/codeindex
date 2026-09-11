@@ -5,8 +5,8 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import { z } from 'zod'
 
-import { createMcpRuntime, type CreateMcpRuntimeOptions } from '../cli.js'
 import type { CodeindexConfig } from '../config.js'
+import { createMcpRuntime, type CreateMcpRuntimeOptions } from './runtime.js'
 
 export const DEFAULT_SERVE_PORT = 3456
 export const SERVE_HOST = '127.0.0.1'
