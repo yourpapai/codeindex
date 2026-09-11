@@ -18,8 +18,8 @@
 
 ## 4. Optional bearer auth
 
-- [ ] 4.1 RED — write `tests/mcp/auth.test.ts`: no token → tool call succeeds; configured token + missing/wrong bearer → `401` + `WWW-Authenticate: Bearer`; matching bearer → success; token shorter than 32 chars rejected at startup. Watch it fail. Verify: `bun test tests/mcp/auth.test.ts`
-- [ ] 4.2 GREEN — implement hand-rolled bearer check on the serve `fetch` path (`timingSafeEqual`); load token from `CODEINDEX_TOKEN` or `CODEINDEX_TOKEN_FILE`; stdio path ignores auth env. Verify: `bun test tests/mcp/auth.test.ts && bun run typecheck`
+- [x] 4.1 RED — write `tests/mcp/auth.test.ts`: no token → tool call succeeds; configured token + missing/wrong bearer → `401` + `WWW-Authenticate: Bearer`; matching bearer → success; token shorter than 32 chars rejected at startup. Watch it fail. Verify: `bun test tests/mcp/auth.test.ts`
+- [x] 4.2 GREEN — implement hand-rolled bearer check on the serve `fetch` path (`timingSafeEqual`); load token from `CODEINDEX_TOKEN` or `CODEINDEX_TOKEN_FILE`; stdio path ignores auth env. Verify: `bun test tests/mcp/auth.test.ts && bun run typecheck`
 
 ## 5. Shared-session invariants + docs touch
 

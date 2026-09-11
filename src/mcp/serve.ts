@@ -1,4 +1,5 @@
-import { randomUUID } from 'node:crypto'
+import { randomUUID, timingSafeEqual } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 
 import { z } from 'zod'
 
@@ -10,8 +11,46 @@ import type { CodeindexConfig } from '../config.js'
 export const DEFAULT_SERVE_PORT = 3456
 export const SERVE_HOST = '127.0.0.1'
 export const SERVE_PATH = '/mcp'
+export const MIN_TOKEN_LENGTH = 32
 
 export const ServePortSchema = z.number().int().min(1).max(65535)
+
+export const validateServeToken = (token: string): string => {
+  if (token.length < MIN_TOKEN_LENGTH) {
+    throw new Error(`Serve token must be at least ${MIN_TOKEN_LENGTH} characters (got ${token.length})`)
+  }
+  return token
+}
+
+export const loadServeToken = (): string | null => {
+  const fromEnv = process.env['CODEINDEX_TOKEN']
+  if (fromEnv !== undefined && fromEnv !== '') {
+    return validateServeToken(fromEnv)
+  }
+  const filePath = process.env['CODEINDEX_TOKEN_FILE']
+  if (filePath !== undefined && filePath !== '') {
+    return validateServeToken(readFileSync(filePath, 'utf8').trim())
+  }
+  return null
+}
+
+const tokensMatch = (presented: string, expected: string): boolean => {
+  const a = Buffer.from(presented, 'utf8')
+  const b = Buffer.from(expected, 'utf8')
+  if (a.length !== b.length) {
+    // Equalize work on length mismatch; never leak via early return alone.
+    timingSafeEqual(a, a)
+    return false
+  }
+  return timingSafeEqual(a, b)
+}
+
+const bearerAuthorized = (header: string | null, token: string): boolean => {
+  if (header === null) return false
+  const prefix = 'Bearer '
+  if (!header.startsWith(prefix)) return false
+  return tokensMatch(header.slice(prefix.length), token)
+}
 
 export interface ServeCliArgs {
   readonly port: number
@@ -86,14 +125,11 @@ export const startServe = async (
       return new Response('Not Found', { status: 404 })
     }
 
-    if (token !== null) {
-      const header = req.headers.get('authorization')
-      if (header === null || header !== `Bearer ${token}`) {
-        return new Response('Unauthorized', {
-          status: 401,
-          headers: { 'WWW-Authenticate': 'Bearer' },
-        })
-      }
+    if (token !== null && !bearerAuthorized(req.headers.get('authorization'), token)) {
+      return new Response('Unauthorized', {
+        status: 401,
+        headers: { 'WWW-Authenticate': 'Bearer' },
+      })
     }
 
     const sessionId = req.headers.get('mcp-session-id')

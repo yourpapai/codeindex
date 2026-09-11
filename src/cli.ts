@@ -167,10 +167,10 @@ const main = async (): Promise<void> => {
   const rest = argv.slice(1)
 
   if (command === 'serve') {
-    const { parseServeArgs, runServeCommand } = await import('./mcp/serve.js')
+    const { loadServeToken, parseServeArgs, runServeCommand } = await import('./mcp/serve.js')
     const { port, path: servePath } = parseServeArgs(rest)
     const serveConfig = await loadConfigForPath(servePath)
-    await runServeCommand(serveConfig, { port })
+    await runServeCommand(serveConfig, { port, token: loadServeToken() })
     return
   }
 
